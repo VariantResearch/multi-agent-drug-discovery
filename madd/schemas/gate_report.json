@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "properties": {
+    "artifact_type": {
+      "enum": [
+        "gate_report"
+      ],
+      "type": "string"
+    },
+    "details": {
+      "type": "object"
+    },
+    "gate_id": {
+      "type": "string"
+    },
+    "gate_name": {
+      "type": "string"
+    },
+    "result": {
+      "enum": [
+        "pass",
+        "fail",
+        "not_run"
+      ],
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "subject_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "gate_id",
+    "gate_name",
+    "subject_id",
+    "result"
+  ],
+  "type": "object"
+}

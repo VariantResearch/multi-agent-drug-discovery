@@ -1,0 +1,15 @@
+{
+  "_synthetic": true,
+  "artifact_type": "frame",
+  "disease_code": "SYN-001",
+  "exclusion_criteria": [
+    "SYNTHETIC exclusion placeholder A",
+    "SYNTHETIC exclusion placeholder B"
+  ],
+  "frame_id": "SYN-FRAME-001",
+  "intended_effect_profile": "SYNTHETIC placeholder effect profile for code tests only.",
+  "question": "SYNTHETIC placeholder question for code tests only: which invented focus, if any, should be examined first for code SYN-001?",
+  "round_cap": 3,
+  "schema_version": "0.1.0",
+  "synthetic_notice": "SYNTHETIC: all data in this file is invented for code tests only. It describes no real disease, target, source, or finding."
+}
