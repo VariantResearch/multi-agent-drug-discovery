@@ -1,96 +1,104 @@
-# Multi-Agent Drug Discovery (MADD) - Phase 0 Scaffold
+# Multi-Agent Drug Discovery
 
-A provider-neutral, open-source research engine design in which agents from
-different model families research a framed question independently and
-blinded, produce structured dossiers, debate under a written protocol, lock
-a consensus specification (or record a no-go), design candidates only
-against that locked specification, pass layered validation gates, and only
-then generate a paper draft from the frozen artifacts.
+MADD runs the early part of drug discovery as a structured argument.
 
-Status: Phase 0 scaffold. This repository contains schemas, a claim
-auditor, a citation auditor, a license registry, consensus logic, a focus
-scorer, a mock provider, and a command line interface. It contains no live
-model calls, no provider SDKs, no network calls, and no design tools wired
-in yet. Nothing in this repository is a research result.
+You start with a disease and the effect you want in a patient. Several AI
+models then research possible targets on their own, without seeing each
+other's work. After that they have to defend what they found in front of
+each other. Claims that cannot be tied to a real source get removed.
+Whatever survives becomes one target specification, and candidates are
+designed against that specification only.
 
-## What this is not
+The point of the setup is to slow the models down. A single model will
+give you a confident answer in seconds, and the citations behind it do
+not always hold up. Here every load-bearing claim needs a source
+identifier, an auditor checks it, and a red-team pass argues against the
+leading target before anything is locked.
 
-- Not a drug, and it does not contain one.
-- Not clinical advice, and it must not be used as clinical advice.
-- It cannot prove a treatment works. Software output, agent agreement, and
-  a generated paper draft are not proof of effect in a human.
-- Any candidate that emerges from the full design would still require a
-  wet-lab handoff, independent experimental testing, and human sign-off
-  before any further step. See RESPONSIBLE_USE.md.
-- It makes no disease, target, or efficacy claims. Example and fixture
-  data in this repository are synthetic, invented, and labelled as such.
+## Where it stands
 
-## The six stages
+This is early work. What is in the repo now:
 
-1. Frame - a written question, an intended effect profile, and explicit
-   exclusion criteria are fixed before any agent runs.
-2. Research - each agent researches the frame independently and blinded
-   and submits a sealed dossier of claims with sources.
-3. Debate - dossiers are unsealed and cross-examined under
-   docs/DEBATE_PROTOCOL.md. Unverified claims are struck, not debated.
-4. Design - candidates are designed only against a locked consensus
-   specification produced by stage 3, and only with tools the license
-   registry allows for the run's declared use.
-5. Validate - candidates and the consensus pass layered gates. Outputs are
-   labelled by the highest gate actually passed, never higher.
-6. Publish - a paper draft is generated only from frozen, hashed
-   artifacts, with the dissent log and the gate reports included.
+- The data formats for each stage (frame, claims, dossier, consensus
+  specification, candidate, gate report, run manifest), with hashing so
+  a finished stage cannot be quietly edited later.
+- A claim auditor and an offline citation checker. They reject claims
+  with no source, claims resting on model opinion, and claims that have
+  been struck.
+- A license registry for the design tools, so a model whose license
+  forbids commercial use cannot slip into a commercial run.
+- The consensus tests and a focus score that is calculated from the
+  evidence behind a target, not from how confident a model sounds.
+- Gate 0, a test set of eight real drug programs (see below).
+- A command line tool and a mock model provider for testing.
 
-## Anti-slop evidence rules (binding)
+Models are not wired in yet. Nothing here calls a live AI API, designs a
+molecule, or runs an experiment. The debate engine is the next phase and
+its specification is in docs/PHASE1_SPEC.md, still awaiting approval.
 
-These rules are enforced in code where code can enforce them, and are a
-condition of contribution where it cannot. Full text: docs/EVIDENCE_POLICY.md.
+## Gate 0
 
-- Every load-bearing claim must carry a primary-source identifier.
-- Model opinion is never evidence. Evidence tier 0 is not evidence.
-- Agreement between agents is never evidence. Consensus is a process
-  outcome, not a source.
-- An unverified claim may be recorded, but it cannot support a locked
-  specification, a candidate, or a paper claim.
-- A claim whose verification status is "struck" is removed from
-  consideration. It is not debated, averaged, or outvoted.
-- Focus ranking is computed deterministically from evidence tiers and
-  audited status only, in madd/focus.py. Model confidence prose plays no
-  part in the score.
-- Citations are audited mechanically by madd/citation_auditor.py: identifier
-  format first, supporting-quote presence second, live resolution later.
-  A citation that has not been live-resolved is labelled unverified.
-- Any text that cannot be traced to a frozen artifact and an audited claim
-  does not go in a paper draft.
+Before this system is trusted on a new target, it has to show it can
+tell apart real programs that worked from real ones that failed, using
+only the evidence that existed before the result was known.
 
-## Repository layout
+gate0/ holds eight cases: evolocumab, ivacaftor, semaglutide and
+erenumab on one side; verubecestat, PF-05089771, BEN-2293 and REC-994 on
+the other. Each case is a blinded pack of pre-outcome evidence, with the
+actual result kept in a separate sealed folder. Every claim in the packs
+was checked against its primary source (PubMed, ClinicalTrials.gov, FDA
+records, or the sponsor's own statement) and the ledger in
+gate0/VERIFICATION_LEDGER.md shows the source for each one.
 
-- madd/ - the core package. Python standard library only.
-- madd/schemas/ - JSON Schema files for the seven artifact types.
-- madd/data/license_registry.json - tool license entries and run-use rules.
-- docs/ - evidence policy, debate protocol, and the Phase 0 specification.
-- examples/synthetic/ - invented fixtures, labelled synthetic, used only
-  to exercise the code.
-- tests/ - unittest suite.
+One honest caveat: these are famous programs, so a model may remember
+how they ended. Treat Gate 0 as a calibration test, not a clean blind
+trial. It is there to catch bad reasoning and bad citations, and it will
+catch some of both.
 
-## Running the tests
+## The rules that matter
+
+These are enforced by the code where the code can enforce them. The
+full policy is in docs/EVIDENCE_POLICY.md.
+
+- A claim without a primary source does not count, no matter which
+  model made it or how many models agree with it.
+- Agreement between models is not evidence. It is just agreement.
+- A struck claim is out. It does not get debated back in.
+- Results are labelled by the highest test they actually passed. A
+  candidate that passed a computer check is "computationally validated"
+  and nothing more.
+- Test fixtures for the code use invented data and say so. The research
+  data in gate0/ is real, with sources.
+
+Safety and scope rules (which targets are out of bounds, why a person
+has to sign off before anything leaves the system) are in
+RESPONSIBLE_USE.md.
+
+## Running it
 
     python3 -m unittest discover -s tests -v
-
-## Command line
-
-Run from the repository root:
-
+    python3 -m madd gate0-validate
+    python3 -m madd gate0-list
     python3 -m madd audit-claims examples/synthetic/dossier.json
     python3 -m madd check-tool Boltz-2 --use commercial
     python3 -m madd check-tool "AlphaFold 3" --use commercial
-    python3 -m madd focus-score examples/synthetic/dossier.json
-    python3 -m madd validate-artifact frame examples/synthetic/frame.json
 
-Exit status is non-zero when a check fails.
+The audit of the synthetic dossier fails on purpose: it contains a claim
+resting on model opinion, and the auditor is supposed to catch it.
+
+## Layout
+
+- madd/ - the Python package. Standard library only.
+- madd/schemas/ - the stage formats.
+- madd/data/license_registry.json - tool licenses and what they allow.
+- gate0/ - the retrospective test set, its sealed outcomes, and its
+  verification ledger.
+- docs/ - evidence policy, debate protocol, and the phase specs.
+- examples/synthetic/ - invented fixtures for the code tests.
+- tests/ - the test suite.
 
 ## License
 
-Apache-2.0. See LICENSE. Tool licenses are separate from this project's
-license and are tracked in madd/data/license_registry.json; a tool being
-listed there does not grant any rights in that tool.
+Apache-2.0 for this project's own code. The tools listed in the license
+registry have their own licenses, which the registry tracks; listing a
+tool here does not grant any rights to it.

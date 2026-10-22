@@ -19,6 +19,16 @@
   not yet set, per docs/PHASE0_SPEC.md).
 - CLI subcommands gate0-validate and gate0-list.
 - tests/test_gate0.py: dataset integrity tests over the real Gate 0 set.
+- docs/PHASE1_SPEC.md: draft specification for the debate engine,
+  including proposed Gate 0 pass thresholds. Draft only, awaiting owner
+  approval; no threshold is in force and no model roster is approved.
+
+### Changed
+
+- README rewritten in plainer language and updated for Gate 0. The old
+  "What this is not" list was removed: parts of it were obvious, and its
+  claim that the repository makes no disease or target claims stopped
+  being true when the real Gate 0 data landed.
 
 ## [0.1.0] - 2026-10-22
 
