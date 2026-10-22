@@ -22,6 +22,13 @@
 - docs/PHASE1_SPEC.md: draft specification for the debate engine,
   including proposed Gate 0 pass thresholds. Draft only, awaiting owner
   approval; no threshold is in force and no model roster is approved.
+- Phase 1 thresholds approved by the project owner on 2026-10-22 and
+  recorded as in force in docs/PHASE1_SPEC.md: kill at least 3 of 4
+  known negatives, advance at least 3 of 4 known positives, beat the
+  single-model baseline by at least 1 case, zero audit violations,
+  judge-swap stability of at most 1 flipped call in 8. The model roster
+  and the run budget figure remain open and must be recorded in the
+  spec before the first scored run.
 
 ### Changed
 
