@@ -1,0 +1,85 @@
+# Debate Protocol
+
+Status: design document. This protocol is a design, not a report of any
+debate that has taken place. No debate has been run with this scaffold.
+
+## Participants and roles
+
+- Research agents: two or more agents from different model families, each
+  assigned the same frame independently.
+- Evidence auditor: a tool-based checker (code, not an agent vote) that
+  runs the claim and citation audits. Its strike decisions are not subject
+  to agent vote.
+- Judge: an agent or deterministic scorer that applies the consensus tests
+  in madd/consensus.py. The judge produces scores; it does not supply
+  evidence.
+- Human sign-off: see RESPONSIBLE_USE.md. The protocol ends at a
+  recommendation to a human, never at an external action.
+
+## Steps
+
+1. Blinded dossiers. Each research agent works alone, cannot see any other
+   dossier, and submits a sealed dossier: claims with sources, a proposed
+   focus, and an explicit list of what it could not verify.
+2. Evidence call. Before any argument, the auditor checks every claim in
+   every dossier. Claims that fail the ledger rules or the citation format
+   checks are struck and listed. Struck claims are out of the debate.
+3. Cross-examination. Each agent must state, for each rival dossier, the
+   strongest objection it can support from surviving claims, and must
+   answer objections to its own dossier by pointing to surviving claims
+   or by withdrawing the point. New claims introduced here enter the
+   ledger and are audited before they can be used.
+4. Pairwise ranking. Surviving dossiers are ranked pairwise on the
+   pre-declared rubric: tier-weighted audited evidence, coverage of the
+   frame, and number of struck claims (fewer is better). Prose quality is
+   not a rubric item.
+5. Evolution round. The top-ranked dossier may be revised once, using only
+   surviving claims from any dossier, with every reused claim keeping its
+   original identifier. The revision is re-audited in full.
+6. Consensus tests. The revised (or top) dossier is tested as a candidate
+   specification under the four tests below, implemented in
+   madd/consensus.py.
+7. Record. The outcome is a locked specification or a no-go, plus the
+   dissent log, plus the auditor's strike list. All three are frozen and
+   hashed together.
+
+## The four consensus tests
+
+- Agreement - all research dossiers propose the same focus identifier.
+  Disagreement is not papered over by the judge; it is recorded and the
+  specification, if any, must come from the evolution round.
+- Survival - every load-bearing claim in the candidate specification
+  passes the claim ledger audit. One failed load-bearing claim fails the
+  test.
+- Evidence floor - the candidate specification rests on at least one
+  audited claim at tier 3 or better. A specification resting only on
+  tier 4 or tier 5 claims, or on no audited claims, fails.
+- Stability - re-running the judging step with a different judge (judge
+  swap) selects the same focus identifier. If the answer changes with the
+  judge, the consensus is a property of the judge, not of the evidence,
+  and the test fails.
+
+All four tests must pass to lock a specification. Any failure produces a
+no-go or a return to step 3, within the round cap below.
+
+## Anti-groupthink rules
+
+- Round cap: cross-examination and evolution together are capped at a
+  number of rounds fixed in the frame, before the run starts. Reaching the
+  cap without passing all four tests is a no-go, not a prompt to keep
+  arguing.
+- Mandatory dissent log: every run produces a dissent log, including
+  runs that end in agreement. Unresolved objections are recorded verbatim,
+  with the dissenting agent and the claim identifiers involved. An empty
+  dissent log is valid only if a dissent_none_reason is recorded.
+- No agent may cite another agent as evidence. A claim whose source is an
+  agent, a model, or the debate transcript is tier 0 and cannot be
+  load-bearing.
+- Instant agreement triggers a red-team round: if all dossiers agree on
+  the focus in the blinded round, one extra cross-examination round is
+  run in which each agent is assigned to argue against the agreed focus
+  using surviving claims only. Agreement that survives an assigned attack
+  is recorded; agreement is still not evidence.
+- No confidence language in outputs: dossiers and specifications record
+  tiers, counts, and audit outcomes. Words asserting confidence are not a
+  field in any schema and play no part in scoring.

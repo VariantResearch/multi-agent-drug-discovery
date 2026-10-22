@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "properties": {
+    "claim_id": {
+      "type": "string"
+    },
+    "evidence_tier": {
+      "type": "integer"
+    },
+    "identifier_type": {
+      "type": "string"
+    },
+    "load_bearing": {
+      "type": "boolean"
+    },
+    "source_identifier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_kind": {
+      "type": "string"
+    },
+    "supporting_quote": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "verification_status": {
+      "enum": [
+        "unverified",
+        "resolved",
+        "quote_checked",
+        "struck"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "claim_id",
+    "text",
+    "load_bearing",
+    "evidence_tier",
+    "source_kind",
+    "verification_status"
+  ],
+  "type": "object"
+}

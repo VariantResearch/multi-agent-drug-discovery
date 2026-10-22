@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "properties": {
+    "_synthetic": {
+      "type": "boolean"
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "artifact_type": {
+      "enum": [
+        "dossier"
+      ],
+      "type": "string"
+    },
+    "claims": {
+      "items": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": true,
+        "properties": {
+          "claim_id": {
+            "type": "string"
+          },
+          "evidence_tier": {
+            "type": "integer"
+          },
+          "identifier_type": {
+            "type": "string"
+          },
+          "load_bearing": {
+            "type": "boolean"
+          },
+          "source_identifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_kind": {
+            "type": "string"
+          },
+          "supporting_quote": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "verification_status": {
+            "enum": [
+              "unverified",
+              "resolved",
+              "quote_checked",
+              "struck"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "text",
+          "load_bearing",
+          "evidence_tier",
+          "source_kind",
+          "verification_status"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "direction": {
+      "type": "string"
+    },
+    "dossier_id": {
+      "type": "string"
+    },
+    "frame_id": {
+      "type": "string"
+    },
+    "model_family": {
+      "type": "string"
+    },
+    "proposed_focus_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "synthetic_notice": {
+      "type": "string"
+    },
+    "unverified_notes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "dossier_id",
+    "frame_id",
+    "agent_id",
+    "claims"
+  ],
+  "type": "object"
+}

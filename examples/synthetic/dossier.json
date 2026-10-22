@@ -1,0 +1,51 @@
+{
+  "_synthetic": true,
+  "agent_id": "synthetic-agent-a",
+  "artifact_type": "dossier",
+  "claims": [
+    {
+      "claim_id": "SYN-C-GOOD",
+      "evidence_tier": 3,
+      "identifier_type": "doi",
+      "load_bearing": true,
+      "source_identifier": "10.0000/synthetic.example.001",
+      "source_kind": "primary_source",
+      "source_url": "https://example.org/synthetic-source-001",
+      "supporting_quote": "",
+      "text": "SYNTHETIC placeholder claim with a well-formed identifier, recorded as unverified.",
+      "verification_status": "unverified"
+    },
+    {
+      "claim_id": "SYN-C-OPINION",
+      "evidence_tier": 0,
+      "identifier_type": "doi",
+      "load_bearing": true,
+      "source_identifier": null,
+      "source_kind": "model_opinion",
+      "supporting_quote": "",
+      "text": "SYNTHETIC model-opinion claim that must fail the load-bearing audit.",
+      "verification_status": "unverified"
+    },
+    {
+      "claim_id": "SYN-C-STRUCK",
+      "evidence_tier": 5,
+      "identifier_type": "doi",
+      "load_bearing": false,
+      "source_identifier": "10.0000/synthetic.example.002",
+      "source_kind": "primary_source",
+      "supporting_quote": "",
+      "text": "SYNTHETIC struck claim that must stay excluded.",
+      "verification_status": "struck"
+    }
+  ],
+  "direction": "synthetic_direction",
+  "dossier_id": "SYN-DOSSIER-001",
+  "frame_id": "SYN-FRAME-001",
+  "model_family": "synthetic-family-a",
+  "proposed_focus_id": "SYN-T1",
+  "schema_version": "0.1.0",
+  "synthetic_notice": "SYNTHETIC: all data in this file is invented for code tests only. It describes no real disease, target, source, or finding.",
+  "unverified_notes": [
+    "All claims in this fixture are synthetic and unverified."
+  ]
+}

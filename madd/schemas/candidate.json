@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "properties": {
+    "_synthetic": {
+      "type": "boolean"
+    },
+    "artifact_type": {
+      "enum": [
+        "candidate"
+      ],
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "design_tool": {
+      "type": "string"
+    },
+    "highest_gate_passed": {
+      "type": "string"
+    },
+    "modality": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "spec_id": {
+      "type": "string"
+    },
+    "synthetic_notice": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "candidate_id",
+    "spec_id",
+    "modality"
+  ],
+  "type": "object"
+}

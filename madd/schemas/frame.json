@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "properties": {
+    "_synthetic": {
+      "type": "boolean"
+    },
+    "artifact_type": {
+      "enum": [
+        "frame"
+      ],
+      "type": "string"
+    },
+    "exclusion_criteria": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "frame_id": {
+      "type": "string"
+    },
+    "intended_effect_profile": {
+      "type": "string"
+    },
+    "question": {
+      "type": "string"
+    },
+    "round_cap": {
+      "type": "integer"
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "synthetic_notice": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "frame_id",
+    "question"
+  ],
+  "type": "object"
+}
