@@ -33,8 +33,10 @@ This is early work. What is in the repo now:
 - A command line tool and a mock model provider for testing.
 
 Models are not wired in yet. Nothing here calls a live AI API, designs a
-molecule, or runs an experiment. The debate engine is the next phase and
-its specification is in docs/PHASE1_SPEC.md, still awaiting approval.
+molecule, or runs an experiment. The debate engine is the next phase.
+Its specification is in docs/PHASE1_SPEC.md and its Gate 0 pass
+thresholds were approved on 2026-10-22; the model roster is still to be
+chosen.
 
 ## Gate 0
 

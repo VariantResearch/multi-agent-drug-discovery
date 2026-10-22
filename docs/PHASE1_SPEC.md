@@ -1,10 +1,11 @@
 # Phase 1 Specification - Debate Engine
 
-Status: DRAFT, awaiting approval. Nothing in this document is in force
-until the project owner approves it and the approval, with the final
-threshold values, is recorded in this file. In particular, no scored
-Gate 0 run may be reported against thresholds that were chosen after
-the run.
+Status: APPROVED by the project owner on 2026-10-22. The thresholds
+below are in force from that date. Two items remain open and are marked
+as such where they appear: the model roster, and the budget figure,
+which must be recorded in this file before the first scored run. No
+scored Gate 0 run may be reported against thresholds that were chosen
+after the run.
 
 ## Purpose
 
@@ -41,10 +42,11 @@ Out of scope for Phase 1: candidate design, molecule or peptide
 generation, any external submission, and any prospective (new target)
 run. Prospective runs come after Gate 0 is passed, not before.
 
-## Proposed thresholds (for approval, not yet in force)
+## Approved thresholds
 
-These values are proposals by the drafting author. They are written
-here so the owner can accept, change, or reject them before any run.
+Approved by the project owner on 2026-10-22, as proposed in the draft
+of the same date. Changing any value below after a scored run has
+started requires a new run record and a changelog entry saying why.
 
 1. Failure kill rate: the debate system must call at least 3 of the 4
    known negative Gate 0 cases a no-go.
@@ -83,8 +85,9 @@ tested against the mock provider only.
 
 ## Run protocol for the first scored Gate 0 run
 
-1. Record in this file: the approved thresholds, the model roster with
-   exact version identifiers, the baseline model, and the budget.
+1. Record in this file: the model roster with exact version
+   identifiers, the baseline model, and the budget. (Thresholds were
+   recorded and approved on 2026-10-22.)
 2. Freeze the Gate 0 input packs at their current hashes. Any edit to a
    pack after this point starts a new run record.
 3. Run the baseline first, seal its calls, then run the debate system.
