@@ -4,6 +4,8 @@ Subcommands:
   audit-claims <file>
   check-tool <tool> --use research|commercial
   focus-score <file>
+  gate0-list [--gate0-dir <dir>]
+  gate0-validate [--gate0-dir <dir>]
   validate-artifact <schema-name> <file>
 
 Output is human-readable. Exit status is non-zero when a check fails.
@@ -18,6 +20,7 @@ from pathlib import Path
 from .citation_auditor import audit_citations
 from .claims import audit_claims
 from .focus import focus_score
+from .gate0 import list_case_ids, load_input_pack, validate_dataset
 from .license_registry import check_tool
 from .schemas import SCHEMA_NAMES, validate_artifact
 
@@ -85,6 +88,23 @@ def _cmd_validate_artifact(args) -> int:
     return 0
 
 
+def _cmd_gate0_validate(args) -> int:
+    report = validate_dataset(args.gate0_dir)
+    print("cases:", report["case_count"])
+    print("errors:", report["error_count"])
+    for e in report["errors"]:
+        print(" -", e.get("case_id", "-"), "|", e["code"], "|", e["message"])
+    print("result:", "PASS" if report["ok"] else "FAIL")
+    return 0 if report["ok"] else 1
+
+
+def _cmd_gate0_list(args) -> int:
+    for case_id in list_case_ids(args.gate0_dir):
+        pack = load_input_pack(case_id, args.gate0_dir)
+        print(case_id, "|", pack.get("disease", ""))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="madd", description="MADD Phase 0 scaffold CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -95,6 +115,10 @@ def build_parser() -> argparse.ArgumentParser:
     p3 = sub.add_parser("focus-score"); p3.add_argument("file"); p3.set_defaults(fn=_cmd_focus_score)
     p4 = sub.add_parser("validate-artifact"); p4.add_argument("schema_name"); p4.add_argument("file")
     p4.set_defaults(fn=_cmd_validate_artifact)
+    p5 = sub.add_parser("gate0-validate"); p5.add_argument("--gate0-dir", default=None)
+    p5.set_defaults(fn=_cmd_gate0_validate)
+    p6 = sub.add_parser("gate0-list"); p6.add_argument("--gate0-dir", default=None)
+    p6.set_defaults(fn=_cmd_gate0_list)
     return parser
 
 
