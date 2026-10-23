@@ -191,6 +191,14 @@ class TestFocus(unittest.TestCase):
         out = focus_score({"claims": []})
         self.assertEqual(out["score"], 0)
 
+    def test_boolean_tier_is_not_a_tier(self):
+        # Regression: bool is a subclass of int in Python, so a claim with
+        # evidence_tier True used to score as a tier-1 claim (weight 100).
+        bool_claim = dict(GOOD_CLAIM); bool_claim["evidence_tier"] = True
+        out = focus_score({"claims": [bool_claim]})
+        self.assertEqual(out["audited_claim_count"], 0)
+        self.assertEqual(out["score"], 0)
+
 
 class TestProvidersAndManifest(unittest.TestCase):
     def test_mock_provider_output_is_synthetic(self):

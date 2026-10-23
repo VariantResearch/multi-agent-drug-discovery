@@ -46,7 +46,9 @@ Notes:
 A claim is struck when any of the following holds:
 
 - Its identifier does not resolve to the source it claims to be. (Live
-  resolution is not implemented in Phase 0; see docs/PHASE0_SPEC.md.)
+  resolution is implemented in madd/resolve.py. It establishes that the
+  identifier exists in its registry; it does not by itself establish
+  that the source supports the claim.)
 - Its supporting quotation, when checked, does not support the claim text.
 - Its source is an agent, a model output, or another artifact generated in
   the same run.

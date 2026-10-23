@@ -15,8 +15,8 @@
   gate0/REJECTED.md (no case was dropped).
 - madd/gate0.py: dataset validation against the Claim schema and ledger
   rules, a leakage scan over input text fields, build_agent_pack, and
-  score_run (simple counts, no thresholds; Gate 0 pass thresholds are
-  not yet set, per docs/PHASE0_SPEC.md).
+  score_run (simple counts; the pass thresholds were approved on
+  2026-10-22 and are applied by evaluate_thresholds, added 2026-10-23).
 - CLI subcommands gate0-validate and gate0-list.
 - tests/test_gate0.py: dataset integrity tests over the real Gate 0 set.
 - docs/PHASE1_SPEC.md: draft specification for the debate engine,
@@ -29,6 +29,32 @@
   judge-swap stability of at most 1 flipped call in 8. The model roster
   and the run budget figure remain open and must be recorded in the
   spec before the first scored run.
+- Five upgrades, applied one at a time on 2026-10-23 after a repo audit
+  ranked ten candidates: (1) madd/gate0.py evaluate_thresholds judges a
+  scored run against the approved thresholds, with missing inputs
+  reported as not_evaluable, never as a pass; (2) madd/budget.py, a
+  budget tracker whose caps are a hard stop (an uncapped budget is
+  rejected); (3) madd/debate.py, the debate engine implementing
+  docs/DEBATE_PROTOCOL.md steps 1 to 7 over the Provider interface,
+  producing a frozen hashed run record; (4) madd/resolve.py, live
+  citation resolution against PubMed, Crossref, and ClinicalTrials.gov
+  with an injectable transport, probed live on 2026-10-23 (PMID
+  28304224, DOI 10.1056/NEJMoa1615664, and NCT01764633 resolved with
+  their registry titles; a bogus PMID returned not_found); (5) CLI run
+  commands gate0-report, resolve-citations, and debate-mock, plus the
+  first CLI tests. Test suite is now 82 tests.
+
+### Fixed
+
+- A claim with evidence_tier set to a boolean counted as a tier-1
+  claim in focus scoring (bool is a subclass of int in Python). It is
+  no longer treated as audited, with a regression test.
+- Stale status text corrected after the upgrades: DEBATE_PROTOCOL.md
+  no longer says no debate has been run (mock and stub debates run in
+  tests; no live-model debate has taken place), EVIDENCE_POLICY.md and
+  the Phase 0 spec no longer say live resolution is unimplemented, and
+  the citation auditor's notes and the package description point at
+  madd/resolve.py.
 
 ### Changed
 
