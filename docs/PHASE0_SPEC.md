@@ -52,7 +52,7 @@ madd/citation_auditor.py performs offline checks only:
 - The auditor makes no network calls and never upgrades a claim's status.
   It reports what a live resolver still has to do.
 
-### Live resolution (TODO interface, not implemented)
+### Live resolution (TODO interface, not implemented in Phase 0)
 
 A future resolver module is expected to: resolve an identifier against
 its registry, compare returned metadata with the citation, fetch or receive
@@ -60,6 +60,12 @@ the source text under its license terms, and check the supporting
 quotation. Until that module exists and is tested, every claim in every
 run remains at most "unverified" in practice, and no specification may be
 locked on the basis of this scaffold alone.
+
+Addendum, 2026-10-23: the resolver now exists as madd/resolve.py. It
+resolves identifiers against PubMed, Crossref, and ClinicalTrials.gov
+and reports the registry title. It does not fetch source text or check
+supporting quotations, so the caution in the last sentence above still
+stands for quote support.
 
 ## Gate 0: retrospective test set design
 

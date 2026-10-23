@@ -3,8 +3,8 @@
 Checks identifier format (DOI pattern, PMID numeric, NCT pattern) and that
 claims marked quote_checked carry a non-empty supporting_quote. Everything
 else is reported as still needing live resolution. This auditor never
-upgrades a claim's verification status: live resolution is a future module,
-documented in docs/PHASE0_SPEC.md, and is not faked here.
+upgrades a claim's verification status and makes no network calls: live
+resolution lives in madd/resolve.py and is not faked here.
 """
 from __future__ import annotations
 
@@ -56,8 +56,9 @@ def audit_citations(document) -> dict:
         else:
             entry["needs_live_resolution"] = True
             entry["live_resolution_note"] = (
-                "status recorded as " + str(status) + " but live resolution is "
-                "not implemented in Phase 0; treat as unverified until it is")
+                "status recorded as " + str(status) + "; this offline auditor "
+                "does not perform live resolution (madd/resolve.py does), so "
+                "treat the recorded status as unverified until resolution runs")
         results.append(entry)
     problem_count = sum(1 for r in results if not r["format"]["ok"] or r["problems"])
     return {"claim_count": len(claims), "entries": results,

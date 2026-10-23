@@ -1,7 +1,9 @@
 # Debate Protocol
 
-Status: design document. This protocol is a design, not a report of any
-debate that has taken place. No debate has been run with this scaffold.
+Status: implemented in madd/debate.py on 2026-10-23. Debates have been
+run only against mock and stub providers in the test suite. No debate
+with live models has taken place, and no research result in this
+repository comes from a debate.
 
 ## Participants and roles
 

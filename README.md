@@ -25,18 +25,33 @@ This is early work. What is in the repo now:
 - A claim auditor and an offline citation checker. They reject claims
   with no source, claims resting on model opinion, and claims that have
   been struck.
+- A live citation resolver that checks identifiers against the
+  registries that own them: PubMed for PMIDs, Crossref for DOIs,
+  ClinicalTrials.gov for trial numbers. It reports whether the record
+  exists and the title the registry holds. It does not decide whether
+  the source supports the claim built on it.
 - A license registry for the design tools, so a model whose license
   forbids commercial use cannot slip into a commercial run.
 - The consensus tests and a focus score that is calculated from the
   evidence behind a target, not from how confident a model sounds.
-- Gate 0, a test set of eight real drug programs (see below).
+- The debate engine from docs/DEBATE_PROTOCOL.md: blinded dossiers, an
+  evidence call that strikes bad claims, structured cross-examination
+  (with a red-team round when everyone agrees too fast), pairwise
+  ranking on audited evidence, one evolution round, the consensus
+  tests, and a frozen, hashed record of the whole run.
+- A budget tracker with a hard stop, so a run cannot drift past the
+  cost or call cap set for it.
+- Gate 0, a test set of eight real drug programs (see below), plus the
+  code that judges a scored run against the pass thresholds in
+  docs/PHASE1_SPEC.md.
 - A command line tool and a mock model provider for testing.
 
-Models are not wired in yet. Nothing here calls a live AI API, designs a
-molecule, or runs an experiment. The debate engine is the next phase.
-Its specification is in docs/PHASE1_SPEC.md and its Gate 0 pass
-thresholds were approved on 2026-10-22; the model roster is still to be
-chosen.
+Real models are not wired in yet. The debate engine runs against the
+mock provider and test stubs today; it designs no molecule and runs no
+experiment. The Gate 0 pass thresholds in docs/PHASE1_SPEC.md were
+approved on 2026-10-22; the model roster is still to be chosen, and the
+budget figure with it. The only network calls in the package are the
+citation lookups named above.
 
 ## Gate 0
 
@@ -84,9 +99,20 @@ RESPONSIBLE_USE.md.
     python3 -m madd audit-claims examples/synthetic/dossier.json
     python3 -m madd check-tool Boltz-2 --use commercial
     python3 -m madd check-tool "AlphaFold 3" --use commercial
+    python3 -m madd debate-mock examples/synthetic/frame.json --judge
+    python3 -m madd gate0-report predictions.json --baseline baseline.json
+    python3 -m madd resolve-citations examples/synthetic/dossier.json
 
 The audit of the synthetic dossier fails on purpose: it contains a claim
-resting on model opinion, and the auditor is supposed to catch it.
+resting on model opinion, and the auditor is supposed to catch it. The
+mock debate ends in a no-go for the same reason: the mock claim is
+struck at the evidence call, so nothing audited remains to stand on.
+resolve-citations makes live calls to the public registries; on the
+synthetic dossier it correctly reports the invented identifiers as not
+found. gate0-report takes a JSON file mapping case ids to calls
+("advance" or "kill") and judges it against the approved thresholds;
+with --baseline it takes a second such file as the single-model
+baseline the run must beat.
 
 ## Layout
 

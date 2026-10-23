@@ -7,6 +7,13 @@ which must be recorded in this file before the first scored run. No
 scored Gate 0 run may be reported against thresholds that were chosen
 after the run.
 
+Implementation status, 2026-10-23: the debate engine
+(madd/debate.py), the budget tracker (madd/budget.py), the threshold
+evaluator (madd/gate0.py evaluate_thresholds), and live citation
+resolution (madd/resolve.py) are built and tested against mock and
+stub providers only. No model has been connected, no scored Gate 0 run
+has taken place, and nothing in this repository is a Phase 1 result.
+
 ## Purpose
 
 Phase 1 connects real models to the Phase 0 backbone and answers one

@@ -70,4 +70,5 @@ def is_audited(claim: dict) -> bool:
     if str(claim.get("source_kind", "")).strip().lower() in NON_EVIDENCE_SOURCE_KINDS:
         return False
     tier = claim.get("evidence_tier")
-    return isinstance(tier, int) and tier >= 1
+    # bool is a subclass of int in Python; a boolean tier is not a tier.
+    return isinstance(tier, int) and not isinstance(tier, bool) and tier >= 1
