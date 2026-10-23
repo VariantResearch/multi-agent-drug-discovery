@@ -13,9 +13,9 @@ build_agent_pack refuses to return a pack when validation fails, when a
 sealed-only field is present in the input, or when any per-case forbidden
 term (stored in the input file itself) appears in any input text field.
 score_run reads sealed outcomes only when scoring and reports simple
-counts. It applies no pass thresholds: per docs/PHASE0_SPEC.md, Gate 0
-thresholds are to be set and recorded before the first scored run, and
-they are not yet set.
+counts; evaluate_thresholds then judges those counts against the Gate 0
+pass thresholds approved by the project owner on 2026-10-22 and recorded
+in docs/PHASE1_SPEC.md.
 """
 from __future__ import annotations
 
@@ -293,7 +293,7 @@ def score_run(predictions, sealed_dir=None) -> dict:
     predictions maps case_id to a predicted class: "positive" or
     "negative" (the aliases "advance" and "kill" are also accepted).
     Sealed outcomes are read only here, at scoring time. The result is
-    simple counts with no pass threshold applied.
+    simple counts; pass/fail judgement lives in evaluate_thresholds.
     """
     if sealed_dir is not None and Path(sealed_dir).name == "sealed":
         base = Path(sealed_dir).parent
@@ -334,3 +334,96 @@ def score_run(predictions, sealed_dir=None) -> dict:
             "positives_correctly_advanced": advanced, "incorrect_calls": incorrect,
             "missing_predictions": missing, "unknown_prediction_cases": extra,
             "invalid_prediction_cases": sorted(unknown_predictions)}
+
+
+# Gate 0 pass thresholds, approved by the project owner on 2026-10-22 and
+# recorded in docs/PHASE1_SPEC.md ("Approved thresholds"). Changing a
+# value here without the matching spec change and changelog entry breaks
+# the rule that thresholds are fixed before a scored run.
+APPROVED_THRESHOLDS = {
+    "min_failures_killed": 3,
+    "min_positives_advanced": 3,
+    "min_baseline_margin": 1,
+    "max_audit_violations": 0,
+    "max_judge_swap_flips": 1,
+    "source": "docs/PHASE1_SPEC.md, approved 2026-10-22",
+}
+
+
+def _threshold_check(name, status, detail):
+    return {"threshold": name, "status": status, "detail": detail}
+
+
+def evaluate_thresholds(debate_score, baseline_score=None, audit_violations=None,
+                        judge_swap_flips=None, thresholds=None) -> dict:
+    """Judge a scored Gate 0 run against the approved thresholds.
+
+    debate_score and baseline_score are score_run results. audit_violations
+    is the count of load-bearing claims in final dossiers resting on struck
+    or unverified citations. judge_swap_flips is the number of case calls
+    that changed when the judging step was re-run with a different judge
+    model family.
+
+    Every threshold is reported as pass, fail, or not_evaluable. A run
+    passes overall only when every threshold passes: a missing input is
+    never treated as a pass.
+    """
+    limits = dict(APPROVED_THRESHOLDS if thresholds is None else thresholds)
+    checks = []
+
+    killed = debate_score.get("failures_correctly_killed")
+    checks.append(_threshold_check(
+        "failure_kill_rate",
+        "pass" if isinstance(killed, int) and killed >= limits["min_failures_killed"] else "fail",
+        "failures correctly killed: " + str(killed) + " of "
+        + str(debate_score.get("case_count")) + " cases; need at least "
+        + str(limits["min_failures_killed"])))
+
+    advanced = debate_score.get("positives_correctly_advanced")
+    checks.append(_threshold_check(
+        "positive_advance_rate",
+        "pass" if isinstance(advanced, int) and advanced >= limits["min_positives_advanced"] else "fail",
+        "positives correctly advanced: " + str(advanced) + "; need at least "
+        + str(limits["min_positives_advanced"])))
+
+    if baseline_score is None:
+        checks.append(_threshold_check(
+            "baseline_margin", "not_evaluable",
+            "no baseline score supplied; the debate must beat a single-model "
+            "baseline, so this threshold cannot be judged"))
+    else:
+        margin = (debate_score.get("correct_calls", 0)
+                  - baseline_score.get("correct_calls", 0))
+        checks.append(_threshold_check(
+            "baseline_margin",
+            "pass" if margin >= limits["min_baseline_margin"] else "fail",
+            "debate correct calls minus baseline correct calls: " + str(margin)
+            + "; need at least " + str(limits["min_baseline_margin"])))
+
+    if audit_violations is None:
+        checks.append(_threshold_check(
+            "audit_integrity", "not_evaluable",
+            "no audit violation count supplied"))
+    else:
+        checks.append(_threshold_check(
+            "audit_integrity",
+            "pass" if audit_violations <= limits["max_audit_violations"] else "fail",
+            "load-bearing claims on struck or unverified citations: "
+            + str(audit_violations) + "; allowed at most "
+            + str(limits["max_audit_violations"])))
+
+    if judge_swap_flips is None:
+        checks.append(_threshold_check(
+            "judge_swap_stability", "not_evaluable",
+            "no judge-swap result supplied"))
+    else:
+        checks.append(_threshold_check(
+            "judge_swap_stability",
+            "pass" if judge_swap_flips <= limits["max_judge_swap_flips"] else "fail",
+            "case calls flipped by a judge swap: " + str(judge_swap_flips)
+            + "; allowed at most " + str(limits["max_judge_swap_flips"])))
+
+    return {"passed": all(c["status"] == "pass" for c in checks),
+            "checks": checks,
+            "thresholds_applied": {k: v for k, v in limits.items() if k != "source"},
+            "thresholds_source": limits.get("source")}

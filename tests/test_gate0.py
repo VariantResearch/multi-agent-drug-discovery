@@ -12,7 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from madd.gate0 import (build_agent_pack, leakage_scan, list_case_ids,
+from madd.gate0 import (APPROVED_THRESHOLDS, build_agent_pack,
+                        evaluate_thresholds, leakage_scan, list_case_ids,
                         load_input_pack, load_sealed_outcome, score_run,
                         validate_dataset)
 
@@ -121,6 +122,71 @@ class TestGate0Dataset(unittest.TestCase):
         expected_killed = sum(1 for cid in self.case_ids[:2]
                               if self.outcomes[cid]["outcome_class"] == "negative")
         self.assertEqual(result["failures_correctly_killed"], expected_killed)
+
+
+def _score(correct, killed, advanced):
+    # INVENTED score dicts for threshold tests only: plumbing fixtures in
+    # the shape score_run returns, not results of any run.
+    return {"case_count": 8, "correct_calls": correct,
+            "failures_correctly_killed": killed,
+            "positives_correctly_advanced": advanced}
+
+
+class TestEvaluateThresholds(unittest.TestCase):
+    def _statuses(self, report):
+        return {c["threshold"]: c["status"] for c in report["checks"]}
+
+    def test_thresholds_match_approved_spec_values(self):
+        self.assertEqual(APPROVED_THRESHOLDS["min_failures_killed"], 3)
+        self.assertEqual(APPROVED_THRESHOLDS["min_positives_advanced"], 3)
+        self.assertEqual(APPROVED_THRESHOLDS["min_baseline_margin"], 1)
+        self.assertEqual(APPROVED_THRESHOLDS["max_audit_violations"], 0)
+        self.assertEqual(APPROVED_THRESHOLDS["max_judge_swap_flips"], 1)
+
+    def test_full_pass(self):
+        report = evaluate_thresholds(_score(7, 3, 4), baseline_score=_score(5, 2, 3),
+                                     audit_violations=0, judge_swap_flips=1)
+        self.assertTrue(report["passed"])
+        self.assertTrue(all(s == "pass" for s in self._statuses(report).values()))
+
+    def test_too_few_kills_fails(self):
+        report = evaluate_thresholds(_score(6, 2, 4), baseline_score=_score(5, 2, 3),
+                                     audit_violations=0, judge_swap_flips=0)
+        self.assertFalse(report["passed"])
+        self.assertEqual(self._statuses(report)["failure_kill_rate"], "fail")
+
+    def test_too_few_advances_fails(self):
+        report = evaluate_thresholds(_score(6, 4, 2), baseline_score=_score(5, 2, 3),
+                                     audit_violations=0, judge_swap_flips=0)
+        self.assertFalse(report["passed"])
+        self.assertEqual(self._statuses(report)["positive_advance_rate"], "fail")
+
+    def test_baseline_tie_fails_margin(self):
+        report = evaluate_thresholds(_score(6, 3, 3), baseline_score=_score(6, 3, 3),
+                                     audit_violations=0, judge_swap_flips=0)
+        self.assertFalse(report["passed"])
+        self.assertEqual(self._statuses(report)["baseline_margin"], "fail")
+
+    def test_one_audit_violation_fails(self):
+        report = evaluate_thresholds(_score(8, 4, 4), baseline_score=_score(5, 2, 3),
+                                     audit_violations=1, judge_swap_flips=0)
+        self.assertFalse(report["passed"])
+        self.assertEqual(self._statuses(report)["audit_integrity"], "fail")
+
+    def test_two_judge_flips_fail(self):
+        report = evaluate_thresholds(_score(8, 4, 4), baseline_score=_score(5, 2, 3),
+                                     audit_violations=0, judge_swap_flips=2)
+        self.assertFalse(report["passed"])
+        self.assertEqual(self._statuses(report)["judge_swap_stability"], "fail")
+
+    def test_missing_inputs_are_not_evaluable_never_pass(self):
+        report = evaluate_thresholds(_score(8, 4, 4))
+        self.assertFalse(report["passed"])
+        statuses = self._statuses(report)
+        self.assertEqual(statuses["baseline_margin"], "not_evaluable")
+        self.assertEqual(statuses["audit_integrity"], "not_evaluable")
+        self.assertEqual(statuses["judge_swap_stability"], "not_evaluable")
+        self.assertEqual(statuses["failure_kill_rate"], "pass")
 
 
 if __name__ == "__main__":
