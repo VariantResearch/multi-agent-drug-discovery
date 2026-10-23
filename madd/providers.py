@@ -20,19 +20,27 @@ class Provider(Protocol):
 
 
 class MockProvider:
-    """Deterministic mock. Output is synthetic and labelled as such."""
+    """Deterministic mock. Output is synthetic and labelled as such.
+
+    The label distinguishes multiple mock instances in one run (each
+    gets its own dossier and agent identifiers); the default label
+    keeps the original single-mock output unchanged.
+    """
 
     name = "mock"
     model_version = "mock-0"
+
+    def __init__(self, label: str = "001"):
+        self.label = label
 
     def research(self, frame: dict) -> dict:
         frame_id = frame.get("frame_id", "SYN-FRAME") if isinstance(frame, dict) else "SYN-FRAME"
         return {
             "artifact_type": "dossier",
             "schema_version": "0.1.0",
-            "dossier_id": "SYN-DOSSIER-001",
+            "dossier_id": "SYN-DOSSIER-" + self.label,
             "frame_id": frame_id,
-            "agent_id": "mock-agent",
+            "agent_id": "mock-agent-" + self.label,
             "model_family": "mock",
             "proposed_focus_id": "SYN-T1",
             "direction": "synthetic_direction",
