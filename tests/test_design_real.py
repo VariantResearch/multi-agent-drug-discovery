@@ -17,6 +17,7 @@ ASPIRIN = "CC(=O)Oc1ccccc1C(=O)O"
 
 
 def _good_claim(cid):
+    """Build a load-bearing claim that passes audit."""
     return {"claim_id": cid, "text": "supported", "load_bearing": True,
             "evidence_tier": 2, "source_kind": "journal_article",
             "source_identifier": "12345678", "identifier_type": "pmid",
@@ -28,14 +29,17 @@ class StubCompleter:
     """A provider-shaped stub answering complete() with canned text."""
 
     def __init__(self, name, text):
+        """Initialize the test double."""
         self.name = name
         self._text = text
 
     def complete(self, system, user):
+        """Return the double's fixed completion text."""
         return self._text
 
 
 def _panel_payload():
+    """Build a model-panel design payload."""
     return json.dumps({"candidates": [
         {"modality": "small_molecule",
          "structure": {"format": "smiles", "value": ASPIRIN},
@@ -53,6 +57,7 @@ def _panel_payload():
 
 
 def test_model_designer_normalizes_and_drops_structureless():
+    """Model designer normalizes and drops structureless."""
     designer = design.ModelDesigner([StubCompleter("panel-a", _panel_payload())])
     brief = design.build_brief(locked_spec(), "test")
     cands = designer.design(brief)
@@ -66,15 +71,18 @@ def test_model_designer_normalizes_and_drops_structureless():
 
 
 def test_model_designer_records_failures_without_repairing_them():
+    """Model designer records failures without repairing them."""
     designer = design.ModelDesigner([
         StubCompleter("bad", "not json at all"),
         StubCompleter("down", None),
     ])
 
     class Down:
+        """Provider double that always fails."""
         name = "down"
 
         def complete(self, system, user):
+            """Return the double's fixed completion text."""
             raise RuntimeError("connection refused")
 
     designer.providers[1] = Down()
@@ -84,6 +92,7 @@ def test_model_designer_records_failures_without_repairing_them():
 
 
 def test_mock_provider_candidates_are_synthetic():
+    """Mock provider candidates are synthetic."""
     designer = design.ModelDesigner([MockProvider("001")])
     brief = design.build_brief(locked_spec(), "test")
     cands = designer.design(brief)
@@ -94,6 +103,7 @@ def test_mock_provider_candidates_are_synthetic():
 @pytest.mark.skipif(not design_rdkit.available(),
                     reason="RDKit not installed in this environment")
 def test_rdkit_enrichment_computes_real_descriptors():
+    """Rdkit enrichment computes real descriptors."""
     cand = {"candidate_id": "C1", "structure": {"format": "smiles",
                                                 "value": ASPIRIN},
             "predicted_properties": [], "constraint_results": []}
@@ -109,6 +119,7 @@ def test_rdkit_enrichment_computes_real_descriptors():
 
 
 def test_rdkit_unavailable_reports_not_installed(monkeypatch):
+    """Rdkit unavailable reports not installed."""
     monkeypatch.setattr(design_rdkit, "available", lambda: False)
     cand = {"candidate_id": "C1", "structure": {"format": "smiles",
                                                 "value": ASPIRIN},
@@ -121,6 +132,7 @@ def test_rdkit_unavailable_reports_not_installed(monkeypatch):
 @pytest.mark.skipif(not design_rdkit.available(),
                     reason="RDKit not installed in this environment")
 def test_end_of_cycle_real_candidate_passes_the_gate():
+    """End of cycle real candidate passes the gate."""
     designer = design.ModelDesigner([StubCompleter("panel-a", _panel_payload())])
     bundle = design.run_design(locked_spec(), "test", designer=designer)
     assert bundle["gate_report"]["result"] == "pass", bundle["gate_report"]
@@ -138,6 +150,7 @@ def test_end_of_cycle_real_candidate_passes_the_gate():
 @pytest.mark.skipif(not design_rdkit.available(),
                     reason="RDKit not installed in this environment")
 def test_invalid_smiles_is_excluded_by_the_computed_constraint():
+    """Invalid smiles is excluded by the computed constraint."""
     payload = json.dumps({"candidates": [
         {"modality": "small_molecule",
          "structure": {"format": "smiles", "value": "not-a-smiles((("},
@@ -152,6 +165,7 @@ def test_invalid_smiles_is_excluded_by_the_computed_constraint():
 
 
 def test_cli_design_run_with_mock_config_stays_honest(tmp_path, capsys):
+    """Cli design run with mock config stays honest."""
     spec_path = tmp_path / "spec.json"
     spec_path.write_text(json.dumps(locked_spec()))
     config_path = tmp_path / "config.json"

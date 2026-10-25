@@ -14,7 +14,9 @@ FRAME = {"artifact_type": "frame", "schema_version": "0.1.0",
 
 
 class TestTranscript(unittest.TestCase):
+    """Tests for transcript."""
     def test_mock_record_renders_all_sections(self):
+        """Mock record renders all sections."""
         record = run_debate(FRAME, [MockProvider("001"), MockProvider("002")],
                             judge_provider=MockProvider("003"))
         md = record_to_markdown(record)
@@ -28,6 +30,7 @@ class TestTranscript(unittest.TestCase):
         self.assertIn("SYN-C1", md)  # the struck mock claim is shown
 
     def test_partial_record_does_not_crash(self):
+        """Partial record does not crash."""
         md = record_to_markdown({"frame_id": "X", "outcome": "no_go"})
         self.assertIn("Frame: X", md)
 

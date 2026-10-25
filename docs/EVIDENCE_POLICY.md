@@ -53,6 +53,18 @@ A claim is struck when any of the following holds:
 - Its source is an agent, a model output, or another artifact generated in
   the same run.
 - It duplicates a struck claim under a new identifier.
+- Its identifier resolves to a record the issuing registry flags as
+  retracted or withdrawn (checked live against Crossref for DOIs).
+- Its supporting quotation is absent from the source's full text when
+  that text was actually retrieved (Europe PMC open-access full text).
+  A source whose full text could not be retrieved strikes nothing under
+  this rule: unavailable text proves nothing either way.
+- A judge comparing the claim against its own cited passage finds the
+  passage refutes the claim (the entailment check, when a run enables
+  it). Partial support and an unanswerable judge strike nothing.
+- In a retrieval-first run, it cites an identifier outside the evidence
+  set the run supplied. The run's evidence, not the model's memory, is
+  what may be cited.
 
 Struck claims are kept in the ledger with status "struck" and the reason,
 so an audit can see what was removed. They are excluded from debate,

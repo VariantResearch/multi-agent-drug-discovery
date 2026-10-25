@@ -12,7 +12,9 @@ from tests.test_runner import CaseStub, DRUGS, GATE0
 
 
 class TestHtmlReport(unittest.TestCase):
+    """Tests for html report."""
     def test_gate0_html_is_themed_and_complete(self):
+        """Gate0 html is themed and complete."""
         a = CaseStub("a", set(DRUGS.values()))
         b = CaseStub("b", set(DRUGS.values()))
         bundle = run_gate0([a, b], judge_provider=CaseStub("j", set(DRUGS.values())),
@@ -27,6 +29,7 @@ class TestHtmlReport(unittest.TestCase):
         self.assertTrue(page.startswith("<!DOCTYPE html>"))
 
     def test_frame_html_and_escaping(self):
+        """Frame html and escaping."""
         frame = {"artifact_type": "frame", "schema_version": "0.1.0",
                  "frame_id": "F<1>", "question": "invented", "round_cap": 2}
         bundle = run_frame(frame, [MockProvider("001"), MockProvider("002")],

@@ -38,24 +38,30 @@ ANTHROPIC_RESPONSE = {"model": "model-y-2026", "content": [
 
 
 class FakeTransport:
+    """Fake HTTP transport returning canned responses."""
     def __init__(self, status, payload):
+        """Initialize the test double."""
         self.status = status
         self.payload = payload
         self.calls = []
 
     def __call__(self, method, url, headers, body, timeout=0):
+        """Act as the callable test double."""
         self.calls.append({"method": method, "url": url,
                            "headers": headers, "body": body})
         return self.status, self.payload
 
 
 class TestOpenAICompatible(unittest.TestCase):
+    """Tests for the OpenAI-compatible provider."""
     def _provider(self, transport):
+        """Build the provider under test."""
         return OpenAICompatibleProvider(
             "prov-a", "model-x", "test-key-123", "https://example.invalid/v1",
             family="family-x", transport=transport)
 
     def test_request_shape_and_response_parse(self):
+        """Request shape and response parse."""
         transport = FakeTransport(200, OPENAI_RESPONSE)
         dossier = self._provider(transport).research(FRAME)
         call = transport.calls[0]
@@ -69,6 +75,7 @@ class TestOpenAICompatible(unittest.TestCase):
         self.assertEqual(dossier["agent_id"], "prov-a")
 
     def test_usage_recorded(self):
+        """Usage recorded."""
         transport = FakeTransport(200, OPENAI_RESPONSE)
         provider = self._provider(transport)
         provider.research(FRAME)
@@ -76,16 +83,19 @@ class TestOpenAICompatible(unittest.TestCase):
         self.assertEqual(provider.last_response_model, "model-x-2026")
 
     def test_http_error_raises(self):
+        """Http error raises."""
         transport = FakeTransport(401, {"error": {"message": "bad key"}})
         with self.assertRaises(ProviderError):
             self._provider(transport).research(FRAME)
 
     def test_malformed_response_raises(self):
+        """Malformed response raises."""
         transport = FakeTransport(200, {"unexpected": True})
         with self.assertRaises(ProviderError):
             self._provider(transport).research(FRAME)
 
     def test_junk_text_becomes_failure_dossier_not_exception(self):
+        """Junk text becomes failure dossier not exception."""
         payload = dict(OPENAI_RESPONSE)
         payload["choices"] = [{"message": {"content": "no json here"}}]
         transport = FakeTransport(200, payload)
@@ -98,21 +108,26 @@ class SequenceTransport:
     """Returns queued (status, payload) pairs, one per call."""
 
     def __init__(self, sequence):
+        """Initialize the test double."""
         self.sequence = list(sequence)
         self.calls = 0
 
     def __call__(self, method, url, headers, body, timeout=0):
+        """Act as the callable test double."""
         self.calls += 1
         return self.sequence.pop(0)
 
 
 class TestRetries(unittest.TestCase):
+    """Tests for retries."""
     def _provider(self, transport, sleeps):
+        """Build the provider under test."""
         return OpenAICompatibleProvider(
             "prov-r", "model-x", "k", "https://example.invalid/v1",
             transport=transport, sleeper=sleeps.append, backoff_seconds=0.5)
 
     def test_429_then_success_retries_once_and_logs(self):
+        """429 then success retries once and logs."""
         transport = SequenceTransport([(429, {}), (200, OPENAI_RESPONSE)])
         sleeps = []
         dossier = self._provider(transport, sleeps).research(FRAME)
@@ -123,6 +138,7 @@ class TestRetries(unittest.TestCase):
         self.assertEqual(len(provider_log.retry_log), 0)  # fresh instance
 
     def test_retry_log_records_the_retry(self):
+        """Retry log records the retry."""
         transport = SequenceTransport([(503, {}), (200, OPENAI_RESPONSE)])
         sleeps = []
         provider = self._provider(transport, sleeps)
@@ -131,6 +147,7 @@ class TestRetries(unittest.TestCase):
         self.assertEqual(provider.retry_log[0]["status"], 503)
 
     def test_401_is_never_retried(self):
+        """401 is never retried."""
         transport = SequenceTransport([(401, {}), (200, OPENAI_RESPONSE)])
         sleeps = []
         with self.assertRaises(ProviderError):
@@ -138,6 +155,7 @@ class TestRetries(unittest.TestCase):
         self.assertEqual(transport.calls, 1)
 
     def test_retries_exhausted_raises(self):
+        """Retries exhausted raises."""
         transport = SequenceTransport([(429, {}), (429, {}), (429, {})])
         sleeps = []
         with self.assertRaises(ProviderError):
@@ -147,12 +165,15 @@ class TestRetries(unittest.TestCase):
 
 
 class TestAnthropic(unittest.TestCase):
+    """Tests for anthropic."""
     def _provider(self, transport):
+        """Build the provider under test."""
         return AnthropicProvider(
             "prov-b", "model-y", "test-key-456", "https://api.anthropic.com/v1",
             family="family-y", transport=transport)
 
     def test_request_shape_and_response_parse(self):
+        """Request shape and response parse."""
         transport = FakeTransport(200, ANTHROPIC_RESPONSE)
         dossier = self._provider(transport).research(FRAME)
         call = transport.calls[0]
@@ -164,17 +185,20 @@ class TestAnthropic(unittest.TestCase):
         self.assertEqual(dossier["proposed_focus_id"], "TARGET-X")
 
     def test_usage_recorded(self):
+        """Usage recorded."""
         transport = FakeTransport(200, ANTHROPIC_RESPONSE)
         provider = self._provider(transport)
         provider.research(FRAME)
         self.assertEqual(provider.last_usage["input_tokens"], 90)
 
     def test_http_error_raises(self):
+        """Http error raises."""
         transport = FakeTransport(429, {})
         with self.assertRaises(ProviderError):
             self._provider(transport).research(FRAME)
 
     def test_missing_key_rejected_at_construction(self):
+        """Missing key rejected at construction."""
         with self.assertRaises(ProviderError):
             AnthropicProvider("prov-b", "model-y", "", "https://api.anthropic.com/v1")
 

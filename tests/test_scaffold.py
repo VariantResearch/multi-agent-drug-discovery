@@ -11,7 +11,9 @@ from madd.gate0 import scaffold_case, validate_dataset
 
 
 class TestScaffold(unittest.TestCase):
+    """Tests for scaffold."""
     def test_scaffold_creates_templates_and_ledger_section(self):
+        """Scaffold creates templates and ledger section."""
         with tempfile.TemporaryDirectory() as tmp:
             created = scaffold_case("newcase-x", tmp)
             self.assertEqual(len(created), 3)
@@ -31,6 +33,7 @@ class TestScaffold(unittest.TestCase):
             self.assertGreater(report["error_count"], 0)
 
     def test_scaffold_refuses_to_overwrite(self):
+        """Scaffold refuses to overwrite."""
         with tempfile.TemporaryDirectory() as tmp:
             scaffold_case("newcase-x", tmp)
             with self.assertRaises(FileExistsError):

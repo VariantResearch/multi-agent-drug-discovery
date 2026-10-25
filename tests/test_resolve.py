@@ -22,11 +22,14 @@ NCT_BODY = json.dumps({"protocolSection": {"identificationModule":
 
 
 class FakeFetcher:
+    """Fake registry fetcher returning canned responses."""
     def __init__(self, routes):
+        """Initialize the test double."""
         self.routes = routes
         self.urls = []
 
     def __call__(self, url):
+        """Act as the callable test double."""
         self.urls.append(url)
         for needle, response in self.routes:
             if needle in url:
@@ -37,7 +40,9 @@ class FakeFetcher:
 
 
 class TestResolveIdentifier(unittest.TestCase):
+    """Tests for resolve identifier."""
     def test_pmid_resolved(self):
+        """Pmid resolved."""
         fetch = FakeFetcher([("esummary", (200, PMID_BODY))])
         result = resolve_identifier("28304224", "pmid", fetcher=fetch)
         self.assertEqual(result["status"], "resolved")
@@ -45,11 +50,13 @@ class TestResolveIdentifier(unittest.TestCase):
         self.assertEqual(result["registry"], "eutils.ncbi.nlm.nih.gov")
 
     def test_pmid_not_found(self):
+        """Pmid not found."""
         fetch = FakeFetcher([("esummary", (200, json.dumps({"result": {"uids": []}})))])
         result = resolve_identifier("99999999", "pmid", fetcher=fetch)
         self.assertEqual(result["status"], "not_found")
 
     def test_doi_resolved_and_404(self):
+        """Doi resolved and 404."""
         fetch = FakeFetcher([("crossref", (200, DOI_BODY))])
         result = resolve_identifier("10.1000/invented.1", "doi", fetcher=fetch)
         self.assertEqual(result["status"], "resolved")
@@ -59,13 +66,16 @@ class TestResolveIdentifier(unittest.TestCase):
         self.assertEqual(result404["status"], "not_found")
 
     def test_nct_resolved(self):
+        """Nct resolved."""
         fetch = FakeFetcher([("clinicaltrials", (200, NCT_BODY))])
         result = resolve_identifier("NCT01764633", "nct", fetcher=fetch)
         self.assertEqual(result["status"], "resolved")
         self.assertEqual(result["title"], "Invented Trial Title")
 
     def test_format_invalid_never_touches_network(self):
+        """Format invalid never touches network."""
         def boom(url):
+            """Raise, simulating a transport failure."""
             raise AssertionError("network must not be called for a bad format")
         result = resolve_identifier("not-a-pmid", "pmid", fetcher=boom)
         self.assertEqual(result["status"], "format_invalid")
@@ -73,16 +83,19 @@ class TestResolveIdentifier(unittest.TestCase):
         self.assertEqual(result["status"], "unknown_type")
 
     def test_transport_failure_is_lookup_error_not_not_found(self):
+        """Transport failure is lookup error not not found."""
         fetch = FakeFetcher([("esummary", ConnectionError("no route"))])
         result = resolve_identifier("28304224", "pmid", fetcher=fetch)
         self.assertEqual(result["status"], "lookup_error")
 
     def test_http_500_is_lookup_error(self):
+        """Http 500 is lookup error."""
         fetch = FakeFetcher([("esummary", (500, "server error"))])
         result = resolve_identifier("28304224", "pmid", fetcher=fetch)
         self.assertEqual(result["status"], "lookup_error")
 
     def test_resolve_document_counts(self):
+        """Resolve document counts."""
         fetch = FakeFetcher([("esummary", (200, PMID_BODY)),
                              ("crossref", (404, ""))])
         doc = {"claims": [

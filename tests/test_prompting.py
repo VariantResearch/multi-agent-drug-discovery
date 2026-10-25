@@ -23,18 +23,22 @@ GOOD_RESPONSE = {
 
 
 class TestPrompting(unittest.TestCase):
+    """Tests for prompting."""
     def test_system_prompt_states_the_contract(self):
+        """System prompt states the contract."""
         self.assertIn("source_identifier", SYSTEM_PROMPT)
         self.assertIn("Never invent an identifier", SYSTEM_PROMPT)
         self.assertIn("ONLY a JSON object", SYSTEM_PROMPT)
 
     def test_user_prompt_carries_the_frame(self):
+        """User prompt carries the frame."""
         frame = {"frame_id": "F-1", "question": "invented?"}
         prompt = build_user_prompt(frame)
         self.assertIn("F-1", prompt)
         self.assertIn("invented?", prompt)
 
     def test_plain_json_parses_and_identity_is_callers(self):
+        """Plain json parses and identity is callers."""
         dossier = parse_dossier_response(json.dumps(GOOD_RESPONSE),
                                          "agent-a", "family-x", "F-1")
         self.assertEqual(dossier["agent_id"], "agent-a")
@@ -45,16 +49,19 @@ class TestPrompting(unittest.TestCase):
         self.assertNotIn("parse_error", dossier)
 
     def test_fenced_json_parses(self):
+        """Fenced json parses."""
         text = "```json\n" + json.dumps(GOOD_RESPONSE) + "\n```"
         dossier = parse_dossier_response(text, "agent-a", "family-x", "F-1")
         self.assertEqual(dossier["proposed_focus_id"], "TARGET-X")
 
     def test_prose_around_json_is_tolerated(self):
+        """Prose around json is tolerated."""
         text = "Here is my dossier:\n" + json.dumps(GOOD_RESPONSE) + "\nDone."
         dossier = parse_dossier_response(text, "agent-a", "family-x", "F-1")
         self.assertEqual(len(dossier["claims"]), 1)
 
     def test_garbage_becomes_failure_dossier(self):
+        """Garbage becomes failure dossier."""
         dossier = parse_dossier_response("I could not decide, sorry.",
                                          "agent-a", "family-x", "F-1")
         self.assertTrue(dossier["parse_error"])
@@ -63,11 +70,13 @@ class TestPrompting(unittest.TestCase):
         self.assertEqual(validate_artifact("dossier", dossier), [])
 
     def test_broken_json_becomes_failure_dossier(self):
+        """Broken json becomes failure dossier."""
         dossier = parse_dossier_response('{"claims": [oops]',
                                          "agent-a", "family-x", "F-1")
         self.assertTrue(dossier["parse_error"])
 
     def test_missing_claims_field_is_empty_not_invented(self):
+        """Missing claims field is empty not invented."""
         dossier = parse_dossier_response('{"proposed_focus_id": "T"}',
                                          "agent-a", "family-x", "F-1")
         self.assertEqual(dossier["claims"], [])

@@ -28,6 +28,7 @@ ROOT_PACK = "verubecestat-bace1-alzheimer"
 
 
 def test_h1_forbidden_terms_never_reach_a_provider_prompt():
+    """H1 forbidden terms never reach a provider prompt."""
     pack = gate0.build_agent_pack(ROOT_PACK)
     assert pack.get("forbidden_terms"), "fixture pack must carry terms"
     frame = frame_for_case(ROOT_PACK, pack)
@@ -38,7 +39,9 @@ def test_h1_forbidden_terms_never_reach_a_provider_prompt():
 
 
 class _SlowStub:
+    """Slow provider stub for the budget race tests."""
     def __init__(self, label, counter):
+        """Initialize the test double."""
         self.name = "slow-" + label
         self.model_version = "stub"
         self.label = label
@@ -46,6 +49,7 @@ class _SlowStub:
         self.cost_per_call_usd = 0.0
 
     def research(self, frame):
+        """Return the double's fixed research result."""
         with self.counter["lock"]:
             self.counter["calls"] += 1
         time.sleep(0.05)
@@ -57,6 +61,7 @@ class _SlowStub:
 
 
 def test_h2_parallel_debates_cannot_overshoot_the_call_cap():
+    """H2 parallel debates cannot overshoot the call cap."""
     from madd.runner import run_gate0
     counter = {"calls": 0, "lock": threading.Lock()}
     providers = [_SlowStub("a", counter), _SlowStub("b", counter)]
@@ -70,6 +75,7 @@ def test_h2_parallel_debates_cannot_overshoot_the_call_cap():
 
 
 def _http_provider(transport, **kw):
+    """Build an HTTP provider wired to a fake transport."""
     return OpenAICompatibleProvider(
         "retry-probe", "probe-model", "test-key",
         base_url="https://example.invalid/v1", family="probe-family",
@@ -77,9 +83,11 @@ def _http_provider(transport, **kw):
 
 
 def test_h5_retries_are_counted_and_smoke_makes_one_transport_call():
+    """H5 retries are counted and smoke makes one transport call."""
     calls = {"n": 0}
 
     def transport(method, url, headers, body, timeout=None):
+        """Serve as the fake transport."""
         calls["n"] += 1
         if calls["n"] < 3:
             return 429, {}
@@ -105,13 +113,16 @@ def test_h5_retries_are_counted_and_smoke_makes_one_transport_call():
 
 
 def test_h5_retry_settling_stops_a_run_that_crosses_the_cap():
+    """H5 retry settling stops a run that crosses the cap."""
     class RetryingStub:
+        """Stub that reports retry attempts."""
         name = "retrying-stub"
         model_version = "stub"
         cost_per_call_usd = 0.0
         last_attempts = 3
 
         def research(self, frame):
+            """Return the double's fixed research result."""
             return {"artifact_type": "dossier", "schema_version": "0.1.0",
                     "dossier_id": "D-" + str(time.time_ns()),
                     "frame_id": frame.get("frame_id"), "agent_id": "agent-x",
@@ -128,6 +139,7 @@ def test_h5_retry_settling_stops_a_run_that_crosses_the_cap():
 
 
 def _candidate(cid, claims, **kw):
+    """Build a candidate record for the audit tests."""
     base = {"artifact_type": "candidate", "schema_version": "0.1.0",
             "candidate_id": cid, "spec_id": "SPEC-T-1",
             "modality": "small_molecule", "design_tool": "test",
@@ -138,6 +150,7 @@ def _candidate(cid, claims, **kw):
 
 
 def _good_claim(cid):
+    """Build a load-bearing claim that passes audit."""
     return {"claim_id": cid, "text": "supported", "load_bearing": True,
             "evidence_tier": 2, "source_kind": "journal_article",
             "source_identifier": "12345678", "identifier_type": "pmid",
@@ -146,6 +159,7 @@ def _good_claim(cid):
 
 
 def test_h3_candidate_audit_matches_research_layer():
+    """H3 candidate audit matches research layer."""
     bad = {"claim_id": "CLM-X", "text": "fabricated support",
            "load_bearing": True, "evidence_tier": 2,
            "source_kind": "journal_article", "source_identifier": "NOT-A-PMID",
@@ -157,6 +171,7 @@ def test_h3_candidate_audit_matches_research_layer():
 
 
 def test_h3_duplicate_claim_ids_fail_and_never_double_count():
+    """H3 duplicate claim ids fail and never double count."""
     dup = _candidate("C-DUP", [_good_claim("CLM-D"), _good_claim("CLM-D")])
     audit = design.audit_candidate(dup)
     assert audit["hard_fail"] is True
@@ -168,6 +183,7 @@ def test_h3_duplicate_claim_ids_fail_and_never_double_count():
 
 
 def test_m1_agreement_requires_direction_agreement():
+    """M1 agreement requires direction agreement."""
     dossiers = [{"proposed_focus_id": "T1", "direction": "advance"},
                 {"proposed_focus_id": "T1", "direction": "kill"}]
     assert agreement(dossiers)["passed"] is False
@@ -177,15 +193,18 @@ def test_m1_agreement_requires_direction_agreement():
 
 
 def test_m1_round_cap_below_one_is_refused():
+    """M1 round cap below one is refused."""
     frame = {"artifact_type": "frame", "schema_version": "0.1.0",
              "frame_id": "F-CAP", "question": "?", "round_cap": 0}
 
     class P:
+        """Minimal provider stub."""
         name = "p"
         model_version = "s"
         cost_per_call_usd = 0.0
 
         def research(self, f):
+            """Return the double's fixed research result."""
             raise AssertionError("research must not run under a 0 cap")
 
     with pytest.raises(ValueError):
@@ -193,6 +212,7 @@ def test_m1_round_cap_below_one_is_refused():
 
 
 def test_m2_duplicate_claim_ids_strike_every_copy():
+    """M2 duplicate claim ids strike every copy."""
     malformed = dict(_good_claim("DUP-1"), source_identifier="GARBAGE!!")
     clean = _good_claim("DUP-1")
     dossier = {"dossier_id": "D-1", "agent_id": "a",
@@ -204,6 +224,7 @@ def test_m2_duplicate_claim_ids_strike_every_copy():
 
 
 def test_m3_tool_outputs_exclude_stale_files_and_logs(tmp_path, monkeypatch):
+    """M3 tool outputs exclude stale files and logs."""
     import stat as stat_mod
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -233,6 +254,7 @@ def test_m3_tool_outputs_exclude_stale_files_and_logs(tmp_path, monkeypatch):
 
 
 def test_m5_load_bundle_refuses_path_traversal(tmp_path):
+    """M5 load bundle refuses path traversal."""
     with pytest.raises(ValueError):
         storage.load_bundle(tmp_path, "../secret")
     with pytest.raises(ValueError):
@@ -240,6 +262,7 @@ def test_m5_load_bundle_refuses_path_traversal(tmp_path):
 
 
 def test_m6_gui_escapes_bundle_fields():
+    """M6 gui escapes bundle fields."""
     assert "function esc(" in PAGE
     assert "esc(b.brief.target)" in PAGE
     assert "data-runid" in PAGE
@@ -247,6 +270,7 @@ def test_m6_gui_escapes_bundle_fields():
 
 
 def test_m8_duplicate_candidate_ids_are_refused():
+    """M8 duplicate candidate ids are refused."""
     from tests.test_design import locked_spec
     dupe = _candidate("brief-spec-t-1-a", [])
     with pytest.raises(ValueError):
@@ -254,9 +278,11 @@ def test_m8_duplicate_candidate_ids_are_refused():
 
 
 def test_m9_transport_failure_is_a_provider_error(monkeypatch):
+    """M9 transport failure is a provider error."""
     import madd.providers_http as ph
 
     def boom(request, timeout=None):
+        """Raise, simulating a transport failure."""
         raise urllib.error.URLError("name resolution failed")
 
     monkeypatch.setattr(urllib.request, "urlopen", boom)
@@ -265,6 +291,7 @@ def test_m9_transport_failure_is_a_provider_error(monkeypatch):
 
 
 def test_m10_config_validation_catches_bad_numbers():
+    """M10 config validation catches bad numbers."""
     from madd.config import validate_config
     cfg = {"providers": [
         {"name": "a", "kind": "openai-compatible", "model": "m",
@@ -276,11 +303,13 @@ def test_m10_config_validation_catches_bad_numbers():
 
 
 def test_low_list_runs_tolerates_a_corrupt_index(tmp_path):
+    """Low list runs tolerates a corrupt index."""
     (tmp_path / "index.json").write_text("{not json")
     assert storage.list_runs(tmp_path) == []
 
 
 def test_low_transcript_uses_real_record_fields():
+    """Low transcript uses real record fields."""
     record = {
         "frame_id": "F-T", "outcome": "locked",
         "providers": [], "strike_list": [],
@@ -299,6 +328,7 @@ def test_low_transcript_uses_real_record_fields():
 
 
 def test_low_threshold_details_use_class_denominators():
+    """Low threshold details use class denominators."""
     predictions = {cid: "advance" for cid in gate0.list_case_ids()}
     score = gate0.score_run(predictions)
     assert score["negative_cases"] == 4
@@ -311,6 +341,7 @@ def test_low_threshold_details_use_class_denominators():
 
 
 def test_low_mock_candidates_do_not_share_mutable_state():
+    """Low mock candidates do not share mutable state."""
     from tests.test_design import locked_spec
     brief = design.build_brief(locked_spec(), "test")
     a, b = design.MockDesigner().design(brief)
@@ -321,6 +352,7 @@ def test_low_mock_candidates_do_not_share_mutable_state():
 
 
 def test_h4_design_run_exit_codes_and_tool_gate(tmp_path, capsys):
+    """H4 design run exit codes and tool gate."""
     from tests.test_design import locked_spec
     spec_path = tmp_path / "spec.json"
     spec_path.write_text(json.dumps(locked_spec()))

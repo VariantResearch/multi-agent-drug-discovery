@@ -26,6 +26,15 @@ repository comes from a debate.
 2. Evidence call. Before any argument, the auditor checks every claim in
    every dossier. Claims that fail the ledger rules or the citation format
    checks are struck and listed. Struck claims are out of the debate.
+   When the run config enables them, the evidence call also runs live
+   checks, each striking only on positive evidence: identifier resolution
+   against the owning registries (an identifier that does not resolve
+   strikes; a lookup failure strikes nothing), Crossref retraction flags,
+   full-text quote checks against Europe PMC open text (a quote absent
+   from retrieved text strikes; unavailable text strikes nothing), judged
+   entailment (a claim refuted by its own cited passage strikes), and,
+   in retrieval-first runs, confinement to the identifiers in the
+   evidence the run supplied.
 3. Cross-examination. Each agent must state, for each rival dossier, the
    strongest objection it can support from surviving claims, and must
    answer objections to its own dossier by pointing to surviving claims

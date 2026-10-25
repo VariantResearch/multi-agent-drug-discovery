@@ -55,6 +55,7 @@ def fake_fetch(url):
 
 
 def test_new_identifier_formats():
+    """New identifier formats."""
     for ident, itype in [("PMC7095418", "pmcid"), ("PPR123456", "preprint"),
                          ("GCST000854", "gcst"), ("rs3798220", "rsid"),
                          ("CHEMBL25", "chembl"), ("2244", "pubchem_cid"),
@@ -76,25 +77,30 @@ def test_new_identifier_formats():
     ("P00533", "uniprot", "Epidermal growth factor receptor"),
 ])
 def test_new_resolvers_resolve(ident, itype, title_part):
+    """New resolvers resolve."""
     result = resolve.resolve_identifier(ident, itype, fetcher=fake_fetch)
     assert result["status"] == "resolved", result
     assert title_part in (result["title"] or "")
 
 
 def test_pmcid_resolution_reports_related_ids():
+    """Pmcid resolution reports related ids."""
     result = resolve.resolve_identifier("PMC7095418", "pmcid", fetcher=fake_fetch)
     assert result["related"]["pmid"] == "111"
     assert result["related"]["doi"] == "10.1000/test"
 
 
 def test_gwas_empty_record_is_not_found():
+    """Gwas empty record is not found."""
     def empty_fetch(url):
+        """Fetch double returning an empty result set."""
         return 200, json.dumps({"something_else": True})
     result = resolve.resolve_identifier("GCST999999999", "gcst", fetcher=empty_fetch)
     assert result["status"] == "not_found"
 
 
 def test_quote_found_in_full_text():
+    """Quote found in full text."""
     result = resolve.check_quote_against_source(
         "111", "pmid", "Aspirin reduces platelet aggregation in humans.",
         fetcher=fake_fetch)
@@ -103,6 +109,7 @@ def test_quote_found_in_full_text():
 
 
 def test_quote_absent_from_retrieved_full_text_is_the_only_strike_grade():
+    """Quote absent from retrieved full text is the only strike grade."""
     result = resolve.check_quote_against_source(
         "111", "pmid", "This sentence was never in the paper.",
         fetcher=fake_fetch)
@@ -110,7 +117,9 @@ def test_quote_absent_from_retrieved_full_text_is_the_only_strike_grade():
 
 
 def test_quote_check_unavailable_full_text_proves_nothing():
+    """Quote check unavailable full text proves nothing."""
     def no_pmcid_fetch(url):
+        """Fetch double whose records carry no PMCID."""
         if "europepmc" in url:
             return 200, json.dumps({"resultList": {"result": [
                 {"pmid": "222", "title": "Paywalled study"}]}, "hitCount": 1})
@@ -121,12 +130,14 @@ def test_quote_check_unavailable_full_text_proves_nothing():
 
 
 def test_quote_check_not_applicable_types():
+    """Quote check not applicable types."""
     result = resolve.check_quote_against_source(
         "NCT01234567", "nct", "Any quote.", fetcher=fake_fetch)
     assert result["status"] == "not_applicable"
 
 
 def _quote_checked_dossier():
+    """Build a dossier with one quote_checked claim."""
     return {"dossier_id": "D1", "agent_id": "a", "proposed_focus_id": "T",
             "direction": "advance",
             "claims": [{"claim_id": "C1", "text": "t", "load_bearing": True,
@@ -137,6 +148,7 @@ def _quote_checked_dossier():
 
 
 def test_evidence_call_strikes_only_on_quote_not_found():
+    """Evidence call strikes only on quote not found."""
     struck = audit_dossier(_quote_checked_dossier(),
                            quote_checker=lambda claim: "quote_not_found")
     assert struck["struck"][0]["reasons"] == ["quote_not_in_full_text"]
@@ -148,6 +160,7 @@ def test_evidence_call_strikes_only_on_quote_not_found():
 @pytest.mark.skipif(not design_sources.design_rdkit.available(),
                     reason="RDKit not installed in this environment")
 def test_candidate_source_check_finds_aspirin_known():
+    """Candidate source check finds aspirin known."""
     cand = {"candidate_id": "C1",
             "structure": {"format": "smiles", "value": "CC(=O)Oc1ccccc1C(=O)O"},
             "predicted_properties": [], "constraint_results": []}
@@ -164,7 +177,9 @@ def test_candidate_source_check_finds_aspirin_known():
 @pytest.mark.skipif(not design_sources.design_rdkit.available(),
                     reason="RDKit not installed in this environment")
 def test_candidate_source_check_records_failures_honestly():
+    """Candidate source check records failures honestly."""
     def down_fetch(url):
+        """Fetch double that always fails."""
         raise ConnectionError("offline")
     cand = {"candidate_id": "C1",
             "structure": {"format": "smiles", "value": "CC(=O)Oc1ccccc1C(=O)O"},

@@ -26,6 +26,7 @@ SYNTHETIC_FRAME = ROOT / "examples" / "synthetic" / "frame.json"
 
 
 def run_cli(argv):
+    """Run the CLI in-process with the given arguments."""
     buffer = io.StringIO()
     with redirect_stdout(buffer):
         code = main(argv)
@@ -33,12 +34,15 @@ def run_cli(argv):
 
 
 class TestCli(unittest.TestCase):
+    """Tests for the CLI."""
     def test_audit_claims_synthetic_fixture_fails_as_designed(self):
+        """Audit claims synthetic fixture fails as designed."""
         code, out = run_cli(["audit-claims", str(SYNTHETIC_DOSSIER)])
         self.assertEqual(code, 1)
         self.assertIn("result: FAIL", out)
 
     def test_check_tool_allowed_and_blocked(self):
+        """Check tool allowed and blocked."""
         code, _out = run_cli(["check-tool", "Boltz-2", "--use", "commercial"])
         self.assertEqual(code, 0)
         code, out = run_cli(["check-tool", "AlphaFold 3", "--use", "commercial"])
@@ -46,16 +50,19 @@ class TestCli(unittest.TestCase):
         self.assertIn("allowed: no", out)
 
     def test_gate0_validate_passes(self):
+        """Gate0 validate passes."""
         code, out = run_cli(["gate0-validate"])
         self.assertEqual(code, 0)
         self.assertIn("result: PASS", out)
 
     def test_focus_score_runs(self):
+        """Focus score runs."""
         code, out = run_cli(["focus-score", str(SYNTHETIC_DOSSIER)])
         self.assertEqual(code, 0)
         self.assertIn("focus score:", out)
 
     def test_gate0_report_all_kill_predictions_fail(self):
+        """Gate0 report all kill predictions fail."""
         case_ids = list_case_ids(GATE0)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "predictions.json"
@@ -69,6 +76,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("baseline_margin | not_evaluable", out)
 
     def test_gate0_report_perfect_run_passes(self):
+        """Gate0 report perfect run passes."""
         case_ids = list_case_ids(GATE0)
         perfect = {}
         for cid in case_ids:
@@ -87,6 +95,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("result: PASS", out)
 
     def test_resolve_citations_bad_format_fails_without_network(self):
+        """Resolve citations bad format fails without network."""
         doc = {"claims": [{"claim_id": "CX", "source_identifier": "not-a-pmid",
                            "identifier_type": "pmid"}]}
         with tempfile.TemporaryDirectory() as tmp:
@@ -97,6 +106,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("format_invalid", out)
 
     def _mock_config(self, tmp):
+        """Build a mock run config for the CLI tests."""
         config = {
             "providers": [{"name": "panel-a", "kind": "mock", "label": "a"},
                           {"name": "panel-b", "kind": "mock", "label": "b"}],
@@ -109,6 +119,7 @@ class TestCli(unittest.TestCase):
         return path
 
     def test_providers_check_mock_config(self):
+        """Providers check mock config."""
         with tempfile.TemporaryDirectory() as tmp:
             config = self._mock_config(tmp)
             code, out = run_cli(["providers-check", "--config", str(config)])
@@ -117,6 +128,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("No network calls were made", out)
 
     def test_providers_check_missing_key_variable(self):
+        """Providers check missing key variable."""
         config = {
             "providers": [
                 {"name": "a", "kind": "anthropic", "model": "m",
@@ -132,6 +144,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("MADD_TEST_DEFINITELY_UNSET_VAR", out)
 
     def test_run_gate0_with_mocks_completes_and_writes_bundle(self):
+        """Run gate0 with mocks completes and writes bundle."""
         with tempfile.TemporaryDirectory() as tmp:
             config = self._mock_config(tmp)
             out_dir = Path(tmp) / "runs"
@@ -144,6 +157,7 @@ class TestCli(unittest.TestCase):
             self.assertEqual(index[0]["kind"], "gate0_run")
 
     def test_run_gate0_dry_run_estimates_without_running(self):
+        """Run gate0 dry run estimates without running."""
         with tempfile.TemporaryDirectory() as tmp:
             config = self._mock_config(tmp)
             code, out = run_cli(["run-gate0", "--config", str(config),
@@ -153,6 +167,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("cases: 8", out)
 
     def test_estimate_gate0_run_math(self):
+        """Estimate gate0 run math."""
         from madd.runner import estimate_gate0_run
         from tests.test_runner import CaseStub, GATE0
         a = CaseStub("a", set(), cost=0.50)
@@ -164,6 +179,7 @@ class TestCli(unittest.TestCase):
         self.assertAlmostEqual(est["estimated_cost_usd"], 8 * 1.85)
 
     def test_run_frame_with_mocks(self):
+        """Run frame with mocks."""
         with tempfile.TemporaryDirectory() as tmp:
             config = self._mock_config(tmp)
             code, out = run_cli(["run-frame", str(SYNTHETIC_FRAME),
@@ -172,6 +188,7 @@ class TestCli(unittest.TestCase):
         self.assertIn("outcome: no_go", out)
 
     def test_debate_mock_writes_verifiable_record(self):
+        """Debate mock writes verifiable record."""
         with tempfile.TemporaryDirectory() as tmp:
             out_path = Path(tmp) / "record.json"
             code, out = run_cli(["debate-mock", str(SYNTHETIC_FRAME),

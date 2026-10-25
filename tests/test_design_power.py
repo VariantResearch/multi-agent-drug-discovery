@@ -18,12 +18,14 @@ ASPIRIN = "CC(=O)Oc1ccccc1C(=O)O"
 
 
 def test_new_tools_are_registered_and_cleared():
+    """New tools are registered and cleared."""
     for name in ("ADMET-AI", "AutoDock Vina", "PoseBusters", "AiZynthFinder"):
         assert check_tool(name, "research")["allowed"], name
         assert check_tool(name, "commercial")["allowed"], name
 
 
 def _smiles_candidate(cid="C1"):
+    """Build a SMILES candidate record."""
     return {"candidate_id": cid, "structure": {"format": "smiles",
                                                "value": ASPIRIN},
             "predicted_properties": [], "constraint_results": []}
@@ -32,6 +34,7 @@ def _smiles_candidate(cid="C1"):
 @pytest.mark.skipif(not design_admet.available(),
                     reason="admet-ai not installed in this environment")
 def test_admet_enrichment_records_unverified_tool_predictions():
+    """Admet enrichment records unverified tool predictions."""
     cand = _smiles_candidate()
     record = design_admet.enrich_candidates([cand])
     assert record["status"] == "completed"
@@ -46,12 +49,14 @@ def test_admet_enrichment_records_unverified_tool_predictions():
 
 
 def test_admet_absent_reports_not_installed(monkeypatch):
+    """Admet absent reports not installed."""
     monkeypatch.setattr(design_admet, "available", lambda: False)
     record = design_admet.enrich_candidates([_smiles_candidate()])
     assert record["status"] == "not_installed"
 
 
 def _write_sdf(path, smiles=ASPIRIN, scale=1.0, seed=7):
+    """Write an SDF file for the pose tests."""
     from rdkit import Chem
     from rdkit.Chem import AllChem
     mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
@@ -69,6 +74,7 @@ def _write_sdf(path, smiles=ASPIRIN, scale=1.0, seed=7):
 @pytest.mark.skipif(not design_pose.available(),
                     reason="posebusters not installed in this environment")
 def test_posebusters_passes_a_clean_conformer(tmp_path):
+    """Posebusters passes a clean conformer."""
     _write_sdf(tmp_path / "pose.sdf")
     _write_sdf(tmp_path / "ref.sdf")
     result = design_pose.bust_pose(tmp_path / "pose.sdf", tmp_path / "ref.sdf")
@@ -80,6 +86,7 @@ def test_posebusters_passes_a_clean_conformer(tmp_path):
 @pytest.mark.skipif(not design_pose.available(),
                     reason="posebusters not installed in this environment")
 def test_posebusters_catches_a_broken_pose(tmp_path):
+    """Posebusters catches a broken pose."""
     _write_sdf(tmp_path / "pose.sdf", scale=6.0)
     _write_sdf(tmp_path / "ref.sdf")
     result = design_pose.bust_pose(tmp_path / "pose.sdf", tmp_path / "ref.sdf")
@@ -89,6 +96,7 @@ def test_posebusters_catches_a_broken_pose(tmp_path):
 
 
 def _fake_vina(tmp_path):
+    """Write a fake vina executable and return its directory."""
     bindir = tmp_path / "bin"
     bindir.mkdir()
     script = bindir / "vina"
@@ -104,6 +112,7 @@ def _fake_vina(tmp_path):
 
 
 def test_vina_runner_completes_with_a_fake_executable(tmp_path, monkeypatch):
+    """Vina runner completes with a fake executable."""
     bindir = _fake_vina(tmp_path)
     monkeypatch.setenv("PATH", str(bindir))
     config = tmp_path / "config.txt"
@@ -118,6 +127,7 @@ def test_vina_runner_completes_with_a_fake_executable(tmp_path, monkeypatch):
 
 
 def test_vina_runner_reports_not_installed(tmp_path, monkeypatch):
+    """Vina runner reports not installed."""
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
@@ -127,6 +137,7 @@ def test_vina_runner_reports_not_installed(tmp_path, monkeypatch):
 
 
 def test_retrosynthesis_without_config_is_an_honest_status(tmp_path, monkeypatch):
+    """Retrosynthesis without config is an honest status."""
     bindir = tmp_path / "bin"
     bindir.mkdir()
     exe = bindir / "aizynthcli"
@@ -140,6 +151,7 @@ def test_retrosynthesis_without_config_is_an_honest_status(tmp_path, monkeypatch
 
 
 def test_run_design_records_retrosynthesis_status():
+    """Run design records retrosynthesis status."""
     payload = json.dumps({"candidates": [
         {"modality": "small_molecule",
          "structure": {"format": "smiles", "value": ASPIRIN},
@@ -147,9 +159,11 @@ def test_run_design_records_retrosynthesis_status():
          "predicted_properties": [], "constraint_results": []}]})
 
     class Stub:
+        """Stub provider with a fixed completion."""
         name = "panel"
 
         def complete(self, system, user):
+            """Return the double's fixed completion text."""
             return payload
 
     bundle = design.run_design(locked_spec(), "test",

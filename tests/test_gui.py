@@ -22,6 +22,7 @@ MOCK_CONFIG = {
 
 
 def _request(url, payload=None):
+    """Make a request to the console test server."""
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(url, data=data, method="POST" if data else "GET",
                                  headers={"Content-Type": "application/json"})
@@ -30,8 +31,11 @@ def _request(url, payload=None):
 
 
 class TestGui(unittest.TestCase):
+    """Tests for the MADD Console GUI."""
+
     @classmethod
     def setUpClass(cls):
+        """Set up the class fixtures."""
         cls.tmp = tempfile.TemporaryDirectory()
         cls.config = Path(cls.tmp.name) / "config.json"
         cls.config.write_text(json.dumps(MOCK_CONFIG), encoding="utf-8")
@@ -44,22 +48,26 @@ class TestGui(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        """Tear down the class fixtures."""
         cls.server.shutdown()
         cls.server.server_close()
         cls.tmp.cleanup()
 
     def test_page_is_themed(self):
+        """Page is themed."""
         page = _request(self.base + "/")
         self.assertIn("MADD // CONSOLE", page)
         self.assertIn("#ff71ce", page)
         self.assertIn("laser", page)
 
     def test_gate0_api(self):
+        """Gate0 api."""
         data = json.loads(_request(self.base + "/api/gate0"))
         self.assertTrue(data["ok"])
         self.assertEqual(len(data["cases"]), 8)
 
     def test_check_dry_run_and_full_run_flow(self):
+        """Check dry run and full run flow."""
         checked = json.loads(_request(self.base + "/api/providers-check",
                                       {"config": str(self.config)}))
         self.assertTrue(checked["ok"])

@@ -12,6 +12,7 @@ from madd.cli import main
 
 
 def locked_spec():
+    """Build a locked consensus spec record."""
     return {
         "artifact_type": "consensus_spec", "schema_version": "0.1.0",
         "spec_id": "SPEC-T-1", "frame_id": "F-T",
@@ -35,6 +36,7 @@ def locked_spec():
 
 
 def test_brief_from_locked_spec():
+    """Brief from locked spec."""
     brief = design.build_brief(locked_spec(), "test")
     assert brief["target"] == "Target T"
     assert [c["claim_id"] for c in brief["evidence_constraints"]] == ["CLM-1"]
@@ -46,6 +48,7 @@ def test_brief_target_from_focus_id_and_overrides():
     # disease field (verified against a real Gate 0 run record). The
     # brief must take its target from focus_id, leave disease empty
     # rather than guess, and accept operator overrides for both.
+    """Brief target from focus id and overrides."""
     brief = design.build_brief(locked_spec(), "test")
     assert brief["target"] == "Target T"
     assert brief["disease"] == ""
@@ -56,6 +59,7 @@ def test_brief_target_from_focus_id_and_overrides():
 
 
 def test_brief_refuses_unlocked_spec():
+    """Brief refuses unlocked spec."""
     spec = locked_spec()
     spec["outcome"] = "killed"
     with pytest.raises(ValueError):
@@ -65,6 +69,7 @@ def test_brief_refuses_unlocked_spec():
 
 
 def test_mock_designer_candidates_are_honest():
+    """Mock designer candidates are honest."""
     brief = design.build_brief(locked_spec(), "test")
     cands = design.MockDesigner().design(brief)
     assert len(cands) == 2
@@ -76,6 +81,7 @@ def test_mock_designer_candidates_are_honest():
 
 
 def test_run_design_bundle_and_gate():
+    """Run design bundle and gate."""
     bundle = design.run_design(locked_spec(), "test",
                                design_constraints=("oral dosing preferred",))
     assert bundle["kind"] == "design_run"
@@ -99,6 +105,7 @@ def test_run_design_bundle_and_gate():
 
 
 def test_candidate_with_bad_load_bearing_claim_is_excluded():
+    """Candidate with bad load bearing claim is excluded."""
     bad = {
         "artifact_type": "candidate", "schema_version": "0.1.0",
         "candidate_id": "BAD-1", "spec_id": "SPEC-T-1",
@@ -111,9 +118,11 @@ def test_candidate_with_bad_load_bearing_claim_is_excluded():
     }
 
     class OnlyBad:
+        """Designer double proposing only a bad-claim candidate."""
         name = "only-bad"
 
         def design(self, brief):
+            """Propose the double's fixed candidate."""
             return [bad]
 
     bundle = design.run_design(locked_spec(), "test", designer=OnlyBad())
@@ -123,6 +132,7 @@ def test_candidate_with_bad_load_bearing_claim_is_excluded():
 
 
 def test_failed_constraint_excludes():
+    """Failed constraint excludes."""
     cand = {
         "artifact_type": "candidate", "schema_version": "0.1.0",
         "candidate_id": "CF-1", "spec_id": "SPEC-T-1",
@@ -137,6 +147,7 @@ def test_failed_constraint_excludes():
 
 
 def test_ranking_prefers_audited_claims():
+    """Ranking prefers audited claims."""
     brief = design.build_brief(locked_spec(), "test")
     good = {
         "artifact_type": "candidate", "schema_version": "0.1.0",
@@ -151,6 +162,7 @@ def test_ranking_prefers_audited_claims():
 
 
 def test_blocked_tool_never_runs(tmp_path):
+    """Blocked tool never runs."""
     manifest = design_tools.run_structure_tool(
         "AlphaFold 3", "commercial", tmp_path, input_path="x")
     assert manifest["status"] == "blocked_license"
@@ -158,6 +170,7 @@ def test_blocked_tool_never_runs(tmp_path):
 
 
 def test_cleared_tool_not_installed(tmp_path, monkeypatch):
+    """Cleared tool not installed."""
     monkeypatch.setenv("PATH", str(tmp_path))
     manifest = design_tools.run_structure_tool(
         "Boltz-2", "research", tmp_path / "w", input_path="in.yaml")
@@ -165,6 +178,7 @@ def test_cleared_tool_not_installed(tmp_path, monkeypatch):
 
 
 def test_fake_tool_run_records_outputs(tmp_path, monkeypatch):
+    """Fake tool run records outputs."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     script = bin_dir / "boltz"
@@ -189,6 +203,7 @@ def test_fake_tool_run_records_outputs(tmp_path, monkeypatch):
 
 
 def test_cli_design_flow(tmp_path, capsys):
+    """Cli design flow."""
     spec_path = tmp_path / "spec.json"
     spec_path.write_text(json.dumps(locked_spec()))
     assert main(["design-brief", str(spec_path)]) == 0
@@ -212,6 +227,7 @@ def test_cli_design_flow(tmp_path, capsys):
 
 
 def test_cli_design_run_refuses_killed(tmp_path, capsys):
+    """Cli design run refuses killed."""
     spec = locked_spec()
     spec["outcome"] = "killed"
     spec_path = tmp_path / "spec.json"
@@ -222,6 +238,7 @@ def test_cli_design_run_refuses_killed(tmp_path, capsys):
 
 @pytest.fixture()
 def gui_server(tmp_path):
+    """Provide the running console server."""
     from madd.gui import create_server
     runs = tmp_path / "runs"
     runs.mkdir()
@@ -239,6 +256,7 @@ def gui_server(tmp_path):
 
 
 def _post(url, payload):
+    """POST to the console test server."""
     req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                  headers={"Content-Type": "application/json"},
                                  method="POST")
@@ -250,6 +268,7 @@ def _post(url, payload):
 
 
 def test_gui_design_from_locked_frame_run(gui_server, tmp_path):
+    """Gui design from locked frame run."""
     out = _post(gui_server + "/api/design-run",
                 {"run_id": "frame-t-1", "disease": "Disease D"})
     assert out["ok"] is True

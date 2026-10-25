@@ -9,6 +9,7 @@ from tests.test_debate import FRAME, StubProvider, dossier, good_claim
 
 
 def _claim(cid, ident="12345678", itype="pmid", **kw):
+    """Build a claim record."""
     claim = {"claim_id": cid, "text": "a claim", "load_bearing": True,
              "evidence_tier": 2, "source_kind": "journal_article",
              "source_identifier": ident, "identifier_type": itype,
@@ -19,6 +20,7 @@ def _claim(cid, ident="12345678", itype="pmid", **kw):
 
 
 def _dossier(claims):
+    """Build a dossier carrying the claim."""
     return {"dossier_id": "D1", "agent_id": "a", "proposed_focus_id": "T",
             "direction": "advance", "claims": claims}
 
@@ -26,7 +28,9 @@ def _dossier(claims):
 # --- retraction -------------------------------------------------------
 
 def test_crossref_retraction_is_flagged_on_resolution():
+    """Crossref retraction is flagged on resolution."""
     def fetch(url):
+        """Return the canned registry response."""
         return 200, json.dumps({"message": {
             "title": ["A retracted finding"],
             "update-to": [{"type": "retraction", "DOI": "10.1000/notice"}]}})
@@ -36,6 +40,7 @@ def test_crossref_retraction_is_flagged_on_resolution():
 
 
 def test_cli_resolver_maps_retracted_for_the_evidence_call(monkeypatch):
+    """Cli resolver maps retracted for the evidence call."""
     monkeypatch.setattr(cli, "resolve_identifier",
                         lambda i, t: {"status": "resolved", "retracted": True})
     resolver = cli._resolver_from_config({"live_resolution": True})
@@ -43,6 +48,7 @@ def test_cli_resolver_maps_retracted_for_the_evidence_call(monkeypatch):
 
 
 def test_evidence_call_strikes_retracted_citations():
+    """Evidence call strikes retracted citations."""
     audited = audit_dossier(_dossier([_claim("C1")]),
                             resolver=lambda i, t: "retracted")
     assert audited["struck"][0]["reasons"] == ["citation_retracted_live"]
@@ -52,14 +58,18 @@ def test_evidence_call_strikes_retracted_citations():
 # --- entailment -------------------------------------------------------
 
 class StubJudge:
+    """Stub judge returning a fixed verdict."""
     def __init__(self, answer):
+        """Initialize the test double."""
         self._answer = answer
 
     def complete(self, system, user):
+        """Return the double's fixed completion text."""
         return self._answer
 
 
 def test_entailment_verdicts_parse_strictly():
+    """Entailment verdicts parse strictly."""
     assert entailment.check_entailment(
         _claim("C1"), StubJudge('{"verdict": "refuted"}')) == "refuted"
     assert entailment.check_entailment(
@@ -74,13 +84,17 @@ def test_entailment_verdicts_parse_strictly():
 
 
 def test_entailment_judge_failure_is_unverifiable():
+    """Entailment judge failure is unverifiable."""
     class Down:
+        """Provider double that always fails."""
         def complete(self, system, user):
+            """Return the double's fixed completion text."""
             raise RuntimeError("offline")
     assert entailment.check_entailment(_claim("C1"), Down()) == "unverifiable"
 
 
 def test_evidence_call_strikes_only_refuted_claims():
+    """Evidence call strikes only refuted claims."""
     refuted = audit_dossier(_dossier([_claim("C1")]),
                             entailment_checker=lambda c: "refuted")
     assert refuted["struck"][0]["reasons"] == ["claim_refuted_by_its_quote"]
@@ -92,6 +106,7 @@ def test_evidence_call_strikes_only_refuted_claims():
 # --- retrieval-first ----------------------------------------------------
 
 def test_allowed_identifiers_strike_outside_citations():
+    """Allowed identifiers strike outside citations."""
     allowed = {("pmid", "16554528")}
     inside = _claim("C1", ident="16554528")
     outside = _claim("C2", ident="99999999")
@@ -102,6 +117,7 @@ def test_allowed_identifiers_strike_outside_citations():
 
 
 def test_frame_identifier_set_reads_packs_and_evidence():
+    """Frame identifier set reads packs and evidence."""
     frame = {"case_pack": {"claims": [{"source_identifier": "16554528",
                                        "identifier_type": "pmid"}]},
              "evidence": [{"identifier": "10.1000/x", "type": "doi"}]}
@@ -111,6 +127,7 @@ def test_frame_identifier_set_reads_packs_and_evidence():
 
 
 def test_retrieval_normalizes_records():
+    """Retrieval normalizes records."""
     records = [{"pmid": "111", "source": "MED", "title": "Paper"},
                {"id": "PPR999", "source": "PPR", "title": "Preprint"},
                {"doi": "10.1000/only", "source": "MED", "title": "DOI only"},
@@ -121,7 +138,9 @@ def test_retrieval_normalizes_records():
 
 
 def test_retrieve_evidence_uses_frame_terms():
+    """Retrieve evidence uses frame terms."""
     def fetch(url):
+        """Return the canned registry response."""
         assert "PCSK9" in url
         return 200, json.dumps({"resultList": {"result": [
             {"pmid": "16554528", "source": "MED", "title": "PCSK9 paper"}]}})
@@ -131,6 +150,7 @@ def test_retrieve_evidence_uses_frame_terms():
 
 
 def test_run_debate_retrieval_first_blocks_memory_citations():
+    """Run debate retrieval first blocks memory citations."""
     frame = copy.deepcopy(FRAME)
     frame["case_pack"] = {"claims": [{"source_identifier": "16554528",
                                       "identifier_type": "pmid"}]}

@@ -41,12 +41,14 @@ SOURCELESS_CLAIM = {
 
 
 def dossier(focus, claims):
+    """Build a dossier for the tests."""
     return {"artifact_type": "dossier", "schema_version": "0.1.0",
             "dossier_id": "SYN-D", "frame_id": "SYN-F", "agent_id": "synthetic",
             "proposed_focus_id": focus, "claims": claims}
 
 
 def spec(focus, claims, dissent=None):
+    """Build a consensus spec for the tests."""
     return {"artifact_type": "consensus_spec", "schema_version": "0.1.0",
             "spec_id": "SYN-S", "frame_id": "SYN-F", "outcome": "locked",
             "focus_id": focus, "claims": claims,
@@ -54,15 +56,19 @@ def spec(focus, claims, dissent=None):
 
 
 class TestHashing(unittest.TestCase):
+    """Tests for hashing."""
     def test_canonical_hash_stable_under_key_order(self):
+        """Canonical hash stable under key order."""
         a = {"b": 1, "a": {"y": [1, 2], "x": "synthetic"}}
         b = {"a": {"x": "synthetic", "y": [1, 2]}, "b": 1}
         self.assertEqual(canonical_hash(a), canonical_hash(b))
 
     def test_canonical_hash_changes_with_content(self):
+        """Canonical hash changes with content."""
         self.assertNotEqual(canonical_hash({"a": 1}), canonical_hash({"a": 2}))
 
     def test_freeze_thaw_roundtrip_and_tamper_detection(self):
+        """Freeze thaw roundtrip and tamper detection."""
         env = freeze_artifact({"a": 1, "b": "synthetic"})
         self.assertTrue(verify_frozen(env))
         self.assertEqual(thaw_artifact(env), {"a": 1, "b": "synthetic"})
@@ -71,11 +77,14 @@ class TestHashing(unittest.TestCase):
 
 
 class TestClaims(unittest.TestCase):
+    """Tests for claims."""
     def test_good_claim_passes(self):
+        """Good claim passes."""
         report = audit_claims({"claims": [GOOD_CLAIM]})
         self.assertTrue(report["ok"], report)
 
     def test_model_opinion_fails_load_bearing(self):
+        """Model opinion fails load bearing."""
         report = audit_claims({"claims": [OPINION_CLAIM]})
         codes = {e["code"] for e in report["errors"]}
         self.assertIn("non_evidence_source_kind", codes)
@@ -83,21 +92,25 @@ class TestClaims(unittest.TestCase):
         self.assertFalse(report["ok"])
 
     def test_sourceless_fails(self):
+        """Sourceless fails."""
         report = audit_claims({"claims": [SOURCELESS_CLAIM]})
         codes = {e["code"] for e in report["errors"]}
         self.assertIn("missing_source_identifier", codes)
 
     def test_all_errors_reported_not_first_only(self):
+        """All errors reported not first only."""
         report = audit_claims({"claims": [OPINION_CLAIM, SOURCELESS_CLAIM]})
         self.assertGreaterEqual(report["error_count"], 3)
 
     def test_duplicate_claim_id_flagged(self):
+        """Duplicate claim id flagged."""
         report = audit_claims({"claims": [GOOD_CLAIM, dict(GOOD_CLAIM)]})
         codes = [e["code"] for e in report["errors"]]
         self.assertIn("duplicate_claim_id", codes)
         self.assertFalse(report["ok"])
 
     def test_synthetic_dossier_fixture_fails_as_designed(self):
+        """Synthetic dossier fixture fails as designed."""
         doc = json.loads((ROOT / "examples/synthetic/dossier.json").read_text())
         self.assertTrue(doc["_synthetic"])
         report = audit_claims(doc)
@@ -108,88 +121,109 @@ class TestClaims(unittest.TestCase):
 
 
 class TestCitationAuditor(unittest.TestCase):
+    """Tests for citation auditor."""
     def test_doi_format(self):
+        """Doi format."""
         self.assertTrue(check_identifier("10.1234/synthetic.example", "doi")["ok"])
         self.assertFalse(check_identifier("not-a-doi", "doi")["ok"])
 
     def test_pmid_and_nct_format(self):
+        """Pmid and nct format."""
         self.assertTrue(check_identifier("12345678", "pmid")["ok"])
         self.assertFalse(check_identifier("12AB", "pmid")["ok"])
         self.assertTrue(check_identifier("NCT12345678", "nct")["ok"])
         self.assertFalse(check_identifier("NCT123", "nct")["ok"])
 
     def test_quote_checked_requires_quote(self):
+        """Quote checked requires quote."""
         claim = dict(GOOD_CLAIM); claim["supporting_quote"] = ""
         report = audit_citations({"claims": [claim]})
         codes = {p["code"] for e in report["entries"] for p in e["problems"]}
         self.assertIn("quote_checked_without_quote", codes)
 
     def test_unverified_listed_for_live_resolution(self):
+        """Unverified listed for live resolution."""
         report = audit_citations({"claims": [SOURCELESS_CLAIM]})
         self.assertIn("SYN-T-NOSRC", report["needs_live_resolution"])
 
 
 class TestLicenses(unittest.TestCase):
+    """Tests for licenses."""
     def test_alphafold3_blocked_for_commercial(self):
+        """Alphafold3 blocked for commercial."""
         r = check_tool("AlphaFold 3", "commercial")
         self.assertFalse(r["allowed"])
 
     def test_boltz2_allowed(self):
+        """Boltz2 allowed."""
         self.assertTrue(check_tool("Boltz-2", "commercial")["allowed"])
         self.assertTrue(check_tool("Boltz-2", "research")["allowed"])
 
     def test_chai1_and_rdkit_allowed(self):
+        """Chai1 and rdkit allowed."""
         self.assertTrue(check_tool("Chai-1", "commercial")["allowed"])
         self.assertTrue(check_tool("RDKit", "commercial")["allowed"])
 
     def test_esm3_blocked_for_commercial(self):
+        """Esm3 blocked for commercial."""
         self.assertFalse(check_tool("ESM3-open", "commercial")["allowed"])
 
     def test_verify_terms_blocked_until_verified(self):
+        """Verify terms blocked until verified."""
         self.assertFalse(check_tool("ProteinMPNN", "research")["allowed"])
         self.assertFalse(check_tool("RFdiffusion", "commercial")["allowed"])
 
     def test_unknown_tool_blocked(self):
+        """Unknown tool blocked."""
         self.assertFalse(check_tool("SYN-UNKNOWN-TOOL", "research")["allowed"])
 
 
 class TestConsensus(unittest.TestCase):
+    """Tests for consensus."""
     def test_agreement_fails_when_a_dossier_has_no_focus(self):
         # Regression: agreement used to pass when one dossier proposed a
         # focus and another proposed none, because missing focuses were
         # filtered out before the distinct count.
+        """Agreement fails when a dossier has no focus."""
         out = consensus_agreement([{"proposed_focus_id": "T1"}, {"agent_id": "x"}])
         self.assertFalse(out["passed"])
         self.assertIn("without a focus", out["detail"])
 
     def test_agreement_pass_and_fail(self):
+        """Agreement pass and fail."""
         ds = [dossier("SYN-T1", []), dossier("SYN-T1", [])]
         self.assertTrue(consensus_agreement(ds)["passed"])
         ds2 = [dossier("SYN-T1", []), dossier("SYN-T2", [])]
         self.assertFalse(consensus_agreement(ds2)["passed"])
 
     def test_evidence_floor_fails_on_tier5_only(self):
+        """Evidence floor fails on tier5 only."""
         tier5 = dict(GOOD_CLAIM); tier5["evidence_tier"] = 5
         self.assertFalse(consensus_evidence_floor(spec("SYN-T1", [tier5]))["passed"])
 
     def test_evidence_floor_passes_with_audited_tier2(self):
+        """Evidence floor passes with audited tier2."""
         self.assertTrue(consensus_evidence_floor(spec("SYN-T1", [GOOD_CLAIM]))["passed"])
 
     def test_evidence_floor_fails_when_claims_unaudited(self):
+        """Evidence floor fails when claims unaudited."""
         unaudited = dict(GOOD_CLAIM); unaudited["verification_status"] = "unverified"
         self.assertFalse(consensus_evidence_floor(spec("SYN-T1", [unaudited]))["passed"])
 
     def test_stability(self):
+        """Stability."""
         self.assertTrue(consensus_stability(spec("SYN-T1", []), spec("SYN-T1", []))["passed"])
         self.assertFalse(consensus_stability(spec("SYN-T1", []), spec("SYN-T2", []))["passed"])
 
     def test_dissent_log_required(self):
+        """Dissent log required."""
         s = spec("SYN-T1", []); del s["dissent_log"]
         self.assertFalse(check_dissent_log(s)["passed"])
         s2 = spec("SYN-T1", [], dissent=[])
         self.assertFalse(check_dissent_log(s2)["passed"])
 
     def test_full_consensus_run(self):
+        """Full consensus run."""
         ds = [dossier("SYN-T1", [GOOD_CLAIM]), dossier("SYN-T1", [GOOD_CLAIM])]
         s = spec("SYN-T1", [GOOD_CLAIM])
         out = run_consensus_tests(ds, s, swapped_spec=spec("SYN-T1", [GOOD_CLAIM]))
@@ -197,19 +231,23 @@ class TestConsensus(unittest.TestCase):
 
 
 class TestFocus(unittest.TestCase):
+    """Tests for focus."""
     def test_only_audited_claims_count(self):
+        """Only audited claims count."""
         unaudited = dict(GOOD_CLAIM); unaudited["verification_status"] = "unverified"
         out = focus_score({"claims": [GOOD_CLAIM, unaudited, OPINION_CLAIM]})
         self.assertEqual(out["audited_claim_count"], 1)
         self.assertEqual(out["score"], 70)
 
     def test_empty_is_zero(self):
+        """Empty is zero."""
         out = focus_score({"claims": []})
         self.assertEqual(out["score"], 0)
 
     def test_duplicate_claim_id_counts_once(self):
         # Regression: the same audited claim listed twice used to score
         # twice (140 for two copies of a tier-2 claim).
+        """Duplicate claim id counts once."""
         out = focus_score({"claims": [GOOD_CLAIM, dict(GOOD_CLAIM)]})
         self.assertEqual(out["audited_claim_count"], 1)
         self.assertEqual(out["score"], 70)
@@ -217,6 +255,7 @@ class TestFocus(unittest.TestCase):
     def test_boolean_tier_is_not_a_tier(self):
         # Regression: bool is a subclass of int in Python, so a claim with
         # evidence_tier True used to score as a tier-1 claim (weight 100).
+        """Boolean tier is not a tier."""
         bool_claim = dict(GOOD_CLAIM); bool_claim["evidence_tier"] = True
         out = focus_score({"claims": [bool_claim]})
         self.assertEqual(out["audited_claim_count"], 0)
@@ -224,12 +263,15 @@ class TestFocus(unittest.TestCase):
 
 
 class TestProvidersAndManifest(unittest.TestCase):
+    """Tests for providers and manifest."""
     def test_mock_provider_output_is_synthetic(self):
+        """Mock provider output is synthetic."""
         out = MockProvider().research({"frame_id": "SYN-FRAME-001"})
         self.assertTrue(out["_synthetic"])
         self.assertEqual(out["frame_id"], "SYN-FRAME-001")
 
     def test_mock_run_produces_valid_manifest(self):
+        """Mock run produces valid manifest."""
         provider = MockProvider()
         provider.research({"frame_id": "SYN-FRAME-001"})
         manifest = build_manifest(provider.name, provider.model_version,
@@ -241,11 +283,14 @@ class TestProvidersAndManifest(unittest.TestCase):
 
 
 class TestSchemas(unittest.TestCase):
+    """Tests for schemas."""
     def test_synthetic_frame_validates(self):
+        """Synthetic frame validates."""
         doc = json.loads((ROOT / "examples/synthetic/frame.json").read_text())
         self.assertEqual(validate_artifact("frame", doc), [])
 
     def test_missing_required_field_fails(self):
+        """Missing required field fails."""
         errors = validate_artifact("frame", {"artifact_type": "frame"})
         self.assertGreater(len(errors), 0)
 

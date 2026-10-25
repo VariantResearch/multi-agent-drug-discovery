@@ -23,6 +23,7 @@ FRAME = {"artifact_type": "frame", "schema_version": "0.1.0",
 
 
 def good_claim(cid, tier=2):
+    """Build a claim that passes the audit."""
     return {"claim_id": cid, "text": "invented claim " + cid,
             "load_bearing": True, "evidence_tier": tier,
             "source_kind": "journal_article", "source_identifier": "12345678",
@@ -31,6 +32,7 @@ def good_claim(cid, tier=2):
 
 
 def bad_claim(cid):
+    """Build a claim that fails the audit."""
     return {"claim_id": cid, "text": "invented bad claim " + cid,
             "load_bearing": True, "evidence_tier": 0,
             "source_kind": "model_opinion", "source_identifier": None,
@@ -39,6 +41,7 @@ def bad_claim(cid):
 
 
 def dossier(dossier_id, agent_id, focus, claims):
+    """Build a dossier for the tests."""
     return {"artifact_type": "dossier", "schema_version": "0.1.0",
             "dossier_id": dossier_id, "frame_id": FRAME["frame_id"],
             "agent_id": agent_id, "model_family": "stub",
@@ -47,7 +50,9 @@ def dossier(dossier_id, agent_id, focus, claims):
 
 
 class StubProvider:
+    """Stub provider returning a fixed dossier."""
     def __init__(self, name, dossier_dict, cost=0.0):
+        """Initialize the test double."""
         self.name = name
         self.model_version = name + "-v1"
         self.cost_per_call_usd = cost
@@ -55,11 +60,13 @@ class StubProvider:
         self.calls = 0
 
     def research(self, frame):
+        """Return the double's fixed research result."""
         self.calls += 1
         return copy.deepcopy(self._dossier)
 
 
 def agreeing_providers():
+    """Build stub providers that agree on a focus."""
     a = StubProvider("stub-a", dossier("D-A", "agent-a", "FOCUS-A",
                                        [good_claim("C-A1"), good_claim("C-A2", tier=3)]))
     b = StubProvider("stub-b", dossier("D-B", "agent-b", "FOCUS-A",
@@ -68,7 +75,9 @@ def agreeing_providers():
 
 
 class TestDebateEngine(unittest.TestCase):
+    """Tests for debate engine."""
     def test_agreement_with_judge_locks_and_freezes(self):
+        """Agreement with judge locks and freezes."""
         a, b = agreeing_providers()
         judge = StubProvider("stub-judge", dossier("D-J", "agent-j", "FOCUS-A",
                                                    [good_claim("C-J1")]))
@@ -85,6 +94,7 @@ class TestDebateEngine(unittest.TestCase):
         self.assertEqual(merged_ids, {"C-A1", "C-A2", "C-B1"})
 
     def test_no_judge_means_stability_not_established(self):
+        """No judge means stability not established."""
         a, b = agreeing_providers()
         record = run_debate(FRAME, [a, b])
         self.assertEqual(record["outcome"], "no_go")
@@ -93,6 +103,7 @@ class TestDebateEngine(unittest.TestCase):
         self.assertFalse(stability["passed"])
 
     def test_disagreement_is_no_go_with_dissent(self):
+        """Disagreement is no go with dissent."""
         a = StubProvider("stub-a", dossier("D-A", "agent-a", "FOCUS-A", [good_claim("C-A1")]))
         b = StubProvider("stub-b", dossier("D-B", "agent-b", "FOCUS-B", [good_claim("C-B1")]))
         judge = StubProvider("stub-judge", dossier("D-J", "agent-j", "FOCUS-A",
@@ -105,6 +116,7 @@ class TestDebateEngine(unittest.TestCase):
         self.assertEqual(kinds, {"focus_disagreement"})
 
     def test_struck_claim_is_out_and_listed(self):
+        """Struck claim is out and listed."""
         a = StubProvider("stub-a", dossier("D-A", "agent-a", "FOCUS-A",
                                            [good_claim("C-A1"), bad_claim("C-BAD")]))
         b = StubProvider("stub-b", dossier("D-B", "agent-b", "FOCUS-A", [good_claim("C-B1")]))
@@ -117,6 +129,7 @@ class TestDebateEngine(unittest.TestCase):
         self.assertNotIn("C-BAD", spec_ids)
 
     def test_tier5_only_evidence_fails_the_floor(self):
+        """Tier5 only evidence fails the floor."""
         a = StubProvider("stub-a", dossier("D-A", "agent-a", "FOCUS-A",
                                            [good_claim("C-A1", tier=5)]))
         b = StubProvider("stub-b", dossier("D-B", "agent-b", "FOCUS-A",
@@ -130,6 +143,7 @@ class TestDebateEngine(unittest.TestCase):
         self.assertFalse(floor["passed"])
 
     def test_judge_swap_flip_fails_stability_and_is_dissented(self):
+        """Judge swap flip fails stability and is dissented."""
         a, b = agreeing_providers()
         judge = StubProvider("stub-judge", dossier("D-J", "agent-j", "FOCUS-OTHER",
                                                    [good_claim("C-J1")]))
@@ -142,6 +156,7 @@ class TestDebateEngine(unittest.TestCase):
                             for d in record["spec"]["dissent_log"]))
 
     def test_ranking_prefers_stronger_evidence(self):
+        """Ranking prefers stronger evidence."""
         strong = audit_dossier(dossier("D-S", "agent-s", "FOCUS-A",
                                        [good_claim("C-S1", tier=1)]))
         weak = audit_dossier(dossier("D-W", "agent-w", "FOCUS-B",
@@ -151,6 +166,7 @@ class TestDebateEngine(unittest.TestCase):
         self.assertEqual(ranking[0]["wins"], 1.0)
 
     def test_budget_stop_prevents_calls_past_the_cap(self):
+        """Budget stop prevents calls past the cap."""
         a = StubProvider("stub-a", dossier("D-A", "agent-a", "FOCUS-A",
                                            [good_claim("C-A1")]), cost=5.0)
         b = StubProvider("stub-b", dossier("D-B", "agent-b", "FOCUS-A",
@@ -161,15 +177,18 @@ class TestDebateEngine(unittest.TestCase):
         self.assertEqual(b.calls, 0)
 
     def test_fewer_than_two_providers_rejected(self):
+        """Fewer than two providers rejected."""
         a, _b = agreeing_providers()
         with self.assertRaises(ValueError):
             run_debate(FRAME, [a])
 
     def test_live_resolver_strikes_not_found_claims(self):
+        """Live resolver strikes not found claims."""
         d = dossier("D-R", "agent-r", "FOCUS-A",
                     [good_claim("C-LIVE"), good_claim("C-GONE")])
 
         def fake_resolver(identifier, identifier_type):
+            """Resolve identifiers from a fixed table."""
             return "not_found" if identifier == "12345678" else "resolved"
 
         d["claims"][1]["source_identifier"] = "87654321"
@@ -180,12 +199,14 @@ class TestDebateEngine(unittest.TestCase):
         self.assertIn("citation_not_found_live", struck["C-LIVE"])
 
     def test_live_resolver_lookup_error_never_strikes(self):
+        """Live resolver lookup error never strikes."""
         d = dossier("D-R2", "agent-r", "FOCUS-A", [good_claim("C-LIVE")])
         audited = audit_dossier(d, resolver=lambda i, t: "lookup_error")
         self.assertEqual(len(audited["surviving_claims"]), 1)
         self.assertEqual(audited["struck"], [])
 
     def test_duplicate_dossier_ids_rejected(self):
+        """Duplicate dossier ids rejected."""
         a = StubProvider("stub-a", dossier("DUP-ID", "agent-a", "FOCUS-A",
                                            [good_claim("C-A1")]))
         b = StubProvider("stub-b", dossier("DUP-ID", "agent-b", "FOCUS-A",
@@ -194,6 +215,7 @@ class TestDebateEngine(unittest.TestCase):
             run_debate(FRAME, [a, b])
 
     def test_manifest_records_every_call(self):
+        """Manifest records every call."""
         a, b = agreeing_providers()
         judge = StubProvider("stub-judge", dossier("D-J", "agent-j", "FOCUS-A",
                                                    [good_claim("C-J1")]))
@@ -207,6 +229,7 @@ class TestDebateEngine(unittest.TestCase):
                          "frame coverage")
 
     def test_judge_strikes_are_recorded(self):
+        """Judge strikes are recorded."""
         a, b = agreeing_providers()
         judge = StubProvider("stub-judge", dossier("D-J", "agent-j", "FOCUS-A",
                                                    [good_claim("C-J1"), bad_claim("C-JBAD")]))

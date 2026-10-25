@@ -87,6 +87,25 @@
   becomes a candidate with that provenance and no invented assessment.
   The MADD Console starts a design run from a locked frame run and
   shows design bundles in the run library.
+- Chai-1 license registry entry verified against the chaidiscovery/
+  chai-lab repository (2026-10-25): its LICENSE is Apache-2.0 and its
+  README states the license covers both code and model weights,
+  commercial use included, superseding the 2024 technical report's
+  non-commercial weights language. The entry stands as recorded; the
+  verification is noted on the entry itself.
+- Documentation pass (2026-10-25): every module, class, and function
+  in madd/ and tests/ now carries a docstring (331 added across the
+  test suite), enforced from here on by tests/test_documentation.py,
+  which also checks that the README repository layout names every
+  package module. Stale sections rewritten in place: the README
+  layout gained the six design modules and the package entry files;
+  docs/PHASE0_SPEC.md describes live resolution and full-text quote
+  checking as built; docs/PHASE2_SPEC.md covers the enrichment steps,
+  Vina docking, and the AiZynthFinder runner, and no longer lists
+  docking, ADMET, or synthesis planning as out of scope;
+  docs/EVIDENCE_POLICY.md lists the retraction, full-text,
+  entailment, and retrieval-first strike rules; docs/
+  DEBATE_PROTOCOL.md describes the live checks in the evidence call.
 
 ### Fixed
 

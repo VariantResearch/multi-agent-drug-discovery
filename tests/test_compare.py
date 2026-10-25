@@ -15,6 +15,7 @@ DRUGS = {cid: load_input_pack(cid, GATE0)["drug_name"] for cid in CASE_IDS}
 
 
 def bundle_for(advance_drugs, run_id):
+    """Build a stored run bundle with the given outcome."""
     return run_gate0(
         [CaseStub("a", advance_drugs), CaseStub("b", advance_drugs)],
         judge_provider=CaseStub("j", advance_drugs),
@@ -23,7 +24,9 @@ def bundle_for(advance_drugs, run_id):
 
 
 class TestCompare(unittest.TestCase):
+    """Tests for compare."""
     def test_identical_runs_have_no_changes(self):
+        """Identical runs have no changes."""
         a = bundle_for(set(), "cmp-a")
         b = bundle_for(set(), "cmp-b")
         diff = compare_bundles(a, b)
@@ -33,6 +36,7 @@ class TestCompare(unittest.TestCase):
         self.assertTrue(diff["same_case_set"])
 
     def test_advancing_everything_flips_and_moves_thresholds(self):
+        """Advancing everything flips and moves thresholds."""
         a = bundle_for(set(), "cmp-a")
         b = bundle_for(set(DRUGS.values()), "cmp-b")
         diff = compare_bundles(a, b)

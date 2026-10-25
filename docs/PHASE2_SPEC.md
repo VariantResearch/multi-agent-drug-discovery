@@ -41,7 +41,19 @@ as everything else in this repository.
    with the basis "computed:RDKit <version>", a calculation rather
    than an estimate; an unparseable structure enters audit as a failed
    computed constraint. When RDKit is not installed the step reports
-   not_installed and nothing is fabricated to fill the gap.
+   not_installed and nothing is fabricated to fill the gap. Three
+   further enrichments run before audit, each recorded on the
+   candidate and none of them exclusionary: a known-compound lookup
+   (with --source-check, the candidate's InChIKey is searched in
+   ChEMBL and PubChem and the registry ids, or the absence of a
+   record, are recorded as source_check); ADMET-AI endpoint
+   predictions (a panel of trained-model ADMET endpoints per SMILES
+   candidate, recorded as computed:ADMET-AI with verified false,
+   because a model's prediction is information, not a measurement);
+   and, with --retro-config, an AiZynthFinder retrosynthesis search
+   whose per-candidate status (routes found, none found, or no_config
+   when its model files were never downloaded) is recorded as
+   retrosynthesis.
 3. **Tool runs (optional).** External structure tools run through
    madd/design_tools.py, which enforces the license registry before
    anything executes: a tool the registry blocks for the intended use
@@ -51,10 +63,19 @@ as everything else in this repository.
    recorded: the output directory is snapshotted first, and
    pre-existing files in a reused directory are listed as skipped,
    never claimed as this run's outputs. Only structure-suffixed files
-   (.cif, .pdb, and peers) become candidates; logs and other side
-   files stay in the manifest only. Boltz-2 and Chai-1 are the registry-cleared
-   entries; they are not installed in the development environment, so
-   no real tool run has happened yet. Each output structure file
+   (.cif, .pdb, .pdbqt, and peers) become candidates; logs and other
+   side files stay in the manifest only. AutoDock Vina is
+   registry-cleared and has run for real through this runner (its
+   input is a Vina config file naming the receptor and ligand PDBQT
+   files and the search box; a redock of the 1HVR ligand is the
+   recorded verification). Boltz-2 and Chai-1 are registry-cleared
+   but not installed in the development environment, so no
+   structure-prediction run has happened yet. AiZynthFinder runs
+   through a dedicated route-search entry point in the same module
+   because its interface takes a SMILES and a config file rather than
+   a structure file. PoseBusters is not a tool-runner tool:
+   madd/design_pose.py wraps it directly and reports its geometric
+   checks over a pose file by name. Each output structure file
    becomes one candidate whose provenance is the tool run; MADD
    attaches no invented assessment to it.
 4. **Candidate audit.** Every claim a candidate carries goes through
@@ -109,6 +130,12 @@ unverified in every report.
   contract), and the license-gated external tool runner.
 - RDKit structure validation and computed descriptors for SMILES
   candidates, license-gated and honestly reported when absent.
+- Candidate enrichment before audit: ChEMBL/PubChem known-compound
+  lookups by InChIKey, ADMET-AI predicted endpoints recorded as
+  unverified tool predictions, and AiZynthFinder retrosynthesis
+  status per candidate.
+- Docking through the tool runner (AutoDock Vina) and pose geometry
+  validation through the PoseBusters wrapper.
 - Candidate audit, exclusion with reasons, deterministic ranking.
 - Design bundles with gate reports, stored like run bundles, readable
   in the text report, the HTML report, and the MADD Console.
@@ -118,9 +145,10 @@ unverified in every report.
 
 - Structure prediction with Boltz-2 or Chai-1 until one is installed
   and run for real; the runner and manifest machinery are built, and
-  no tool run has happened yet.
-- Docking, ADMET calculation beyond RDKit descriptors, synthesis
-  planning, and wet-lab protocols. A future stage may add them behind
-  the same manifest and audit rules.
+  no structure-prediction run has happened yet.
+- Wet-lab protocols. Docking (Vina), ADMET prediction (ADMET-AI),
+  and retrosynthesis search (AiZynthFinder) exist as recorded tool
+  steps behind the same manifest and audit rules; none of them
+  validates a candidate biologically.
 - Any claim that a ranked candidate is a drug or a lead. Ranking orders
   proposals by audited support; it validates nothing about biology.

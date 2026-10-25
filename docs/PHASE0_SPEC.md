@@ -40,9 +40,10 @@ artifacts are identified by the SHA-256 of their canonical JSON form
   record against the full citation metadata is not automated.
 - quote_checked - resolved, and a supporting quotation from the source was
   recorded in the supporting_quote field and checked against the claim
-  text. Quote checking against source text is not automated anywhere in
-  this repository; the Gate 0 quotes were checked by hand at dataset
-  construction (see gate0/VERIFICATION_LEDGER.md).
+  text. Checking a quotation against the source's own text is automated
+  for sources whose open-access full text Europe PMC serves (see the
+  live resolution section below); the Gate 0 quotes were checked by hand
+  at dataset construction (see gate0/VERIFICATION_LEDGER.md).
 - struck - failed a check, or sourced from an agent or model opinion, or
   otherwise excluded under docs/EVIDENCE_POLICY.md.
 
@@ -50,30 +51,28 @@ artifacts are identified by the SHA-256 of their canonical JSON form
 
 madd/citation_auditor.py performs offline checks only:
 
-- Identifier format: DOI pattern, PMID numeric pattern, NCT pattern.
+- Identifier format: patterns for every supported identifier type (DOI,
+  PMID, NCT, PMCID, preprint PPR, GWAS GCST accession and rsID, ChEMBL,
+  PubChem CID, UniProt accession).
 - Claims marked quote_checked must carry a non-empty supporting_quote.
 - Claims with any other status are listed as still needing live
   resolution, by claim_id.
 - The auditor makes no network calls and never upgrades a claim's status.
   It reports what a live resolver still has to do.
 
-### Live resolution (TODO interface, not implemented in Phase 0)
+### Live resolution (built after Phase 0)
 
-A future resolver module is expected to: resolve an identifier against
-its registry, compare returned metadata with the citation, fetch or receive
-the source text under its license terms, and check the supporting
-quotation. Until that module exists and is tested, every claim in every
-run remains at most "unverified" in practice, and no specification may be
-locked on the basis of this scaffold alone.
-
-Addendum, updated 2026-10-25: the resolver exists as madd/resolve.py.
-It resolves identifiers against the registry that owns each type -
-PubMed, Crossref, ClinicalTrials.gov, Europe PMC, the GWAS Catalog,
-ChEMBL, PubChem, and UniProt - and reports the registry title. It also
-checks supporting quotations against open-access full text served by
-Europe PMC: a quote absent from retrieved text is reported, while a
-source with no open full text proves nothing either way, so the
-caution above still stands wherever full text is not openly available.
+The resolver exists as madd/resolve.py. It resolves identifiers against
+the registry that owns each type - PubMed, Crossref, ClinicalTrials.gov,
+Europe PMC, the GWAS Catalog, ChEMBL, PubChem, and UniProt - and reports
+the registry title; for DOIs it also reports Crossref retraction and
+withdrawal flags. It checks supporting quotations against open-access
+full text served by Europe PMC: a quote absent from retrieved text is
+reported as not found, while a source with no open full text proves
+nothing either way. Two cautions from the original design still stand:
+matching the returned record against the full citation metadata is not
+automated, and wherever full text is not openly available a quotation
+cannot be machine-checked against its source.
 
 ## Gate 0: retrospective test set design
 

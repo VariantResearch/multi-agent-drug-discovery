@@ -16,7 +16,9 @@ from tests.test_runner import CaseStub, DRUGS, GATE0
 
 
 class TestStorageReport(unittest.TestCase):
+    """Tests for storage report."""
     def _frame_bundle(self):
+        """Build a frame run bundle for the storage tests."""
         frame = {"artifact_type": "frame", "schema_version": "0.1.0",
                  "frame_id": "TEST-FRAME", "question": "invented",
                  "round_cap": 2}
@@ -25,6 +27,7 @@ class TestStorageReport(unittest.TestCase):
                          run_id="test-store-1")
 
     def test_write_and_reload_frame_bundle(self):
+        """Write and reload frame bundle."""
         bundle = self._frame_bundle()
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = write_bundle(bundle, tmp)
@@ -38,6 +41,7 @@ class TestStorageReport(unittest.TestCase):
             self.assertEqual(runs[0]["outcome"], "no_go")
 
     def test_gate0_bundle_writes_gate_report(self):
+        """Gate0 bundle writes gate report."""
         a = CaseStub("a", set(DRUGS.values()))
         b = CaseStub("b", set(DRUGS.values()))
         judge = CaseStub("judge", set(DRUGS.values()))
@@ -55,6 +59,7 @@ class TestStorageReport(unittest.TestCase):
             self.assertIn("did not pass", md)
 
     def test_markdown_reports_numbers_from_the_bundle(self):
+        """Markdown reports numbers from the bundle."""
         bundle = self._frame_bundle()
         md = bundle_to_markdown(bundle)
         self.assertIn("Outcome: no_go", md)

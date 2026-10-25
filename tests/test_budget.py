@@ -9,7 +9,9 @@ from madd.budget import BudgetExceeded, BudgetTracker
 
 
 class TestBudgetTracker(unittest.TestCase):
+    """Tests for budget tracker."""
     def test_records_within_cap(self):
+        """Records within cap."""
         tracker = BudgetTracker({"max_cost_usd": 10.0, "max_calls": 3})
         tracker.record(2.50, note="first")
         tracker.record(2.50)
@@ -18,6 +20,7 @@ class TestBudgetTracker(unittest.TestCase):
         self.assertEqual(tracker.remaining(), {"cost_usd": 5.0, "calls": 1})
 
     def test_cost_cap_is_a_hard_stop_and_records_nothing(self):
+        """Cost cap is a hard stop and records nothing."""
         tracker = BudgetTracker({"max_cost_usd": 4.0})
         tracker.record(3.0)
         with self.assertRaises(BudgetExceeded):
@@ -26,6 +29,7 @@ class TestBudgetTracker(unittest.TestCase):
         self.assertEqual(tracker.calls_made, 1)
 
     def test_exact_cap_is_allowed_next_call_is_not(self):
+        """Exact cap is allowed next call is not."""
         tracker = BudgetTracker({"max_cost_usd": 4.0})
         tracker.record(4.0)
         self.assertFalse(tracker.would_exceed(0.0, calls=0))
@@ -34,6 +38,7 @@ class TestBudgetTracker(unittest.TestCase):
             tracker.record(0.01)
 
     def test_call_cap(self):
+        """Call cap."""
         tracker = BudgetTracker({"max_calls": 2})
         tracker.record(0.0)
         tracker.record(0.0)
@@ -41,12 +46,14 @@ class TestBudgetTracker(unittest.TestCase):
             tracker.record(0.0)
 
     def test_uncapped_budget_rejected(self):
+        """Uncapped budget rejected."""
         with self.assertRaises(ValueError):
             BudgetTracker({})
         with self.assertRaises(ValueError):
             BudgetTracker({"max_cost_usd": None})
 
     def test_negative_and_bool_values_rejected(self):
+        """Negative and bool values rejected."""
         with self.assertRaises(ValueError):
             BudgetTracker({"max_cost_usd": -1})
         tracker = BudgetTracker({"max_cost_usd": 5.0})
@@ -56,6 +63,7 @@ class TestBudgetTracker(unittest.TestCase):
             tracker.record(True)
 
     def test_to_dict_shape_for_manifest(self):
+        """To dict shape for manifest."""
         tracker = BudgetTracker({"max_cost_usd": 10.0, "max_calls": 5})
         tracker.record(1.25, note="research call")
         state = tracker.to_dict()

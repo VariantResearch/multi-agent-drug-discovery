@@ -48,7 +48,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (229 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
+Expected results: the test suite passes (231 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -241,6 +241,8 @@ Status today: no scored Gate 0 run has taken place. The thresholds are approved;
 
 ```
 madd/            the package (standard library only)
+  __main__.py      the python -m madd entry point (hands off to cli.py)
+  __init__.py      the package marker
   runner.py        full Gate 0 runs and frame runs
   debate.py        the debate engine (protocol steps 1 to 7)
   providers_http.py  live provider adapters (OpenAI-compatible, Anthropic)
@@ -267,6 +269,14 @@ madd/            the package (standard library only)
   transcript.py      debate records rendered as readable transcripts
   compare.py         run-to-run comparison
   smoke.py           one-call provider smoke tests
+  design.py          the Phase 2 design stage: briefs, candidate audit,
+                     deterministic ranking, design gate and bundles
+  design_rdkit.py    RDKit structure validation and computed descriptors
+  design_admet.py    ADMET-AI predicted ADMET endpoints for candidates
+  design_pose.py     PoseBusters pose geometry validation
+  design_sources.py  candidate known-compound lookups (ChEMBL, PubChem)
+  design_tools.py    license-gated external tool runner (Boltz-2, Chai-1,
+                     AutoDock Vina) and the AiZynthFinder route runner
   gui.py             the MADD Console web interface (stdlib server)
   cli.py             the command line interface
 gate0/           the Gate 0 dataset: input/, sealed/, ledger, case notes

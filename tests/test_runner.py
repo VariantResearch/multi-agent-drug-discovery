@@ -28,6 +28,7 @@ for _cid in CASE_IDS:
 
 
 def good_claim(cid):
+    """Build a claim that passes the audit."""
     return {"claim_id": cid, "text": "invented claim " + cid,
             "load_bearing": True, "evidence_tier": 2,
             "source_kind": "journal_article", "source_identifier": "12345678",
@@ -39,6 +40,7 @@ class CaseStub:
     """Provider stub: endorses the cases whose drug is in advance_for."""
 
     def __init__(self, label, advance_for=(), cost=0.0):
+        """Initialize the test double."""
         self.name = "case-stub-" + label
         self.model_version = "stub-v1"
         self.label = label
@@ -46,6 +48,7 @@ class CaseStub:
         self.cost_per_call_usd = cost
 
     def research(self, frame):
+        """Return the double's fixed research result."""
         drug = frame.get("drug_name")
         dossier_id = "D-" + self.label + "-" + str(drug)
         if drug in self.advance_for:
@@ -64,12 +67,15 @@ class CaseStub:
 
 
 def providers_for(advance_drugs):
+    """Build providers keyed by case outcome."""
     return (CaseStub("a", advance_drugs), CaseStub("b", advance_drugs),
             CaseStub("judge", advance_drugs))
 
 
 class TestRunGate0(unittest.TestCase):
+    """Tests for Gate 0 runs."""
     def test_advance_everything_fails_on_kills(self):
+        """Advance everything fails on kills."""
         a, b, judge = providers_for(set(DRUGS.values()))
         baseline = CaseStub("base", set(DRUGS.values()))
         bundle = run_gate0([a, b], judge_provider=judge, baseline_provider=baseline,
@@ -86,6 +92,7 @@ class TestRunGate0(unittest.TestCase):
         self.assertEqual(len(bundle["input_pack_hashes"]), 8)
 
     def test_perfect_stub_passes_and_report_validates(self):
+        """Perfect stub passes and report validates."""
         advance = {DRUGS[c] for c in CASE_IDS if OUTCOMES[c] == "positive"}
         a, b, judge = providers_for(advance)
         baseline = CaseStub("base", set())  # baseline kills everything: 4 correct
@@ -99,11 +106,13 @@ class TestRunGate0(unittest.TestCase):
         self.assertEqual(report["subject_id"], "test-run-2")
 
     def test_baseline_is_required(self):
+        """Baseline is required."""
         a, b, _judge = providers_for(set())
         with self.assertRaises(ValueError):
             run_gate0([a, b], gate0_dir=GATE0)
 
     def test_run_budget_is_shared_across_cases(self):
+        """Run budget is shared across cases."""
         a, b, judge = providers_for(set(DRUGS.values()))
         for stub in (a, b, judge):
             stub.cost_per_call_usd = 1.0
@@ -114,6 +123,7 @@ class TestRunGate0(unittest.TestCase):
 
 
     def test_progress_events_fire_in_order(self):
+        """Progress events fire in order."""
         a, b, judge = providers_for(set(DRUGS.values()))
         baseline = CaseStub("base", set())
         events = []
@@ -127,6 +137,7 @@ class TestRunGate0(unittest.TestCase):
         self.assertEqual(events[-1]["debate_correct"], 4)
 
     def test_parallel_matches_sequential(self):
+        """Parallel matches sequential."""
         advance = {DRUGS[c] for c in CASE_IDS[:5]}
         a1, b1, j1 = providers_for(advance)
         seq = run_gate0([a1, b1], judge_provider=j1,
@@ -142,7 +153,9 @@ class TestRunGate0(unittest.TestCase):
 
 
 class TestRunFrame(unittest.TestCase):
+    """Tests for frame runs."""
     def test_frame_run_with_mocks_is_no_go_and_frozen(self):
+        """Frame run with mocks is no go and frozen."""
         from madd.providers import MockProvider
         frame = {"artifact_type": "frame", "schema_version": "0.1.0",
                  "frame_id": "TEST-FRAME", "question": "invented",
