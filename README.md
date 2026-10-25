@@ -1,3 +1,17 @@
+```
+            🔴
+            ||
+        ⚪---⚪
+       /       \
+   ⚪           ⚪---🔵
+       \       /
+        ⚪---⚪
+             |
+             ⚪---🟡
+```
+
+🔴 oxygen · 🔵 nitrogen · 🟡 sulfur · ⚪ carbon scaffold
+
 # Multi-Agent Drug Discovery (MADD)
 
 MADD is a provider-neutral system for multi-agent drug discovery research. Several AI research agents independently study the same drug program from the same pre-outcome evidence, a structured debate compares their work, and mechanical auditors - not the models - decide whose evidence survives. The system's rule is simple: no claim counts unless it rests on a real, checkable primary source, and no model gets to grade its own homework.
