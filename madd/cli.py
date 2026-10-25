@@ -349,6 +349,23 @@ def _cmd_run_frame(args) -> int:
     return 0
 
 
+def _cmd_gate0_new_case(args) -> int:
+    """gate0-new-case handler: scaffold the three files for a new
+    Gate 0 case. The dataset will fail validation until the case is
+    completed with verified material; that is the point."""
+    from .gate0 import scaffold_case
+    try:
+        created = scaffold_case(args.case_id, args.gate0_dir)
+    except FileExistsError as exc:
+        print(exc)
+        return 2
+    for path in created:
+        print("created:", path)
+    print("The dataset will FAIL gate0-validate until every TODO is replaced "
+          "with primary-source-verified material and ledger rows are added.")
+    return 0
+
+
 def _cmd_compare_runs(args) -> int:
     """compare-runs handler: diff two Gate 0 run bundles (bundle.json
     paths or run folders) and print what changed."""
@@ -464,6 +481,9 @@ def build_parser() -> argparse.ArgumentParser:
     p15.set_defaults(fn=_cmd_report_html)
     p16 = sub.add_parser("compare-runs"); p16.add_argument("bundle_a")
     p16.add_argument("bundle_b"); p16.set_defaults(fn=_cmd_compare_runs)
+    p17 = sub.add_parser("gate0-new-case"); p17.add_argument("case_id")
+    p17.add_argument("--gate0-dir", default=None)
+    p17.set_defaults(fn=_cmd_gate0_new_case)
     return parser
 
 

@@ -65,6 +65,66 @@ def sealed_dir(gate0_dir=None) -> Path:
     return _base_dir(gate0_dir) / "sealed"
 
 
+def scaffold_case(case_id: str, gate0_dir=None) -> list:
+    """Create the three starting files for a new Gate 0 case and
+    return their paths: the input pack template, the sealed outcome
+    template, and a scaffold section appended to the verification
+    ledger.
+
+    The templates carry TODO placeholders and no claims and no
+    outcome, so gate0-validate fails on the case until a human
+    completes it with primary-source-verified material, by design:
+    a scaffold is scaffolding, never a case. Refuses to overwrite an
+    existing case's files.
+    """
+    base = _base_dir(gate0_dir)
+    input_path = input_dir(gate0_dir) / (case_id + ".json")
+    sealed_path = sealed_dir(gate0_dir) / (case_id + ".outcome.json")
+    for path in (input_path, sealed_path):
+        if path.exists():
+            raise FileExistsError("refusing to overwrite existing case file: "
+                                  + str(path))
+    input_dir(gate0_dir).mkdir(parents=True, exist_ok=True)
+    sealed_dir(gate0_dir).mkdir(parents=True, exist_ok=True)
+    pack = {
+        "case_id": case_id,
+        "dataset": "gate0",
+        "drug_name": "TODO",
+        "target": "TODO",
+        "disease": "TODO",
+        "modality": "TODO",
+        "sponsor": "TODO",
+        "evidence_as_of": "TODO (YYYY-MM-DD, before any pivotal readout)",
+        "forbidden_terms": [],
+        "claims": [],
+        "_scaffold": ("Template created by gate0-new-case. Fill every TODO "
+                      "from primary sources, add pre-outcome claims with "
+                      "verbatim supporting quotes, and record each one in "
+                      "VERIFICATION_LEDGER.md before this case can validate."),
+    }
+    outcome = {
+        "case_id": case_id,
+        "outcome_class": "TODO (positive or negative)",
+        "outcome_date": "TODO (YYYY-MM-DD)",
+        "outcome_source_identifier": "TODO",
+        "outcome_source_type": "TODO",
+        "pivotal_result": "TODO (one paragraph from the primary outcome source)",
+    }
+    input_path.write_text(json.dumps(pack, indent=2), encoding="utf-8")
+    sealed_path.write_text(json.dumps(outcome, indent=2), encoding="utf-8")
+    ledger_path = base / "VERIFICATION_LEDGER.md"
+    if ledger_path.exists():
+        ledger_text = ledger_path.read_text(encoding="utf-8")
+    else:
+        ledger_text = "# Gate 0 verification ledger\n"
+    ledger_text += ("\n## Scaffold: " + case_id + " (not yet verified)\n\n"
+                    "Created by gate0-new-case. No claim or outcome for this "
+                    "case is verified. Add one ledger row per claim as each "
+                    "is checked against its primary source.\n")
+    ledger_path.write_text(ledger_text, encoding="utf-8")
+    return [input_path, sealed_path, ledger_path]
+
+
 def list_case_ids(gate0_dir=None) -> list:
     """Case ids from input pack filenames, sorted. No outcome data."""
     folder = input_dir(gate0_dir)
