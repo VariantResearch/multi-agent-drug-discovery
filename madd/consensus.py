@@ -42,7 +42,8 @@ def test_agreement(dossiers: list) -> dict:
     if not direction_ok:
         detail += ("; directions disagree or are only partly stated: "
                    + ", ".join(str(x) for x in distinct_directions))
-    return {"test": "agreement", "passed": passed, "detail": detail}
+    return {"test": "agreement", "passed": passed,
+            "status": "passed" if passed else "failed", "detail": detail}
 
 
 def test_survival(spec: dict) -> dict:
@@ -50,6 +51,7 @@ def test_survival(spec: dict) -> dict:
     must come back clean, so nothing struck quietly re-enters."""
     report = audit_claims(spec)
     return {"test": "survival", "passed": report["ok"],
+            "status": "passed" if report["ok"] else "failed",
             "detail": "load-bearing claim audit errors: " + str(report["error_count"]),
             "audit": report}
 
@@ -62,6 +64,7 @@ def test_evidence_floor(spec: dict) -> dict:
     best = min(audited_tiers) if audited_tiers else None
     passed = best is not None and best <= 3
     return {"test": "evidence_floor", "passed": passed,
+            "status": "passed" if passed else "failed",
             "detail": "best audited tier: " + (str(best) if best is not None else "none"),
             "audited_tiers": audited_tiers}
 
@@ -73,6 +76,7 @@ def test_stability(spec_a: dict, spec_b: dict) -> dict:
     fb = spec_b.get("focus_id") if isinstance(spec_b, dict) else None
     passed = fa is not None and fa == fb
     return {"test": "stability", "passed": passed,
+            "status": "passed" if passed else "failed",
             "detail": "judge A focus: " + str(fa) + "; judge B focus: " + str(fb)}
 
 
@@ -80,29 +84,43 @@ def check_dissent_log(spec: dict) -> dict:
     """Dissent log: the log must exist and be a list; an empty log is
     acceptable only when the specification gives a dissent_none_reason."""
     if not isinstance(spec, dict) or "dissent_log" not in spec:
-        return {"test": "dissent_log", "passed": False,
+        return {"test": "dissent_log", "passed": False, "status": "failed",
                 "detail": "dissent_log field missing"}
     log = spec.get("dissent_log")
     if not isinstance(log, list):
-        return {"test": "dissent_log", "passed": False, "detail": "dissent_log is not a list"}
+        return {"test": "dissent_log", "passed": False, "status": "failed",
+                "detail": "dissent_log is not a list"}
     if len(log) == 0:
         reason = spec.get("dissent_none_reason")
         if not isinstance(reason, str) or reason.strip() == "":
-            return {"test": "dissent_log", "passed": False,
+            return {"test": "dissent_log", "passed": False, "status": "failed",
                     "detail": "empty dissent_log without a dissent_none_reason"}
-    return {"test": "dissent_log", "passed": True,
+    return {"test": "dissent_log", "passed": True, "status": "passed",
             "detail": "dissent entries: " + str(len(log))}
 
 
-def run_consensus_tests(dossiers: list, spec: dict, swapped_spec: dict | None = None) -> dict:
+def run_consensus_tests(dossiers: list, spec: dict, swapped_spec: dict | None = None,
+                        stability_required: bool = True) -> dict:
     """Run all four consensus tests plus the dissent-log check.
-    Without a swapped specification, stability is reported as failed
-    with the reason stated, so a missing judge can never pass quietly."""
+
+    Every result carries a status: passed, failed, or not_applied.
+    Stability is the one test a protocol mode may declare not
+    applicable: the dual protocol (two research models, no judge) has
+    no judge to swap, so with stability_required=False and no swapped
+    specification the stability result is reported as not_applied
+    rather than failed, and the record says so plainly. The default
+    keeps the original rule: without a swapped specification,
+    stability is reported as failed with the reason stated, so a
+    missing judge can never pass quietly."""
     results = [test_agreement(dossiers), test_survival(spec), test_evidence_floor(spec),
                check_dissent_log(spec)]
     if swapped_spec is not None:
         results.append(test_stability(spec, swapped_spec))
-    else:
-        results.append({"test": "stability", "passed": False,
+    elif stability_required:
+        results.append({"test": "stability", "passed": False, "status": "failed",
                         "detail": "no judge-swapped specification supplied; stability not established"})
+    else:
+        results.append({"test": "stability", "passed": True, "status": "not_applied",
+                        "detail": "protocol mode has no judge; the judge-swap "
+                                  "stability test is not applied"})
     return {"all_passed": all(r["passed"] for r in results), "results": results}

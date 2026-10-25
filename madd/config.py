@@ -2,6 +2,13 @@
 
 A run is described by a JSON config (see examples/run-config.example.json):
 
+- mode: optional protocol mode, one of simple, dual, dual_judge.
+  Modes count distinct models, not agents: every mode fields a
+  research panel of at least two agents. simple puts every agent on
+  one and the same model and allows no judge; dual spreads the panel
+  across exactly two models and allows no judge; dual_judge spreads
+  it across exactly two models and requires a judge. With no mode,
+  the original rule stands: at least two providers, judge optional.
 - providers: the research panel, at least two entries for a debate.
 - judge and baseline: one provider entry each, or null.
 - budget: a budget dict for madd/budget.py, or null.
@@ -45,6 +52,7 @@ from .providers import MockProvider
 from .providers_http import AnthropicProvider, OpenAICompatibleProvider
 
 KINDS = {"mock", "openai-compatible", "anthropic"}
+MODES = ("simple", "dual", "dual_judge")
 DEFAULT_BASE_URLS = {"openai-compatible": "https://api.openai.com/v1",
                      "anthropic": "https://api.anthropic.com/v1"}
 
@@ -98,6 +106,43 @@ def validate_config(config) -> list:
         _check_entry(entry, "providers[" + str(i) + "]", errors)
         if isinstance(entry, dict) and entry.get("name"):
             names.append(entry["name"])
+    mode = config.get("mode")
+    if mode is not None:
+        if mode not in MODES:
+            errors.append("mode: must be one of " + ", ".join(MODES))
+        else:
+            # A provider entry's model identity: the model id for HTTP
+            # kinds, and the mock's fixed model_version for mocks.
+            models = set()
+            for entry in providers:
+                if isinstance(entry, dict):
+                    models.add("mock-0" if entry.get("kind") == "mock"
+                               else entry.get("model"))
+            judge = config.get("judge")
+            if mode == "simple":
+                if len(models) != 1:
+                    errors.append("mode simple uses one model: the research "
+                                  "panel must span exactly one distinct "
+                                  "model, but it spans " + str(len(models)))
+                if judge is not None:
+                    errors.append("mode simple has no judge; remove the "
+                                  "judge entry or choose dual_judge")
+            elif mode == "dual":
+                if len(models) != 2:
+                    errors.append("mode dual uses two models: the research "
+                                  "panel must span exactly two distinct "
+                                  "models, but it spans " + str(len(models)))
+                if judge is not None:
+                    errors.append("mode dual has no judge; a judge belongs "
+                                  "to dual_judge mode")
+            else:
+                if len(models) != 2:
+                    errors.append("mode dual_judge uses two models plus a "
+                                  "judge: the research panel must span "
+                                  "exactly two distinct models, but it spans "
+                                  + str(len(models)))
+                if judge is None:
+                    errors.append("mode dual_judge requires a judge entry")
     for role in ("judge", "baseline"):
         entry = config.get(role)
         if entry is not None:
@@ -159,7 +204,7 @@ def build_providers(config, environ=None) -> dict:
     """Construct provider objects from a validated config.
 
     Returns {providers, judge, baseline, budget, live_resolution,
-    live_quote_check, entailment_check, retrieval_first}.
+    live_quote_check, entailment_check, retrieval_first, mode}.
     Raises ConfigError on any problem, including a missing key
     variable (named, never valued).
     """
@@ -168,6 +213,7 @@ def build_providers(config, environ=None) -> dict:
         raise ConfigError("invalid run config: " + "; ".join(errors))
     env = os.environ if environ is None else environ
     return {
+        "mode": config.get("mode"),
         "providers": [_build_one(e, env) for e in config["providers"]],
         "judge": _build_one(config["judge"], env) if config.get("judge") else None,
         "baseline": _build_one(config["baseline"], env)

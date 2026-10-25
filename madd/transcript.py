@@ -76,8 +76,9 @@ def record_to_markdown(record: dict) -> str:
               + str(evolution.get("duplicate_claim_ids_skipped")),
               "", "## Consensus tests", ""]
     for test in ((record.get("consensus") or {}).get("results") or []):
-        lines.append("- " + str(test.get("test")) + ": "
-                     + ("pass" if test.get("passed") else "FAIL")
+        label = ("not applied" if test.get("status") == "not_applied"
+                 else "pass" if test.get("passed") else "FAIL")
+        lines.append("- " + str(test.get("test")) + ": " + label
                      + " (" + str(test.get("detail")) + ")")
     judge = record.get("judge_swap")
     lines += ["", "## Judge swap", ""]

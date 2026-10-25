@@ -183,6 +183,12 @@ first scored run still begins at step 1.
 
 ## Run protocol for the first scored Gate 0 run
 
+The scored run runs in dual_judge protocol mode (research agents
+across two models, plus a judge model): the approved thresholds
+include judge-swap stability, which only that mode applies. The
+simple and dual modes exist for cheaper exploratory runs and are
+not scored configurations.
+
 1. Record in this file: the model roster with exact version
    identifiers, the baseline model, and the budget. (Thresholds were
    recorded and approved on 2026-10-22.)

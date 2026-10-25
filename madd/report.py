@@ -28,6 +28,7 @@ def _gate0_markdown(bundle):
         "# Gate 0 run report",
         "",
         "Run: " + str(bundle.get("run_id")),
+        "Protocol mode: " + str(bundle.get("mode") or "legacy"),
         "Result: " + ("passed the approved thresholds"
                       if bundle.get("outcome") == "pass"
                       else "did not pass the approved thresholds"),
@@ -90,8 +91,9 @@ def _frame_markdown(bundle):
         "",
     ]
     for test in ((record.get("consensus") or {}).get("results") or []):
-        lines.append("- " + test["test"] + ": "
-                     + ("pass" if test["passed"] else "FAIL")
+        label = ("not applied" if test.get("status") == "not_applied"
+                 else "pass" if test["passed"] else "FAIL")
+        lines.append("- " + test["test"] + ": " + label
                      + " (" + test["detail"] + ")")
     lines += ["", "Strikes at the evidence call: "
               + str(len(record.get("strike_list") or [])),

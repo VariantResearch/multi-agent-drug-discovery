@@ -375,12 +375,18 @@ def frame_identifier_set(frame) -> set | None:
 def run_debate(frame: dict, providers: list, judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
                resolver=None, quote_checker=None, entailment_checker=None,
-               retrieval_first: bool = False) -> dict:
+               retrieval_first: bool = False,
+               require_stability: bool = True) -> dict:
     """Run the full debate protocol over a frame. Returns the run record.
 
     providers: at least two Provider objects (see madd/providers.py).
     judge_provider: optional third provider whose dossier, produced from
     the same frame, supplies the judge-swap stability comparison.
+    require_stability: the dual protocol mode (two research models, no
+    judge) passes False, so the stability test is recorded as
+    not_applied instead of failed. The default True keeps the original
+    rule: no judge means stability is not established and the outcome
+    is no_go.
     budget: optional budget dict for madd.budget.BudgetTracker.
     budget_tracker: optional pre-built BudgetTracker, shared across
     calls by a runner so the cap applies to a whole multi-case run
@@ -513,7 +519,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                              + str(judge_audited["proposed_focus_id"]),
                 "claim_ids": [],
             }]
-    consensus = run_consensus_tests(dossiers, spec, swapped_spec)
+    consensus = run_consensus_tests(dossiers, spec, swapped_spec,
+                                    stability_required=require_stability)
     outcome = "locked" if consensus["all_passed"] else "no_go"
     spec["outcome"] = outcome
 

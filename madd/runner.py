@@ -25,6 +25,17 @@ so a cap is a run cap, not a per-case allowance. A run bundle is a
 plain dict; madd/storage.py writes it to disk and madd/report.py
 renders it. Nothing here knows or cares whether the providers are
 mocks, stubs, or live models.
+
+Protocol modes. A run may declare one of three protocols (MODES),
+which count distinct models, not agents: every mode fields a panel
+of at least two agents. Simple runs the debate with every agent on
+one and the same model; dual runs it with agents across two models;
+dual_judge runs two models plus a judge model, the full protocol
+including the judge-swap stability test. Simple and dual have no
+judge, so stability is recorded as not applied in those modes. A
+run that declares no mode keeps the original behaviour exactly: a
+debate panel of two or more providers, with a judge when one is
+supplied.
 """
 from __future__ import annotations
 
@@ -36,8 +47,57 @@ from .artifacts import canonical_hash, freeze_artifact
 from .budget import BudgetExceeded, BudgetTracker
 from .claims import is_audited, validate_claim
 from .debate import audit_dossier, frame_identifier_set, run_debate
+from .config import MODES
 from .gate0 import (build_agent_pack, evaluate_thresholds, list_case_ids,
                     score_run)
+
+
+def _validate_mode(mode, providers, judge_provider):
+    """Check a declared protocol mode against the providers supplied.
+
+    Modes count distinct models, not agents: every mode fields a
+    panel of at least two research providers. A provider's model is
+    its model_version. mode=None declares nothing and imposes
+    nothing (the original behaviour). A declared mode fixes the
+    shape exactly: simple puts every agent on one and the same model
+    and has no judge; dual spreads the agents across two models and
+    has no judge; dual_judge spreads them across two models and
+    requires the judge provider. Anything else raises ValueError
+    naming the mismatch, before any provider is called.
+    """
+    if mode is None:
+        return
+    if mode not in MODES:
+        raise ValueError("unknown protocol mode " + repr(mode)
+                         + "; modes are: " + ", ".join(MODES))
+    providers = list(providers)
+    if len(providers) < 2:
+        raise ValueError("every protocol mode fields at least two research "
+                         "agents; got " + str(len(providers)))
+    models = {getattr(p, "model_version", None) for p in providers}
+    if mode == "simple":
+        if len(models) != 1:
+            raise ValueError("simple mode uses one model: every research "
+                             "agent must run the same model, but the panel "
+                             "spans " + str(len(models)) + " distinct models")
+        if judge_provider is not None:
+            raise ValueError("simple mode has no judge; remove the judge "
+                             "provider or choose dual_judge")
+    elif mode == "dual":
+        if len(models) != 2:
+            raise ValueError("dual mode uses two models: the research panel "
+                             "must span exactly two distinct models, but it "
+                             "spans " + str(len(models)))
+        if judge_provider is not None:
+            raise ValueError("dual mode has no judge; a judge belongs to "
+                             "dual_judge mode")
+    else:
+        if len(models) != 2:
+            raise ValueError("dual_judge mode uses two models plus a judge: "
+                             "the research panel must span exactly two "
+                             "distinct models, but it spans " + str(len(models)))
+        if judge_provider is None:
+            raise ValueError("dual_judge mode requires a judge provider")
 
 
 def frame_for_case(case_id: str, pack: dict) -> dict:
@@ -106,13 +166,13 @@ def spec_audit_violations(spec: dict) -> int:
     return count
 
 
-def _charge(tracker, provider):
-    """Reserve one baseline call against the shared run tracker,
-    atomically; a call that would cross the cap raises BudgetExceeded
-    before it happens."""
+def _charge(tracker, provider, role="baseline"):
+    """Reserve one call against the shared run tracker, atomically,
+    under the role the call plays (baseline by default); a call that
+    would cross the cap raises BudgetExceeded before it happens."""
     cost = float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0)
     if tracker is not None:
-        tracker.reserve(cost, note="baseline:" + str(getattr(provider, "name", "?")))
+        tracker.reserve(cost, note=role + ":" + str(getattr(provider, "name", "?")))
 
 
 def _settle_retries(tracker, provider, cost):
@@ -145,16 +205,23 @@ def _emit(on_event, event: dict):
 def run_gate0(providers, judge_provider=None, baseline_provider=None,
               budget=None, gate0_dir=None, resolver=None, run_id=None,
               on_event=None, max_workers=1, quote_checker=None,
-              entailment_checker=None, retrieval_first: bool = False) -> dict:
+              entailment_checker=None, retrieval_first: bool = False,
+              mode=None) -> dict:
     """Run the full Gate 0 protocol. Returns the run bundle.
 
     baseline_provider is required: the approved thresholds include a
     baseline margin, and a run without a baseline cannot be judged.
-    on_event, when given, receives progress events (see _emit).
-    max_workers runs case debates concurrently; the bundle is
-    assembled in case order either way, so results are identical,
-    only the wall time and the event order differ.
+    mode selects the protocol the system side runs under (see MODES
+    and _validate_mode): simple (agents all on one model), dual
+    (agents across two models, no judge), or dual_judge (two models
+    plus the judge model). No mode
+    keeps the original debate behaviour. on_event, when given,
+    receives progress events (see _emit). max_workers runs case
+    debates concurrently; the bundle is assembled in case order
+    either way, so results are identical, only the wall time and the
+    event order differ.
     """
+    _validate_mode(mode, providers, judge_provider)
     if baseline_provider is None:
         raise ValueError("a Gate 0 run needs a baseline provider: the approved "
                          "thresholds judge the debate against a single-model "
@@ -191,17 +258,35 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         _emit(on_event, {"event": "baseline_case_done", "case_id": case_id,
                          "prediction": baseline_predictions[case_id]})
 
-    # Debate per case, sharing the run budget tracker.
+    # System side per case, under the declared protocol mode,
+    # sharing the run budget tracker.
     def debate_one(case_id):
-        """Run one case's debate, emitting its progress events;
-        returns (case_id, record, prediction)."""
+        """Run one case under the run's protocol mode, emitting its
+        progress events; returns (case_id, record, prediction)."""
         _emit(on_event, {"event": "debate_case_started", "case_id": case_id})
         frame = frame_for_case(case_id, packs[case_id])
-        record = run_debate(frame, providers, judge_provider=judge_provider,
-                            budget_tracker=tracker, resolver=resolver,
-                            quote_checker=quote_checker,
-                            entailment_checker=entailment_checker,
-                            retrieval_first=retrieval_first)
+        if mode in ("simple", "dual"):
+            # No judge in these modes: the stability test is recorded
+            # as not applied rather than failed.
+            record = run_debate(frame, providers, judge_provider=None,
+                                budget_tracker=tracker, resolver=resolver,
+                                quote_checker=quote_checker,
+                                entailment_checker=entailment_checker,
+                                retrieval_first=retrieval_first,
+                                require_stability=False)
+        elif mode == "dual_judge":
+            record = run_debate(frame, providers,
+                                judge_provider=judge_provider,
+                                budget_tracker=tracker, resolver=resolver,
+                                quote_checker=quote_checker,
+                                entailment_checker=entailment_checker,
+                                retrieval_first=retrieval_first)
+        else:
+            record = run_debate(frame, providers, judge_provider=judge_provider,
+                                budget_tracker=tracker, resolver=resolver,
+                                quote_checker=quote_checker,
+                                entailment_checker=entailment_checker,
+                                retrieval_first=retrieval_first)
         prediction = "advance" if record["outcome"] == "locked" else "kill"
         _emit(on_event, {"event": "debate_case_done", "case_id": case_id,
                          "prediction": prediction,
@@ -247,6 +332,7 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         "schema_version": "0.1.0",
         "run_id": run_id,
         "kind": "gate0_run",
+        "mode": mode or "legacy",
         "case_ids": case_ids,
         "input_pack_hashes": pack_hashes,
         "providers": [{"name": getattr(p, "name", None),
@@ -323,19 +409,39 @@ def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
 
 def run_frame(frame, providers, judge_provider=None, budget=None,
               resolver=None, run_id=None, on_event=None, quote_checker=None,
-              entailment_checker=None, retrieval_first: bool = False) -> dict:
-    """Run the debate once on a prospective frame (not a Gate 0 case).
+              entailment_checker=None, retrieval_first: bool = False,
+              mode=None) -> dict:
+    """Run one prospective frame (not a Gate 0 case) under a protocol
+    mode: simple (agents all on one model), dual (agents across two
+    models, no judge), dual_judge (two models plus the judge model),
+    or no mode for the original debate behaviour.
 
-    Returns a frame run bundle whose record is the debate record: a
+    Returns a frame run bundle whose record is the run record: a
     locked specification or a no_go, with the full audit trail.
     """
+    _validate_mode(mode, providers, judge_provider)
     _emit(on_event, {"event": "debate_case_started",
                      "case_id": frame.get("frame_id")})
-    record = run_debate(frame, providers, judge_provider=judge_provider,
-                        budget=budget, resolver=resolver,
-                        quote_checker=quote_checker,
-                        entailment_checker=entailment_checker,
-                        retrieval_first=retrieval_first)
+    tracker = BudgetTracker(budget) if budget is not None else None
+    if mode in ("simple", "dual"):
+        record = run_debate(frame, providers, judge_provider=None,
+                            budget_tracker=tracker, resolver=resolver,
+                            quote_checker=quote_checker,
+                            entailment_checker=entailment_checker,
+                            retrieval_first=retrieval_first,
+                            require_stability=False)
+    elif mode == "dual_judge":
+        record = run_debate(frame, providers, judge_provider=judge_provider,
+                            budget_tracker=tracker, resolver=resolver,
+                            quote_checker=quote_checker,
+                            entailment_checker=entailment_checker,
+                            retrieval_first=retrieval_first)
+    else:
+        record = run_debate(frame, providers, judge_provider=judge_provider,
+                            budget_tracker=tracker, resolver=resolver,
+                            quote_checker=quote_checker,
+                            entailment_checker=entailment_checker,
+                            retrieval_first=retrieval_first)
     _emit(on_event, {"event": "debate_case_done",
                      "case_id": frame.get("frame_id"),
                      "outcome": record["outcome"],
@@ -345,6 +451,7 @@ def run_frame(frame, providers, judge_provider=None, budget=None,
         "schema_version": "0.1.0",
         "run_id": run_id or ("frame-" + uuid.uuid4().hex[:12]),
         "kind": "frame_run",
+        "mode": mode or "legacy",
         "frame_id": frame.get("frame_id"),
         "record": record,
         "outcome": record["outcome"],

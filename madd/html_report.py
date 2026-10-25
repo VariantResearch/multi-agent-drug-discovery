@@ -130,9 +130,11 @@ def _frame_html(bundle) -> str:
              "<h2>CONSENSUS TESTS</h2><table><tr><th>test</th><th>result</th>"
              "<th>detail</th></tr>"]
     for test in ((record.get("consensus") or {}).get("results") or []):
+        not_applied = test.get("status") == "not_applied"
         parts.append("<tr><td>" + _esc(test.get("test")) + "</td>"
                      "<td class='" + ("pass" if test.get("passed") else "fail")
-                     + "'>" + ("pass" if test.get("passed") else "FAIL")
+                     + "'>" + ("not applied" if not_applied
+                               else "pass" if test.get("passed") else "FAIL")
                      + "</td><td>" + _esc(test.get("detail")) + "</td></tr>")
     parts.append("</table><p class='mut'>Strikes at the evidence call: "
                  + _esc(len(record.get("strike_list") or [])) + "</p>")

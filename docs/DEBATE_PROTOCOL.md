@@ -1,9 +1,11 @@
 # Debate Protocol
 
-Status: implemented in madd/debate.py on 2026-10-23. Debates have been
-run only against mock and stub providers in the test suite. No debate
-with live models has taken place, and no research result in this
-repository comes from a debate.
+Status: implemented in madd/debate.py on 2026-10-23. Debates have
+been run against mock and stub providers in the test suite, and end
+to end with agent-staffed providers in the 2026-10-25 validation
+runs (docs/VALIDATION_RUN_2026-10-25.md). No debate with live
+commercial model accounts has taken place, and no research result
+in this repository comes from a debate.
 
 ## Participants and roles
 
@@ -17,6 +19,34 @@ repository comes from a debate.
   evidence.
 - Human sign-off: see RESPONSIBLE_USE.md. The protocol ends at a
   recommendation to a human, never at an external action.
+
+## Protocol modes
+
+A run declares one of three protocol modes in its configuration
+(the mode field; madd/config.py and madd/runner.py enforce the
+shapes). The modes count distinct models, not agents: every mode
+fields a research panel of at least two agents, and the steps and
+the evidence call are the same in all three. What changes is how
+many models the panel spans and whether a judge model sits over it.
+
+- simple: every research agent runs one and the same model. There
+  is no judge, so the judge-swap stability test is recorded as not
+  applied; a specification locks on agreement, survival, and the
+  evidence floor among the same-model agents. This is the cheapest
+  configuration and the one the 2026-10-25 agent-panel validation
+  runs effectively staffed.
+- dual: the research agents span two models. Still no judge, so
+  stability is likewise recorded as not applied; the gain over
+  simple is a second model's independent read of the same evidence.
+- dual_judge: the research agents span two models and a judge
+  model supplies the swap dossier, so all four consensus tests are
+  applied, stability included. This is the full protocol, and the
+  mode a scored Gate 0 run uses, because the approved thresholds
+  judge judge-swap stability.
+
+A run that declares no mode keeps the original behaviour: a panel
+of two or more providers of any composition, a judge when one is
+supplied, and stability unestablished (outcome no_go) when none is.
 
 ## Steps
 

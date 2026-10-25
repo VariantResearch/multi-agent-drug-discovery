@@ -27,6 +27,18 @@
 
 ### Added
 
+- Three protocol modes for runs, selected by the config's mode
+  field: simple (every research agent on one and the same model, no
+  judge), dual (research agents across two models, no judge), and
+  dual_judge (two models plus a judge model, the full protocol).
+  Modes count distinct models, not agents; every mode fields at
+  least two research agents. In simple and dual the judge-swap
+  stability test is recorded as not applied rather than failed, so
+  a specification can lock on agreement, survival, and the evidence
+  floor. Config validation and the runner both enforce each mode's
+  shape before any provider is called, bundles and reports record
+  the mode, and the shipped example config now runs dual_judge. A
+  run with no mode keeps the original behaviour exactly.
 - Validation runs 2 and 3 recorded (docs/VALIDATION_RUN_2026-10-25.md,
   run record in docs/PHASE1_SPEC.md). Run 2 (repaired quote check,
   fresh agent panel): debate 6 of 8, baseline 5 of 8, kill rate

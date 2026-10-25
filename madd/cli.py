@@ -470,6 +470,7 @@ def _cmd_run_gate0(args) -> int:
     try:
         bundle = run_gate0(built["providers"], judge_provider=built["judge"],
                            baseline_provider=built["baseline"],
+                           mode=built.get("mode"),
                            budget=built["budget"], gate0_dir=args.gate0_dir,
                            resolver=_resolver_from_config(built),
                            quote_checker=_quote_checker_from_config(built),
@@ -482,6 +483,7 @@ def _cmd_run_gate0(args) -> int:
         return 2
     score = bundle["debate_score"]
     print("run:", bundle["run_id"])
+    print("mode:", bundle.get("mode"))
     print("debate score: correct", score["correct_calls"], "of", score["case_count"],
           "| killed", score["failures_correctly_killed"],
           "| advanced", score["positives_correctly_advanced"])
@@ -510,6 +512,7 @@ def _cmd_run_frame(args) -> int:
             print("retrieved evidence:", len(entries), "sources from Europe PMC")
         bundle = run_frame(frame, built["providers"],
                            judge_provider=built["judge"],
+                           mode=built.get("mode"),
                            budget=built["budget"],
                            resolver=_resolver_from_config(built),
                            quote_checker=_quote_checker_from_config(built),

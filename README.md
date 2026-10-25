@@ -139,8 +139,9 @@ python3 -m madd run-gate0 --config mock-run.json --out runs
 
 Top-level fields:
 
+- mode (optional): the protocol mode, one of simple, dual, dual_judge. Modes count distinct models, not agents: every mode fields at least two research agents. simple puts every agent on one and the same model and allows no judge; dual spreads the panel across two models and allows no judge; dual_judge spreads it across two models and requires a judge. In simple and dual the judge-swap stability test is recorded as not applied, so a specification can lock without one. With no mode, the original behaviour stands.
 - providers (required): at least two research agents.
-- judge (optional): a third provider whose dossier supplies the judge-swap stability comparison. Without one, stability cannot be established and debates end in no-go.
+- judge (optional): a third provider whose dossier supplies the judge-swap stability comparison. Without one, stability cannot be established and debates end in no-go. Required in dual_judge mode; not allowed in simple or dual.
 - baseline (required for Gate 0 runs): the single model the debate system must beat.
 - budget (optional): {"max_cost_usd": number, "max_calls": integer}. At least one cap is required when a budget is given; uncapped budgets are rejected. The cap is shared across the whole run, baseline included, and the run stops when it is reached.
 - live_resolution (optional, default false): when true, the evidence call also strikes claims whose identifiers the live registries report as not found. A registry that cannot be reached never strikes anything.

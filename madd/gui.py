@@ -86,7 +86,8 @@ class RunManager:
             built = build_providers(config)
             bundle = run_gate0(
                 built["providers"], judge_provider=built["judge"],
-                baseline_provider=built["baseline"], budget=built["budget"],
+                baseline_provider=built["baseline"], mode=built.get("mode"),
+                budget=built["budget"],
                 gate0_dir=self.gate0_dir,
                 on_event=self._on_event, max_workers=built["max_workers"])
             run_dir = write_bundle(bundle, self.runs_dir)
