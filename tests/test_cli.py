@@ -96,6 +96,61 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("format_invalid", out)
 
+    def _mock_config(self, tmp):
+        config = {
+            "providers": [{"name": "panel-a", "kind": "mock", "label": "a"},
+                          {"name": "panel-b", "kind": "mock", "label": "b"}],
+            "judge": {"name": "judge", "kind": "mock", "label": "j"},
+            "baseline": {"name": "base", "kind": "mock", "label": "base"},
+            "budget": None, "live_resolution": False,
+        }
+        path = Path(tmp) / "config.json"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        return path
+
+    def test_providers_check_mock_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._mock_config(tmp)
+            code, out = run_cli(["providers-check", "--config", str(config)])
+        self.assertEqual(code, 0)
+        self.assertIn("panel-a", out)
+        self.assertIn("No network calls were made", out)
+
+    def test_providers_check_missing_key_variable(self):
+        config = {
+            "providers": [
+                {"name": "a", "kind": "anthropic", "model": "m",
+                 "api_key_env": "MADD_TEST_DEFINITELY_UNSET_VAR"},
+                {"name": "b", "kind": "mock"}],
+            "judge": None, "baseline": None, "budget": None,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(json.dumps(config), encoding="utf-8")
+            code, out = run_cli(["providers-check", "--config", str(path)])
+        self.assertEqual(code, 2)
+        self.assertIn("MADD_TEST_DEFINITELY_UNSET_VAR", out)
+
+    def test_run_gate0_with_mocks_completes_and_writes_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._mock_config(tmp)
+            out_dir = Path(tmp) / "runs"
+            code, out = run_cli(["run-gate0", "--config", str(config),
+                                 "--out", str(out_dir)])
+            self.assertEqual(code, 1)
+            self.assertIn("outcome: FAIL", out)
+            index = json.loads((out_dir / "index.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(index), 1)
+            self.assertEqual(index[0]["kind"], "gate0_run")
+
+    def test_run_frame_with_mocks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._mock_config(tmp)
+            code, out = run_cli(["run-frame", str(SYNTHETIC_FRAME),
+                                 "--config", str(config)])
+        self.assertEqual(code, 0)
+        self.assertIn("outcome: no_go", out)
+
     def test_debate_mock_writes_verifiable_record(self):
         with tempfile.TemporaryDirectory() as tmp:
             out_path = Path(tmp) / "record.json"
