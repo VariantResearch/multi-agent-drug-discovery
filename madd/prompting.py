@@ -58,8 +58,6 @@ def _failure_dossier(agent_id, model_family, frame_id, reason) -> dict:
         "frame_id": frame_id,
         "agent_id": agent_id,
         "model_family": model_family,
-        "proposed_focus_id": None,
-        "direction": None,
         "claims": [],
         "unverified_notes": ["provider response unusable: " + reason],
         "parse_error": True,
@@ -107,12 +105,16 @@ def parse_dossier_response(text, agent_id: str, model_family: str,
         "frame_id": frame_id,
         "agent_id": agent_id,
         "model_family": model_family,
-        "proposed_focus_id": parsed.get("proposed_focus_id"),
-        "direction": parsed.get("direction"),
         "claims": claims if isinstance(claims, list) else [],
         "unverified_notes": parsed.get("unverified_notes")
         if isinstance(parsed.get("unverified_notes"), list) else [],
     }
+    # The dossier schema types these as strings when present; a null
+    # focus (the model declining to endorse) is represented by absence.
+    if isinstance(parsed.get("proposed_focus_id"), str):
+        dossier["proposed_focus_id"] = parsed["proposed_focus_id"]
+    if isinstance(parsed.get("direction"), str):
+        dossier["direction"] = parsed["direction"]
     errors = validate_artifact("dossier", dossier)
     if errors:
         dossier["unverified_notes"] = list(dossier["unverified_notes"]) + [

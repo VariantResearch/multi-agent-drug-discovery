@@ -59,7 +59,7 @@ class TestPrompting(unittest.TestCase):
                                          "agent-a", "family-x", "F-1")
         self.assertTrue(dossier["parse_error"])
         self.assertEqual(dossier["claims"], [])
-        self.assertIsNone(dossier["proposed_focus_id"])
+        self.assertIsNone(dossier.get("proposed_focus_id"))
         self.assertEqual(validate_artifact("dossier", dossier), [])
 
     def test_broken_json_becomes_failure_dossier(self):
