@@ -54,7 +54,7 @@ from .consensus import run_consensus_tests
 from .focus import focus_score
 
 
-def audit_dossier(dossier: dict) -> dict:
+def audit_dossier(dossier: dict, resolver=None) -> dict:
     """Evidence call for one dossier: split claims into surviving/struck.
 
     A claim is struck when the claim ledger rules fail it (no source,
@@ -62,6 +62,14 @@ def audit_dossier(dossier: dict) -> dict:
     its citation fails the offline auditor (bad identifier format, or a
     quote_checked claim carrying no quote). Struck claims are returned
     with their reason codes and take no further part in the debate.
+
+    resolver, when given, is a callable(identifier, identifier_type)
+    returning a live resolution status (see madd/resolve.py). A claim
+    whose identifier the registry reports as not_found is struck with
+    reason citation_not_found_live. Any other status (resolved,
+    lookup_error, format problems already handled above) never strikes
+    on its own: a registry that cannot be reached proves nothing about
+    the claim.
     """
     claims = dossier.get("claims") if isinstance(dossier, dict) else None
     if not isinstance(claims, list):
@@ -82,6 +90,11 @@ def audit_dossier(dossier: dict) -> dict:
                 reasons.append("citation_" + entry["format"]["code"])
             for problem in entry["problems"]:
                 reasons.append(problem["code"])
+        if resolver is not None and not reasons:
+            status = resolver(claim.get("source_identifier"),
+                              claim.get("identifier_type"))
+            if status == "not_found":
+                reasons.append("citation_not_found_live")
         if reasons:
             struck.append({"claim_id": claim.get("claim_id", "<missing claim_id>"),
                            "reasons": sorted(set(reasons))})
@@ -213,20 +226,28 @@ def _evolve_spec(frame: dict, audited_dossiers: list, ranking: list,
 
 
 def run_debate(frame: dict, providers: list, judge_provider=None,
-               budget: dict | None = None) -> dict:
+               budget: dict | None = None, budget_tracker=None,
+               resolver=None) -> dict:
     """Run the full debate protocol over a frame. Returns the run record.
 
     providers: at least two Provider objects (see madd/providers.py).
     judge_provider: optional third provider whose dossier, produced from
     the same frame, supplies the judge-swap stability comparison.
     budget: optional budget dict for madd.budget.BudgetTracker.
+    budget_tracker: optional pre-built BudgetTracker, shared across
+    calls by a runner so the cap applies to a whole multi-case run
+    rather than to each debate separately. Takes precedence over
+    budget when both are given.
+    resolver: optional live citation resolver, callable(identifier,
+    identifier_type) returning a status string; see audit_dossier.
     """
     if not isinstance(frame, dict) or not frame.get("frame_id"):
         raise ValueError("frame must be a dict with a frame_id")
     providers = list(providers)
     if len(providers) < 2:
         raise ValueError("the debate protocol needs at least two research providers")
-    tracker = BudgetTracker(budget) if budget is not None else None
+    tracker = budget_tracker if budget_tracker is not None else (
+        BudgetTracker(budget) if budget is not None else None)
 
     def research(provider):
         cost = float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0)
@@ -249,7 +270,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                          + "); dossier identifiers must be unique within a run, "
                            "or the ranking and the record would silently merge them")
     # Step 2: evidence call.
-    audited = [audit_dossier(d) for d in dossiers]
+    audited = [audit_dossier(d, resolver=resolver) for d in dossiers]
     strike_list = [{"dossier_id": a["dossier_id"], "claim_id": s["claim_id"],
                     "reasons": s["reasons"]}
                    for a in audited for s in a["struck"]]
@@ -281,7 +302,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     judge_info = None
     if judge_provider is not None:
         judge_dossier = research(judge_provider)
-        judge_audited = audit_dossier(judge_dossier)
+        judge_audited = audit_dossier(judge_dossier, resolver=resolver)
         swapped_spec = dict(spec)
         swapped_spec["focus_id"] = judge_audited["proposed_focus_id"]
         judge_info = {"provider": getattr(judge_provider, "name", None),
