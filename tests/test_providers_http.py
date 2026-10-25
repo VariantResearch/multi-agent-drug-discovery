@@ -94,6 +94,58 @@ class TestOpenAICompatible(unittest.TestCase):
         self.assertEqual(dossier["claims"], [])
 
 
+class SequenceTransport:
+    """Returns queued (status, payload) pairs, one per call."""
+
+    def __init__(self, sequence):
+        self.sequence = list(sequence)
+        self.calls = 0
+
+    def __call__(self, method, url, headers, body, timeout=0):
+        self.calls += 1
+        return self.sequence.pop(0)
+
+
+class TestRetries(unittest.TestCase):
+    def _provider(self, transport, sleeps):
+        return OpenAICompatibleProvider(
+            "prov-r", "model-x", "k", "https://example.invalid/v1",
+            transport=transport, sleeper=sleeps.append, backoff_seconds=0.5)
+
+    def test_429_then_success_retries_once_and_logs(self):
+        transport = SequenceTransport([(429, {}), (200, OPENAI_RESPONSE)])
+        sleeps = []
+        dossier = self._provider(transport, sleeps).research(FRAME)
+        self.assertEqual(dossier["proposed_focus_id"], "TARGET-X")
+        self.assertEqual(transport.calls, 2)
+        self.assertEqual(sleeps, [0.5])
+        provider_log = self._provider(transport, sleeps)
+        self.assertEqual(len(provider_log.retry_log), 0)  # fresh instance
+
+    def test_retry_log_records_the_retry(self):
+        transport = SequenceTransport([(503, {}), (200, OPENAI_RESPONSE)])
+        sleeps = []
+        provider = self._provider(transport, sleeps)
+        provider.research(FRAME)
+        self.assertEqual(len(provider.retry_log), 1)
+        self.assertEqual(provider.retry_log[0]["status"], 503)
+
+    def test_401_is_never_retried(self):
+        transport = SequenceTransport([(401, {}), (200, OPENAI_RESPONSE)])
+        sleeps = []
+        with self.assertRaises(ProviderError):
+            self._provider(transport, sleeps).research(FRAME)
+        self.assertEqual(transport.calls, 1)
+
+    def test_retries_exhausted_raises(self):
+        transport = SequenceTransport([(429, {}), (429, {}), (429, {})])
+        sleeps = []
+        with self.assertRaises(ProviderError):
+            self._provider(transport, sleeps).research(FRAME)
+        self.assertEqual(transport.calls, 3)
+        self.assertEqual(sleeps, [0.5, 1.0])
+
+
 class TestAnthropic(unittest.TestCase):
     def _provider(self, transport):
         return AnthropicProvider(

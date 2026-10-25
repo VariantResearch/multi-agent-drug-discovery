@@ -9,7 +9,12 @@ plus OpenRouter, local servers such as LM Studio or Ollama, and most
 gateways) and Anthropic Messages (Claude models).
 
 Failure policy, kept deliberate:
-- An HTTP error or a structurally malformed response raises
+- Rate limiting and transient server errors (429, 5xx) are retried a
+  bounded number of times with exponential backoff, and every retry
+  is recorded on the provider's retry_log and counted into the run
+  bundle. A hidden retry would be a quiet change to what a run did;
+  a logged one is part of the record.
+- Any other HTTP error or a structurally malformed response raises
   ProviderError. That is infrastructure failing, and a scored run must
   stop loudly rather than record a fake empty dossier for an outage.
 - A well-formed response whose text is not a usable dossier goes
@@ -27,6 +32,7 @@ this module invents no prices.
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -34,6 +40,10 @@ from .prompting import SYSTEM_PROMPT, build_user_prompt, parse_dossier_response
 
 TIMEOUT_SECONDS = 120
 ANTHROPIC_VERSION = "2023-06-01"
+# Statuses worth retrying: rate limiting and transient server errors.
+# Everything else (auth, bad request, not found) fails at once: a
+# retry cannot fix it, and a scored run must stop loudly.
+RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 
 
 class ProviderError(RuntimeError):
@@ -68,10 +78,13 @@ class _HttpProvider:
 
     def __init__(self, name, model, api_key, base_url, family=None,
                  cost_per_call_usd=0.0, max_tokens=4096, transport=None,
-                 timeout=TIMEOUT_SECONDS):
+                 timeout=TIMEOUT_SECONDS, max_retries=2, backoff_seconds=1.0,
+                 sleeper=None):
         """name identifies the provider in records; model is the exact
         model identifier sent on the wire and reported as model_version;
-        api_key is held for the auth header and never written anywhere."""
+        api_key is held for the auth header and never written anywhere.
+        max_retries bounds the retry policy (see research); sleeper is
+        injectable so tests do not actually wait."""
         if not api_key:
             raise ProviderError("provider " + str(name) + ": no API key supplied "
                                 "(config names the environment variable to read)")
@@ -85,6 +98,10 @@ class _HttpProvider:
         self._api_key = api_key
         self._transport = transport if transport is not None else default_transport
         self._timeout = timeout
+        self.max_retries = int(max_retries)
+        self.backoff_seconds = float(backoff_seconds)
+        self._sleeper = sleeper if sleeper is not None else time.sleep
+        self.retry_log = []
         self.last_usage = None
         self.last_response_model = None
 
@@ -106,6 +123,15 @@ class _HttpProvider:
         system = SYSTEM_PROMPT
         user = build_user_prompt(frame)
         status, payload = self._call(system, user)
+        attempt = 0
+        while status in RETRYABLE_STATUSES and attempt < self.max_retries:
+            delay = self.backoff_seconds * (2 ** attempt)
+            self.retry_log.append({"status": status, "attempt": attempt + 1,
+                                   "delay_seconds": delay,
+                                   "frame_id": frame.get("frame_id")})
+            self._sleeper(delay)
+            status, payload = self._call(system, user)
+            attempt += 1
         if status != 200:
             raise ProviderError("provider " + self.name + ": HTTP " + str(status)
                                 + " from " + self.base_url)
