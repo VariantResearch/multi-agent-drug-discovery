@@ -20,6 +20,8 @@ PATTERNS = {"doi": DOI_RE, "pmid": PMID_RE, "nct": NCT_RE}
 
 
 def check_identifier(identifier, identifier_type) -> dict:
+    """Check one identifier's format by type (pmid, doi, nct) and return
+    {'ok', 'code', 'message'}; the code names the exact format failure."""
     if identifier is None or (isinstance(identifier, str) and identifier.strip() == ""):
         return {"ok": False, "code": "missing_identifier",
                 "message": "no identifier to check"}

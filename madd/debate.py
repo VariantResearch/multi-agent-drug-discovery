@@ -108,6 +108,8 @@ def audit_dossier(dossier: dict, resolver=None) -> dict:
 
 
 def _rank_key(audited: dict) -> tuple:
+    """Pairwise ranking key: audited focus score first (higher wins),
+    then fewer struck claims, then dossier id for determinism."""
     score = focus_score({"claims": audited["surviving_claims"]})["score"]
     return (score, -len(audited["struck"]))
 
@@ -250,6 +252,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         BudgetTracker(budget) if budget is not None else None)
 
     def research(provider):
+        """One provider call, charged to the run budget before it happens."""
         cost = float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0)
         if tracker is not None and tracker.would_exceed(cost):
             raise BudgetExceeded("budget cap reached before a provider call; run stopped")

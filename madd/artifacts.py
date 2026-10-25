@@ -24,6 +24,7 @@ def canonical_hash(obj) -> str:
 
 
 def prompt_hash(prompt_text: str) -> str:
+    """SHA-256 hex digest of a prompt's text alone, as recorded in manifests."""
     return hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
 
 
@@ -34,6 +35,9 @@ def freeze_artifact(artifact: dict) -> dict:
 
 
 def verify_frozen(envelope: dict) -> bool:
+    """True only when the envelope is a frozen record whose stored hash
+    matches a fresh canonical hash of its artifact. Anything else,
+    tampered, truncated, or wrongly typed, returns False."""
     if not isinstance(envelope, dict) or envelope.get("frozen") is not True:
         return False
     artifact = envelope.get("artifact")
@@ -52,6 +56,9 @@ def thaw_artifact(envelope: dict) -> dict:
 
 @dataclass
 class RunManifest:
+    """In-memory shape of a run manifest. build_manifest is the normal
+    way to create one; this class exists so the field set has one
+    definition."""
     run_id: str
     model_name: str
     model_version: str
@@ -63,6 +70,8 @@ class RunManifest:
     schema_version: str = "0.1.0"
 
     def to_dict(self) -> dict:
+        """The manifest as a plain dict, the form stored in records and
+        validated against the run_manifest schema."""
         return asdict(self)
 
 

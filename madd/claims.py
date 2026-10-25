@@ -28,6 +28,9 @@ def extract_claims(document) -> list:
 
 
 def validate_claim(claim: dict) -> list:
+    """Validate one claim dict against the ledger rules and return a
+    list of error dicts (empty when the claim is clean). Every problem
+    found is reported, not just the first."""
     errors = []
     cid = claim.get("claim_id", "<missing claim_id>")
     if not claim.get("load_bearing"):

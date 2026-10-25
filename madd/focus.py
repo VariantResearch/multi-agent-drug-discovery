@@ -15,6 +15,9 @@ TIER_WEIGHTS = {1: 100, 2: 70, 3: 40, 4: 25, 5: 10, 0: 0}
 
 
 def focus_score(document) -> dict:
+    """Score a document: sum the tier weights of its audited claims,
+    counting each claim_id once, and return the score with its
+    per-tier counts for hand recomputation."""
     claims = extract_claims(document)
     per_tier = {str(t): 0 for t in sorted(TIER_WEIGHTS)}
     audited = 0

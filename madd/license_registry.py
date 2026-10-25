@@ -15,10 +15,13 @@ VALID_USES = {"research", "commercial"}
 
 
 def load_registry() -> dict:
+    """Load the shipped tool license registry (madd/data/tool_licenses.json)."""
     return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
 
 
 def _find(registry: dict, tool_name: str):
+    """Find a registry entry by tool name or alias, case-insensitively;
+    None when the tool is not registered at all."""
     wanted = str(tool_name).strip().lower()
     for entry in registry.get("tools", []):
         names = [entry.get("name", "")] + list(entry.get("aliases", []))

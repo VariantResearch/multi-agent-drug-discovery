@@ -44,6 +44,18 @@
   commands gate0-report, resolve-citations, and debate-mock, plus the
   first CLI tests. Test suite is now 82 tests.
 
+- Documentation and commenting pass, 2026-10-24: the README is now
+  the complete manual (what the system does, requirements, exact
+  commands for every workflow including a full Gate 0 run, the run
+  configuration reference, the Gate 0 cases and thresholds, and the
+  repository layout), and the GitHub repository description was set
+  to the fullest summary the platform's 350-character limit allows,
+  commands included, pointing to the README for the rest. Every
+  module, class, and function in madd/ now carries a docstring
+  (verified mechanically: zero undocumented definitions remain), and
+  the pyproject description no longer claims no live model calls.
+  Code changes are docstring insertions only; the suite still passes
+  unchanged.
 - Feature completion pass, 2026-10-24: the application now runs end
   to end and lacks only the models. Ten features, ranked by
   improvement and built in order: (1) madd/runner.py orchestrates a

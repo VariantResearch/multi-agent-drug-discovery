@@ -20,6 +20,8 @@ class BudgetExceeded(Exception):
 
 
 def _non_negative_number(value, name):
+    """Validate one budget number: reject bools and non-numbers, reject
+    negatives, return the value as a float."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(name + " must be a number")
     if value < 0:
@@ -36,6 +38,9 @@ class BudgetTracker:
     """
 
     def __init__(self, budget: dict):
+        """Parse the caps out of the budget dict. At least one cap must be
+        present: an uncapped budget is rejected here, at construction,
+        so no code path can run without one."""
         if not isinstance(budget, dict):
             raise ValueError("budget must be a dict")
         self.max_cost_usd = None
@@ -88,6 +93,7 @@ class BudgetTracker:
         return entry
 
     def remaining(self) -> dict:
+        """Headroom under each cap; None for a dimension that has no cap."""
         return {
             "cost_usd": (None if self.max_cost_usd is None
                          else round(self.max_cost_usd - self.spent_usd, 10)),

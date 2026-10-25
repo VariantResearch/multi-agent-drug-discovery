@@ -16,6 +16,7 @@ SCHEMA_NAMES = ["frame", "claim", "dossier", "consensus_spec", "candidate",
 
 
 def load_schema(name: str) -> dict:
+    """Load one shipped schema by artifact name."""
     path = SCHEMA_DIR / (name + ".json")
     if not path.exists():
         raise ValueError("unknown schema name: " + name)
@@ -23,6 +24,8 @@ def load_schema(name: str) -> dict:
 
 
 def _type_ok(value, expected) -> bool:
+    """Type check for the supported JSON Schema type names; note bool
+    is not an integer here, whatever Python thinks."""
     types = expected if isinstance(expected, list) else [expected]
     for t in types:
         if t == "object" and isinstance(value, dict):
@@ -69,4 +72,7 @@ def validate(instance, schema: dict, path: str = "$") -> list:
 
 
 def validate_artifact(schema_name: str, artifact: dict) -> list:
+    """Validate a document against the schema for its artifact type
+    (or the named schema) and return a list of error dicts, empty
+    when the document conforms."""
     return validate(artifact, load_schema(schema_name))

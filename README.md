@@ -1,153 +1,214 @@
-# Multi-Agent Drug Discovery
+# Multi-Agent Drug Discovery (MADD)
 
-MADD runs the early part of drug discovery as a structured argument.
+MADD is a provider-neutral system for multi-agent drug discovery research. Several AI research agents independently study the same drug program from the same pre-outcome evidence, a structured debate compares their work, and mechanical auditors - not the models - decide whose evidence survives. The system's rule is simple: no claim counts unless it rests on a real, checkable primary source, and no model gets to grade its own homework.
 
-You start with a disease and the effect you want in a patient. Several AI
-models then research possible targets on their own, without seeing each
-other's work. After that they have to defend what they found in front of
-each other. Claims that cannot be tied to a real source get removed.
-Whatever survives becomes one target specification, and candidates are
-designed against that specification only.
+This repository contains the complete working application: the research and debate engine, the evidence auditors, the Gate 0 retrospective test set of eight real drug programs, the run orchestration, adapters for live models, and a command line interface. The only thing not included is the models themselves: choose a roster, supply API keys, and it runs.
 
-The point of the setup is to slow the models down. A single model will
-give you a confident answer in seconds, and the citations behind it do
-not always hold up. Here every load-bearing claim needs a source
-identifier, an auditor checks it, and a red-team pass argues against the
-leading target before anything is locked.
+## What it does
 
-## Where it stands
+For each drug program under study, the application:
 
-This is early work. What is in the repo now:
+1. Frames the question with a cutoff date, so agents judge the program on the evidence that existed at the time, not on how things turned out.
+2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a PubMed, DOI, or ClinicalTrials.gov identifier), its evidence tier, and a supporting quote.
+3. Runs an evidence call. A claim ledger audit and a citation audit strike any claim that is unsourced, sourced to model opinion, malformed, or - when live resolution is switched on - pointing at a registry record that does not exist. Struck claims take no further part.
+4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, and one evolution round that merges the best material.
+5. Applies four consensus tests (agreement, survival, evidence floor, stability under a judge swap). Only when all four pass does the run lock a target specification. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away.
+6. Freezes the whole run - dossiers, strikes, transcripts, manifest with per-call prompt hashes - into a hashed, verifiable run bundle with a plain-language report.
 
-- The data formats for each stage (frame, claims, dossier, consensus
-  specification, candidate, gate report, run manifest), with hashing so
-  a finished stage cannot be quietly edited later.
-- A claim auditor and an offline citation checker. They reject claims
-  with no source, claims resting on model opinion, and claims that have
-  been struck.
-- A live citation resolver that checks identifiers against the
-  registries that own them: PubMed for PMIDs, Crossref for DOIs,
-  ClinicalTrials.gov for trial numbers. It reports whether the record
-  exists and the title the registry holds. It does not decide whether
-  the source supports the claim built on it.
-- A license registry for the design tools, so a model whose license
-  forbids commercial use cannot slip into a commercial run.
-- The consensus tests and a focus score that is calculated from the
-  evidence behind a target, not from how confident a model sounds.
-- The debate engine from docs/DEBATE_PROTOCOL.md: blinded dossiers, an
-  evidence call that strikes bad claims, structured cross-examination
-  (with a red-team round when everyone agrees too fast), pairwise
-  ranking on audited evidence, one evolution round, the consensus
-  tests, and a frozen, hashed record of the whole run.
-- A budget tracker with a hard stop, so a run cannot drift past the
-  cost or call cap set for it.
-- Gate 0, a test set of eight real drug programs (see below), plus the
-  code that judges a scored run against the pass thresholds in
-  docs/PHASE1_SPEC.md.
-- A runner that executes the whole Gate 0 protocol end to end:
-  baseline first, a debate per case, scoring against the sealed
-  outcomes, threshold judgement, and a frozen run bundle with a
-  plain-language report.
-- Provider adapters for live models, behind the same interface as the
-  mock: OpenAI-compatible chat completions and Anthropic Messages,
-  sharing one research prompt and one dossier response contract.
-- A run configuration file that names the providers, the judge, the
-  baseline, and the budget. API keys are read from environment
-  variables named in the config, never stored in it.
-- A command line tool and a mock model provider for testing.
+On top of that sits Gate 0, the retrospective test: eight real, completed drug programs, four that succeeded and four that failed, with inputs frozen at pre-outcome evidence and outcomes sealed. A run of the system over Gate 0 is scored against pass thresholds that were fixed and approved before any run took place.
 
-What is missing is the models themselves. The adapters are built and
-tested against fake transports shaped from the documented wire
-formats; they have not yet been run against a real model account,
-because the roster has not been chosen and no keys are set. Pick the
-roster, record it in docs/PHASE1_SPEC.md with the budget figure, set
-the keys, and the system runs. It designs no molecule and runs no
-experiment; candidate design is a later phase. The only network calls
-in the package today are the citation lookups named above and, once
-configured, the provider calls themselves.
+## Requirements
 
-## Gate 0
+- Python 3.11 or newer.
+- Nothing else. The package uses only the Python standard library: there are no dependencies to install.
+- For live model runs, API keys for the providers in your run configuration, set as environment variables (see Run a full Gate 0 run below). No key is needed for the mock workflows, the auditors, or the test suite.
 
-Before this system is trusted on a new target, it has to show it can
-tell apart real programs that worked from real ones that failed, using
-only the evidence that existed before the result was known.
+## Quick start (no models, no keys)
 
-gate0/ holds eight cases: evolocumab, ivacaftor, semaglutide and
-erenumab on one side; verubecestat, PF-05089771, BEN-2293 and REC-994 on
-the other. Each case is a blinded pack of pre-outcome evidence, with the
-actual result kept in a separate sealed folder. Every claim in the packs
-was checked against its primary source (PubMed, ClinicalTrials.gov, FDA
-records, or the sponsor's own statement) and the ledger in
-gate0/VERIFICATION_LEDGER.md shows the source for each one.
+Clone the repository and run the built-in checks and the mock debate:
 
-One honest caveat: these are famous programs, so a model may remember
-how they ended. Treat Gate 0 as a calibration test, not a clean blind
-trial. It is there to catch bad reasoning and bad citations, and it will
-catch some of both.
+```
+git clone https://github.com/VariantResearch/multi-agent-drug-discovery.git
+cd multi-agent-drug-discovery
+python3 -m unittest discover -s tests
+python3 -m madd gate0-validate
+python3 -m madd gate0-list
+python3 -m madd debate-mock examples/synthetic/frame.json --judge
+```
 
-## The rules that matter
+Expected results: the test suite passes (128 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it.
 
-These are enforced by the code where the code can enforce them. The
-full policy is in docs/EVIDENCE_POLICY.md.
+Try the auditors on the synthetic example dossier:
 
-- A claim without a primary source does not count, no matter which
-  model made it or how many models agree with it.
-- Agreement between models is not evidence. It is just agreement.
-- A struck claim is out. It does not get debated back in.
-- Results are labelled by the highest test they actually passed. A
-  candidate that passed a computer check is "computationally validated"
-  and nothing more.
-- Test fixtures for the code use invented data and say so. The research
-  data in gate0/ is real, with sources.
+```
+python3 -m madd audit-claims examples/synthetic/dossier.json
+python3 -m madd focus-score examples/synthetic/dossier.json
+python3 -m madd validate-artifact dossier examples/synthetic/dossier.json
+python3 -m madd check-tool Boltz-2
+python3 -m madd resolve-citations examples/synthetic/dossier.json
+```
 
-Safety and scope rules (which targets are out of bounds, why a person
-has to sign off before anything leaves the system) are in
-RESPONSIBLE_USE.md.
+The first four run offline. resolve-citations makes live lookups against PubMed, Crossref, and ClinicalTrials.gov, and on this invented dossier it correctly reports the invented identifiers as not found or badly formatted, since none of them exist in any registry.
 
-## Running it
+## Run a full Gate 0 run
 
-    python3 -m unittest discover -s tests -v
-    python3 -m madd gate0-validate
-    python3 -m madd gate0-list
-    python3 -m madd audit-claims examples/synthetic/dossier.json
-    python3 -m madd check-tool Boltz-2 --use commercial
-    python3 -m madd check-tool "AlphaFold 3" --use commercial
-    python3 -m madd debate-mock examples/synthetic/frame.json --judge
-    python3 -m madd gate0-report predictions.json --baseline baseline.json
-    python3 -m madd resolve-citations examples/synthetic/dossier.json
-    python3 -m madd providers-check --config examples/run-config.example.json
-    python3 -m madd run-gate0 --config my-run.json --out runs
-    python3 -m madd run-frame my-frame.json --config my-run.json --out runs
+A run is described by a JSON configuration file naming the providers, the judge, the baseline model, and the budget. Start from the shipped example:
 
-The audit of the synthetic dossier fails on purpose: it contains a claim
-resting on model opinion, and the auditor is supposed to catch it. The
-mock debate ends in a no-go for the same reason: the mock claim is
-struck at the evidence call, so nothing audited remains to stand on.
-resolve-citations makes live calls to the public registries; on the
-synthetic dossier it correctly reports the invented identifiers as not
-found or badly formatted, since none of them exist in any registry. gate0-report takes a JSON file mapping case ids to calls
-("advance" or "kill") and judges it against the approved thresholds;
-with --baseline it takes a second such file as the single-model
-baseline the run must beat. providers-check validates a run config and
-reports which key variables are set, without making any network call;
-the shipped example config fails it until real model ids replace the
-placeholders and the named environment variables are set. run-gate0
-and run-frame execute full runs from such a config and write the run
-bundle (record, scores, report) under the output folder.
+```
+cp examples/run-config.example.json my-run.json
+```
 
-## Layout
+Edit my-run.json: replace each REPLACE-WITH-MODEL-ID and REPLACE-WITH-FAMILY with the models you have chosen, and set each provider's cost_per_call_usd if you want the budget tracker to account in dollars (a budget with a call cap alone also works). Then set the API keys the config names, in the environment only - never in the file:
 
-- madd/ - the Python package. Standard library only.
-- madd/schemas/ - the stage formats.
-- madd/data/license_registry.json - tool licenses and what they allow.
-- gate0/ - the retrospective test set, its sealed outcomes, and its
-  verification ledger.
-- docs/ - evidence policy, debate protocol, and the phase specs.
-- examples/synthetic/ - invented fixtures for the code tests.
-- tests/ - the test suite.
+```
+export OPENAI_API_KEY="your key"
+export ANTHROPIC_API_KEY="your key"
+```
 
-## License
+Check the configuration before spending anything. This builds every provider object and reports which key variables are set; it makes no network calls:
 
-Apache-2.0 for this project's own code. The tools listed in the license
-registry have their own licenses, which the registry tracks; listing a
-tool here does not grant any rights to it.
+```
+python3 -m madd providers-check --config my-run.json
+```
+
+Run Gate 0. The baseline model runs first, alone, then the debate runs per case, both are scored against the sealed outcomes, the approved thresholds judge the result, and the full bundle is written under runs/:
+
+```
+python3 -m madd run-gate0 --config my-run.json --out runs
+```
+
+The command prints both scores and every threshold check, and exits 0 on a pass, 1 on a fail, 2 when the run itself stopped (bad config, budget cap reached, provider error). Output lands in runs/<run-id>/ as bundle.json (the complete frozen record), report.md (the readable report), and gate-report.json, with runs/index.json listing every run.
+
+To run the same machinery on a new question rather than the Gate 0 set, write a frame file (see examples/synthetic/frame.json for the shape) and run:
+
+```
+python3 -m madd run-frame my-frame.json --config my-run.json --out runs
+```
+
+A frame run locks a specification or ends in a no-go, and writes the same bundle and report.
+
+To try the full pipeline with no keys at all, save this all-mock configuration as mock-run.json and run it. The mocks return the same invented dossier for every case, endorse nothing, and the run fails the thresholds honestly - which is the correct result for a panel that did no research:
+
+```
+{
+  "providers": [
+    {"name": "panel-a", "kind": "mock", "label": "a"},
+    {"name": "panel-b", "kind": "mock", "label": "b"}
+  ],
+  "judge": {"name": "judge", "kind": "mock", "label": "j"},
+  "baseline": {"name": "base", "kind": "mock", "label": "base"},
+  "budget": {"max_calls": 500},
+  "live_resolution": false
+}
+```
+
+```
+python3 -m madd run-gate0 --config mock-run.json --out runs
+```
+
+## Run configuration reference
+
+Top-level fields:
+
+- providers (required): at least two research agents.
+- judge (optional): a third provider whose dossier supplies the judge-swap stability comparison. Without one, stability cannot be established and debates end in no-go.
+- baseline (required for Gate 0 runs): the single model the debate system must beat.
+- budget (optional): {"max_cost_usd": number, "max_calls": integer}. At least one cap is required when a budget is given; uncapped budgets are rejected. The cap is shared across the whole run, baseline included, and the run stops when it is reached.
+- live_resolution (optional, default false): when true, the evidence call also strikes claims whose identifiers the live registries report as not found. A registry that cannot be reached never strikes anything.
+
+Each provider entry:
+
+- name: unique across providers, judge, and baseline.
+- kind: "mock", "openai-compatible", or "anthropic".
+- model: the provider's exact model identifier (not needed for mock).
+- family: the model family label recorded in dossiers and manifests.
+- base_url: endpoint base; defaults to https://api.openai.com/v1 for openai-compatible and https://api.anthropic.com/v1 for anthropic. Any compatible endpoint (OpenRouter, a local LM Studio or Ollama server, a gateway) works by changing this.
+- api_key_env: the name of the environment variable holding the API key (not needed for mock).
+- cost_per_call_usd: what one call costs, for budget accounting. The code invents no prices; leave it 0 and cap by calls if you prefer.
+- max_tokens: response cap per call, default 4096.
+- label: mock providers only; differentiates their output.
+
+Every model receives the same research prompt (madd/prompting.py): supplied evidence only, no invented identifiers or quotes, honest unverified labels, and one JSON dossier back. A response that cannot be parsed becomes a dossier with no claims and the failure recorded, never a repaired invention. An HTTP error stops the run loudly instead: an outage must not be scored as a model failure.
+
+## All commands
+
+```
+python3 -m madd audit-claims <file>            claim ledger + citation audit of a document
+python3 -m madd check-tool <name>              license registry verdict for a tool
+python3 -m madd focus-score <file>             deterministic score from audited evidence tiers
+python3 -m madd validate-artifact <schema> <file>
+python3 -m madd gate0-validate [--gate0-dir <dir>]
+python3 -m madd gate0-list [--gate0-dir <dir>]
+python3 -m madd gate0-report <predictions.json> [--baseline <file>]
+                [--audit-violations <n>] [--judge-swap-flips <n>]
+python3 -m madd resolve-citations <file>       live registry lookups for a document's claims
+python3 -m madd debate-mock <frame.json> [--judge] [--out <file>]
+python3 -m madd providers-check --config <file>
+python3 -m madd run-gate0 --config <file> [--out <dir>] [--gate0-dir <dir>]
+python3 -m madd run-frame <frame.json> --config <file> [--out <dir>]
+```
+
+A predictions file for gate0-report maps case ids (see gate0-list) to "advance" or "kill". Example: {"evolocumab-pcsk9-cvd": "advance"}.
+
+Installing the package instead of running it from the checkout also works, and provides the same commands as the madd entry point:
+
+```
+pip install .
+madd gate0-validate
+```
+
+## Gate 0: the retrospective test set
+
+Eight real cases, inputs frozen at pre-outcome evidence, outcomes sealed, every input claim quote-checked by hand against its primary source at construction (the ledger is gate0/VERIFICATION_LEDGER.md).
+
+Positive controls (the programs worked): evolocumab / PCSK9, ivacaftor / CFTR, semaglutide / GLP-1R, erenumab / CGRP receptor.
+Negative controls (the programs failed): verubecestat / BACE1, PF-05089771 / Nav1.7, BEN-2293 / pan-Trk, REC-994 / CCM.
+
+Pass thresholds, approved 2026-10-22 and recorded in docs/PHASE1_SPEC.md before any scored run: kill at least 3 of the 4 failures; advance at least 3 of the 4 successes; beat the single-model baseline by at least 1 case; zero audit violations; a judge swap may flip at most 1 of 8 calls. A run must also be complete - every case called - or it cannot pass at all.
+
+One honest caveat: these outcomes are famous, and frontier models may remember them despite the blinded inputs and cutoff dates. Gate 0 v1 is therefore a calibration and regression set, not a pristine blind test. A prospective set with a preregistered analysis is a later phase's work.
+
+Status today: no scored Gate 0 run has taken place. The thresholds are approved; the model roster and the budget figure are the owner's recorded decisions, still to be entered in docs/PHASE1_SPEC.md. Anything in examples/ labelled synthetic is invented test material and is not evidence about any real drug program.
+
+## How the evidence rules work
+
+- Evidence tiers: 1 human causal genetics, 2 human clinical or randomised, 3 human observational or biomarker, 4 animal or in-vivo, 5 in-vitro, computational, or indirect.
+- A focus score counts audited claims only, weighted by tier, with each claim counted once no matter how often it is repeated. Model confidence, prose quality, and vote counts are never inputs.
+- The license registry records which discovery tools may be used for which purpose: Boltz-2 (MIT) and Chai-1 (Apache-2.0) are allowed; AlphaFold 3 and ESM3-open are blocked for commercial use by their terms.
+- Every run artifact is canonicalised and hashed, so a record shown later can be checked against the record that was frozen at run time.
+
+## Repository layout
+
+```
+madd/            the package (standard library only)
+  runner.py        full Gate 0 runs and frame runs
+  debate.py        the debate engine (protocol steps 1 to 7)
+  providers_http.py  live provider adapters (OpenAI-compatible, Anthropic)
+  providers.py       the provider interface and the mock provider
+  prompting.py       the shared research prompt and response contract
+  config.py          run configuration loading and validation
+  claims.py          the claim ledger audit
+  citation_auditor.py  offline identifier format and consistency checks
+  resolve.py         live citation resolution (PubMed, Crossref, ClinicalTrials.gov)
+  consensus.py       the four consensus tests
+  focus.py           the deterministic focus score
+  gate0.py           the Gate 0 dataset tools, scorer, and threshold evaluator
+  budget.py          the shared run budget tracker
+  artifacts.py       canonical hashing, manifests, frozen records
+  schemas.py         artifact schema validation
+  license_registry.py  tool license checks
+  storage.py         run bundle persistence and index
+  report.py          the plain-language run report
+  cli.py             the command line interface
+gate0/           the Gate 0 dataset: input/, sealed/, ledger, case notes
+docs/            design documents and phase specifications
+examples/        the example run config and synthetic fixtures
+tests/           the test suite
+runs/            run output (created by runs, gitignored)
+```
+
+Key documents: docs/PHASE1_SPEC.md (scope, approved thresholds, run protocol), docs/DEBATE_PROTOCOL.md (the seven steps), docs/EVIDENCE_POLICY.md (what counts as evidence), docs/GATE0_NOTES.md (how the test set was built), docs/DESIGN-REFERENCES.md (patterns borrowed from other projects, with sources), docs/DECISIONS.md (the decision log), RESPONSIBLE_USE.md (use boundaries).
+
+## Contributing and license
+
+Contributions are welcome under the rules in CONTRIBUTING.md: the test suite must pass, no fabricated citations anywhere including tests and docs, and synthetic material stays labelled synthetic. The project is Apache-2.0 (see LICENSE). Its own tools check the licenses of other tools before use; a tool with unverified terms is blocked, not assumed fine.

@@ -90,6 +90,8 @@ def spec_audit_violations(spec: dict) -> int:
 
 
 def _charge(tracker, provider):
+    """Charge one baseline call to the shared run tracker; a call
+    that would cross the cap raises BudgetExceeded before it happens."""
     cost = float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0)
     if tracker is not None:
         if tracker.would_exceed(cost):

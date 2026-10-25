@@ -46,11 +46,17 @@ No prose outside the JSON object."""
 
 
 def build_user_prompt(frame: dict) -> str:
+    """The user message for a research call: the frame (and its case
+    pack, when present) as canonical JSON, with the instruction to
+    answer with the dossier JSON object only."""
     return ("Frame and evidence follow as JSON. Answer with the dossier JSON "
             "object only.\n\n" + canonical_json(frame))
 
 
 def _failure_dossier(agent_id, model_family, frame_id, reason) -> dict:
+    """The dossier a failed response becomes: no claims, no focus,
+    the failure recorded in unverified_notes. See the module docstring
+    for why nothing is repaired into something plausible."""
     return {
         "artifact_type": "dossier",
         "schema_version": "0.1.0",
@@ -65,6 +71,9 @@ def _failure_dossier(agent_id, model_family, frame_id, reason) -> dict:
 
 
 def _extract_json(text):
+    """Pull the JSON object out of a model response: strip code fences,
+    take the outermost braces, parse. Returns (dict, None) or
+    (None, reason) - never a partial object."""
     if not isinstance(text, str):
         return None, "response was not text"
     stripped = text.strip()

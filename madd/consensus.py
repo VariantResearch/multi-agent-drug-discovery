@@ -11,6 +11,8 @@ from .claims import audit_claims, is_audited
 
 
 def test_agreement(dossiers: list) -> dict:
+    """Agreement: at least two dossiers, every one of them naming a
+    focus, and exactly one distinct focus across all of them."""
     focuses = []
     for d in dossiers:
         if isinstance(d, dict):
@@ -28,6 +30,8 @@ def test_agreement(dossiers: list) -> dict:
 
 
 def test_survival(spec: dict) -> dict:
+    """Survival: the candidate specification's own claim ledger audit
+    must come back clean, so nothing struck quietly re-enters."""
     report = audit_claims(spec)
     return {"test": "survival", "passed": report["ok"],
             "detail": "load-bearing claim audit errors: " + str(report["error_count"]),
@@ -35,6 +39,8 @@ def test_survival(spec: dict) -> dict:
 
 
 def test_evidence_floor(spec: dict) -> dict:
+    """Evidence floor: the specification must carry at least one
+    audited claim at tier 3 or better (best audited tier of 3 or less)."""
     claims = spec.get("claims", []) if isinstance(spec, dict) else []
     audited_tiers = [c.get("evidence_tier") for c in claims if isinstance(c, dict) and is_audited(c)]
     best = min(audited_tiers) if audited_tiers else None
@@ -45,6 +51,8 @@ def test_evidence_floor(spec: dict) -> dict:
 
 
 def test_stability(spec_a: dict, spec_b: dict) -> dict:
+    """Stability: two specifications (original and judge-swapped)
+    must name the same, present focus identifier."""
     fa = spec_a.get("focus_id") if isinstance(spec_a, dict) else None
     fb = spec_b.get("focus_id") if isinstance(spec_b, dict) else None
     passed = fa is not None and fa == fb
@@ -53,6 +61,8 @@ def test_stability(spec_a: dict, spec_b: dict) -> dict:
 
 
 def check_dissent_log(spec: dict) -> dict:
+    """Dissent log: the log must exist and be a list; an empty log is
+    acceptable only when the specification gives a dissent_none_reason."""
     if not isinstance(spec, dict) or "dissent_log" not in spec:
         return {"test": "dissent_log", "passed": False,
                 "detail": "dissent_log field missing"}
@@ -69,6 +79,9 @@ def check_dissent_log(spec: dict) -> dict:
 
 
 def run_consensus_tests(dossiers: list, spec: dict, swapped_spec: dict | None = None) -> dict:
+    """Run all four consensus tests plus the dissent-log check.
+    Without a swapped specification, stability is reported as failed
+    with the reason stated, so a missing judge can never pass quietly."""
     results = [test_agreement(dossiers), test_survival(spec), test_evidence_floor(spec),
                check_dissent_log(spec)]
     if swapped_spec is not None:

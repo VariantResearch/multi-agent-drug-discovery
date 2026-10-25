@@ -65,5 +65,6 @@ def list_runs(out_dir) -> list:
 
 
 def load_bundle(out_dir, run_id) -> dict:
+    """Read back a written bundle by run id."""
     path = Path(out_dir) / str(run_id) / BUNDLE_FILE
     return json.loads(path.read_text(encoding="utf-8"))

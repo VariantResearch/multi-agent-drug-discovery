@@ -13,10 +13,15 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class Provider(Protocol):
+    """The provider protocol: any object with name and model_version
+    attributes and a research(frame) method returning a dossier dict.
+    Structural only; nothing registers or inherits."""
     name: str
     model_version: str
 
     def research(self, frame: dict) -> dict:
+        """Research one frame and return a dossier dict (see
+        madd/schemas/dossier.json for the shape)."""
         ...
 
 
@@ -32,9 +37,13 @@ class MockProvider:
     model_version = "mock-0"
 
     def __init__(self, label: str = "001"):
+        """label distinguishes multiple mock instances in one run; each
+        gets its own dossier and agent identifiers."""
         self.label = label
 
     def research(self, frame: dict) -> dict:
+        """Return the mock dossier: one invented, labelled-synthetic claim
+        with no source. The evidence call strikes it by design."""
         frame_id = frame.get("frame_id", "SYN-FRAME") if isinstance(frame, dict) else "SYN-FRAME"
         return {
             "artifact_type": "dossier",

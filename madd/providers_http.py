@@ -61,11 +61,17 @@ def default_transport(method, url, headers, body, timeout=TIMEOUT_SECONDS):
 
 
 class _HttpProvider:
+    """Shared machinery for the HTTP adapters: configuration, the
+    research call sequence (prompt, transport, extract, parse), and
+    the failure policy described in the module docstring."""
     protocol = "http"
 
     def __init__(self, name, model, api_key, base_url, family=None,
                  cost_per_call_usd=0.0, max_tokens=4096, transport=None,
                  timeout=TIMEOUT_SECONDS):
+        """name identifies the provider in records; model is the exact
+        model identifier sent on the wire and reported as model_version;
+        api_key is held for the auth header and never written anywhere."""
         if not api_key:
             raise ProviderError("provider " + str(name) + ": no API key supplied "
                                 "(config names the environment variable to read)")
@@ -83,12 +89,20 @@ class _HttpProvider:
         self.last_response_model = None
 
     def _call(self, system, user):
+        """Send one prompt pair through the transport; subclasses build
+        the protocol-specific request."""
         raise NotImplementedError
 
     def _extract_text(self, payload):
+        """Pull the answer text (and record usage) out of a response
+        payload; None when the payload is not in the expected shape."""
         raise NotImplementedError
 
     def research(self, frame: dict) -> dict:
+        """Run one research call: build the shared prompt, call, extract
+        the text, and parse it through the shared response contract. HTTP
+        errors and malformed envelopes raise ProviderError; unusable
+        answer text becomes a failure dossier."""
         system = SYSTEM_PROMPT
         user = build_user_prompt(frame)
         status, payload = self._call(system, user)
@@ -112,6 +126,8 @@ class OpenAICompatibleProvider(_HttpProvider):
     protocol = "openai-compatible"
 
     def _call(self, system, user):
+        """POST {base_url}/chat/completions with the Bearer key and a
+        system plus user message pair."""
         body = {"model": self.model,
                 "messages": [{"role": "system", "content": system},
                              {"role": "user", "content": user}],
@@ -121,6 +137,8 @@ class OpenAICompatibleProvider(_HttpProvider):
                                body, timeout=self._timeout)
 
     def _extract_text(self, payload):
+        """Answer text from choices[0].message.content; usage recorded
+        from the usage block (prompt and completion tokens)."""
         try:
             usage = payload.get("usage") or {}
             self.last_usage = {"prompt_tokens": usage.get("prompt_tokens"),
@@ -137,6 +155,8 @@ class AnthropicProvider(_HttpProvider):
     protocol = "anthropic"
 
     def _call(self, system, user):
+        """POST {base_url}/messages with x-api-key and anthropic-version
+        headers, the system prompt as its own field, one user message."""
         body = {"model": self.model, "max_tokens": self.max_tokens,
                 "system": system,
                 "messages": [{"role": "user", "content": user}]}
@@ -146,6 +166,8 @@ class AnthropicProvider(_HttpProvider):
                                body, timeout=self._timeout)
 
     def _extract_text(self, payload):
+        """Answer text by joining the text blocks of the content array;
+        usage recorded from the usage block (input and output tokens)."""
         try:
             usage = payload.get("usage") or {}
             self.last_usage = {"input_tokens": usage.get("input_tokens"),

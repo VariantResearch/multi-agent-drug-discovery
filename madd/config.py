@@ -40,6 +40,8 @@ class ConfigError(ValueError):
 
 
 def _check_entry(entry, where, errors):
+    """Append any problems with one provider entry to errors: name
+    present, kind known, and HTTP kinds carrying model and api_key_env."""
     if not isinstance(entry, dict):
         errors.append(where + ": entry must be an object")
         return
@@ -93,6 +95,8 @@ def validate_config(config) -> list:
 
 
 def load_config(path) -> dict:
+    """Read a run config file and return it; raise ConfigError listing
+    every problem when it is invalid."""
     config = json.loads(Path(path).read_text(encoding="utf-8"))
     errors = validate_config(config)
     if errors:
@@ -102,6 +106,8 @@ def load_config(path) -> dict:
 
 
 def _build_one(entry, environ):
+    """Construct one provider object from its config entry, reading
+    the API key from the environment variable the entry names."""
     kind = entry["kind"]
     if kind == "mock":
         return MockProvider(label=str(entry.get("label", entry["name"])))

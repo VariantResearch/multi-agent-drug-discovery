@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "madd"
 version = "0.1.0"
-description = "Provider-neutral multi-agent research backbone with mechanical evidence auditing: schemas, claim and citation auditors, live citation resolution, consensus logic, debate engine, budget enforcement, Gate 0 retrospective set, CLI. No live model calls."
+description = "Provider-neutral multi-agent drug discovery system: blinded independent research agents, a structured debate engine, mechanical claim and citation auditing, live citation resolution, consensus tests, budget enforcement, provider adapters for live models, run orchestration, and the Gate 0 retrospective test set, with a CLI."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 
 def _threshold_lines(thresholds):
+    """One markdown line per threshold check: name, status, detail."""
     lines = []
     for check in (thresholds or {}).get("checks", []):
         lines.append("- " + check["threshold"] + ": " + check["status"]
@@ -18,6 +19,8 @@ def _threshold_lines(thresholds):
 
 
 def _gate0_markdown(bundle):
+    """Render a Gate 0 run bundle: result, both scores, every
+    threshold check, per-case calls with verdicts, budget state."""
     debate = bundle.get("debate_score") or {}
     baseline = bundle.get("baseline_score") or {}
     incorrect = set(debate.get("incorrect_calls") or [])
@@ -71,6 +74,8 @@ def _gate0_markdown(bundle):
 
 
 def _frame_markdown(bundle):
+    """Render a frame run bundle: outcome, focus, consensus test
+    results, strike and dissent counts."""
     record = bundle.get("record") or {}
     spec = record.get("spec") or {}
     lines = [
@@ -96,6 +101,7 @@ def _frame_markdown(bundle):
 
 
 def bundle_to_markdown(bundle: dict) -> str:
+    """Dispatch on bundle kind and return the markdown report."""
     if bundle.get("kind") == "gate0_run":
         return _gate0_markdown(bundle)
     return _frame_markdown(bundle)

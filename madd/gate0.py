@@ -51,14 +51,17 @@ PREDICTION_ALIASES = {"advance": "positive", "kill": "negative",
 
 
 def _base_dir(gate0_dir=None) -> Path:
+    """The Gate 0 dataset root: the caller's directory or the bundled one."""
     return Path(gate0_dir) if gate0_dir is not None else DEFAULT_GATE0_DIR
 
 
 def input_dir(gate0_dir=None) -> Path:
+    """The folder holding the blinded input packs."""
     return _base_dir(gate0_dir) / "input"
 
 
 def sealed_dir(gate0_dir=None) -> Path:
+    """The folder holding the sealed outcome files."""
     return _base_dir(gate0_dir) / "sealed"
 
 
@@ -71,11 +74,14 @@ def list_case_ids(gate0_dir=None) -> list:
 
 
 def load_input_pack(case_id: str, gate0_dir=None) -> dict:
+    """Load one case's blinded input pack by case id."""
     path = input_dir(gate0_dir) / (case_id + ".json")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_sealed_outcome(case_id: str, gate0_dir=None) -> dict:
+    """Load one case's sealed outcome file by case id. Scoring code
+    only; never part of anything a provider sees."""
     path = sealed_dir(gate0_dir) / (case_id + ".outcome.json")
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -208,6 +214,8 @@ def validate_pack(pack) -> list:
 
 
 def validate_outcome(outcome, expected_case_id=None) -> list:
+    """Validate one sealed outcome's structure and outcome_class
+    normalisation; returns a list of error dicts."""
     errors = []
     if not isinstance(outcome, dict):
         return [{"code": "outcome_not_object", "message": "sealed outcome is not a JSON object"}]
@@ -351,6 +359,7 @@ APPROVED_THRESHOLDS = {
 
 
 def _threshold_check(name, status, detail):
+    """One threshold verdict line: {threshold, status, detail}."""
     return {"threshold": name, "status": status, "detail": detail}
 
 

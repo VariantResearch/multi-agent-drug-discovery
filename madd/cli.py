@@ -45,10 +45,13 @@ from .storage import write_bundle
 
 
 def _load(path: str):
+    """Read and parse a JSON file argument."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def _cmd_audit_claims(args) -> int:
+    """audit-claims handler: print the claim and citation audits of a
+    document; exit 1 when either audit finds errors."""
     doc = _load(args.file)
     report = audit_claims(doc)
     print("claims:", report["claim_count"])
@@ -71,6 +74,8 @@ def _cmd_audit_claims(args) -> int:
 
 
 def _cmd_check_tool(args) -> int:
+    """check-tool handler: print the license registry verdict for a
+    named tool; exit 0 only when the tool is allowed as registered."""
     result = check_tool(args.tool, args.use)
     print("tool:", result["tool"])
     print("use:", result["use"])
@@ -82,6 +87,8 @@ def _cmd_check_tool(args) -> int:
 
 
 def _cmd_focus_score(args) -> int:
+    """focus-score handler: print a document's deterministic focus
+    score as JSON."""
     doc = _load(args.file)
     result = focus_score(doc)
     print("focus score:", result["score"])
@@ -92,6 +99,8 @@ def _cmd_focus_score(args) -> int:
 
 
 def _cmd_validate_artifact(args) -> int:
+    """validate-artifact handler: validate a file against a named
+    schema; exit 1 on any error."""
     if args.schema_name not in SCHEMA_NAMES:
         print("unknown schema name:", args.schema_name)
         print("known:", ", ".join(SCHEMA_NAMES))
@@ -108,6 +117,8 @@ def _cmd_validate_artifact(args) -> int:
 
 
 def _cmd_gate0_validate(args) -> int:
+    """gate0-validate handler: validate the Gate 0 dataset; exit 1
+    when any check fails."""
     report = validate_dataset(args.gate0_dir)
     print("cases:", report["case_count"])
     print("errors:", report["error_count"])
@@ -118,6 +129,7 @@ def _cmd_gate0_validate(args) -> int:
 
 
 def _cmd_gate0_list(args) -> int:
+    """gate0-list handler: print each Gate 0 case id with its disease."""
     for case_id in list_case_ids(args.gate0_dir):
         pack = load_input_pack(case_id, args.gate0_dir)
         print(case_id, "|", pack.get("disease", ""))
@@ -125,6 +137,8 @@ def _cmd_gate0_list(args) -> int:
 
 
 def _cmd_gate0_report(args) -> int:
+    """gate0-report handler: score a predictions file and judge it
+    against the approved thresholds; exit 0 only on a full pass."""
     predictions = _load(args.predictions)
     debate_score = score_run(predictions)
     print("debate score: correct", debate_score["correct_calls"], "of",
@@ -147,6 +161,8 @@ def _cmd_gate0_report(args) -> int:
 
 
 def _cmd_resolve_citations(args) -> int:
+    """resolve-citations handler: live-resolve a document's claim
+    identifiers against PubMed, Crossref, and ClinicalTrials.gov."""
     doc = _load(args.file)
     report = resolve_document(doc)
     for entry in report["entries"]:
@@ -160,21 +176,28 @@ def _cmd_resolve_citations(args) -> int:
 
 
 def _resolver_from_config(built):
+    """Return the evidence-call resolver when the config enables live
+    resolution, else None (audits stay offline)."""
     if not built["live_resolution"]:
         return None
 
     def resolver(identifier, identifier_type):
+        """Resolve one identifier live and return just its status string,
+        the shape debate.audit_dossier expects from a resolver."""
         return resolve_identifier(identifier, identifier_type)["status"]
 
     return resolver
 
 
 def _built_from_config(args):
+    """Load the --config file and construct its providers."""
     config = load_config(args.config)
     return build_providers(config)
 
 
 def _cmd_providers_check(args) -> int:
+    """providers-check handler: validate a run config, report each
+    provider and which key variables are set; makes no network calls."""
     try:
         config = load_config(args.config)
         built = build_providers(config)
@@ -205,6 +228,8 @@ def _cmd_providers_check(args) -> int:
 
 
 def _cmd_run_gate0(args) -> int:
+    """run-gate0 handler: execute a full Gate 0 run from a config.
+    Exit 0 on a pass, 1 on a fail, 2 when the run itself stopped."""
     try:
         built = _built_from_config(args)
         bundle = run_gate0(built["providers"], judge_provider=built["judge"],
@@ -231,6 +256,8 @@ def _cmd_run_gate0(args) -> int:
 
 
 def _cmd_run_frame(args) -> int:
+    """run-frame handler: run one frame from a config, print the
+    outcome, and optionally write the bundle."""
     frame = _load(args.frame)
     try:
         built = _built_from_config(args)
@@ -254,6 +281,8 @@ def _cmd_run_frame(args) -> int:
 
 
 def _cmd_debate_mock(args) -> int:
+    """debate-mock handler: run the debate over a frame with mock
+    providers; exit 0 when a specification locks."""
     frame = _load(args.frame)
     providers = [MockProvider("001"), MockProvider("002")]
     judge = MockProvider("003") if args.judge else None
@@ -279,6 +308,7 @@ def _cmd_debate_mock(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser with one subcommand per operation."""
     parser = argparse.ArgumentParser(prog="madd", description="MADD command line interface")
     sub = parser.add_subparsers(dest="command", required=True)
     p1 = sub.add_parser("audit-claims"); p1.add_argument("file"); p1.set_defaults(fn=_cmd_audit_claims)
@@ -317,6 +347,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    """CLI entry point: parse arguments, dispatch to the handler,
+    return its exit code."""
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.fn(args)
