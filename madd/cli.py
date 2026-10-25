@@ -51,7 +51,8 @@ from .design_tools import candidates_from_tool_run, run_structure_tool
 from .license_registry import check_tool
 from .providers import MockProvider
 from .providers_http import ProviderError
-from .resolve import resolve_document, resolve_identifier
+from .resolve import (check_quote_against_source, resolve_document,
+                      resolve_identifier)
 from .runner import estimate_gate0_run, run_frame, run_gate0
 from .schemas import SCHEMA_NAMES, validate_artifact
 from .smoke import smoke_panel
@@ -133,7 +134,8 @@ def _cmd_design_run(args) -> int:
                             tool_runs=tuple(tool_runs),
                             extra_candidates=tuple(extra),
                             target=args.target, disease=args.disease,
-                            use=args.use)
+                            use=args.use,
+                            source_check=bool(getattr(args, "source_check", False)))
     except (OSError, ValueError) as exc:
         print("design-run failed: " + str(exc), file=sys.stderr)
         return 1
@@ -266,17 +268,36 @@ def _cmd_gate0_report(args) -> int:
 
 def _cmd_resolve_citations(args) -> int:
     """resolve-citations handler: live-resolve a document's claim
-    identifiers against PubMed, Crossref, and ClinicalTrials.gov."""
+    identifiers against their registries (PubMed, Crossref,
+    ClinicalTrials.gov, Europe PMC, GWAS Catalog, ChEMBL, PubChem,
+    UniProt). With --check-quotes, also verify each quote_checked
+    claim's quote against the source's open full text at Europe PMC;
+    a quote absent from retrieved full text fails the result."""
     doc = _load(args.file)
     report = resolve_document(doc)
     for entry in report["entries"]:
         print(" -", entry["claim_id"], "|", entry["status"], "|",
               entry.get("title") or entry["detail"])
     print("counts:", json.dumps(report["status_counts"], sort_keys=True))
+    quotes_bad = False
+    if getattr(args, "check_quotes", False):
+        from .claims import extract_claims
+        print("quote checks (Europe PMC full text):")
+        for claim in extract_claims(doc):
+            if claim.get("verification_status") != "quote_checked":
+                continue
+            check = check_quote_against_source(
+                claim.get("source_identifier"), claim.get("identifier_type"),
+                claim.get("supporting_quote"))
+            print(" -", claim.get("claim_id"), "|", check["status"], "|",
+                  check["detail"])
+            if check["status"] == "quote_not_found":
+                quotes_bad = True
     all_resolved = report["claim_count"] > 0 and all(
         e["status"] == "resolved" for e in report["entries"])
-    print("result:", "PASS" if all_resolved else "FAIL")
-    return 0 if all_resolved else 1
+    passed = all_resolved and not quotes_bad
+    print("result:", "PASS" if passed else "FAIL")
+    return 0 if passed else 1
 
 
 def _print_run_event(event):
@@ -307,6 +328,22 @@ def _resolver_from_config(built):
         return resolve_identifier(identifier, identifier_type)["status"]
 
     return resolver
+
+
+def _quote_checker_from_config(built):
+    """Return the evidence-call quote checker when the config enables
+    live quote checking, else None (quotes stay unchecked live)."""
+    if not built.get("live_quote_check"):
+        return None
+
+    def quote_checker(claim):
+        """Check one claim's quote against its source's open full text
+        and return the status string debate.audit_dossier expects."""
+        return check_quote_against_source(
+            claim.get("source_identifier"), claim.get("identifier_type"),
+            claim.get("supporting_quote"))["status"]
+
+    return quote_checker
 
 
 def _built_from_config(args):
@@ -404,6 +441,7 @@ def _cmd_run_gate0(args) -> int:
                            baseline_provider=built["baseline"],
                            budget=built["budget"], gate0_dir=args.gate0_dir,
                            resolver=_resolver_from_config(built),
+                           quote_checker=_quote_checker_from_config(built),
                            max_workers=args.jobs or built["max_workers"],
                            on_event=_print_run_event)
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
@@ -434,7 +472,8 @@ def _cmd_run_frame(args) -> int:
         bundle = run_frame(frame, built["providers"],
                            judge_provider=built["judge"],
                            budget=built["budget"],
-                           resolver=_resolver_from_config(built))
+                           resolver=_resolver_from_config(built),
+                           quote_checker=_quote_checker_from_config(built))
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
         print("run stopped:", exc)
         return 2
@@ -566,6 +605,7 @@ def build_parser() -> argparse.ArgumentParser:
     p7.add_argument("--judge-swap-flips", type=int, default=None)
     p7.set_defaults(fn=_cmd_gate0_report)
     p8 = sub.add_parser("resolve-citations"); p8.add_argument("file")
+    p8.add_argument("--check-quotes", action="store_true")
     p8.set_defaults(fn=_cmd_resolve_citations)
     p9 = sub.add_parser("debate-mock"); p9.add_argument("frame")
     p9.add_argument("--judge", action="store_true")
@@ -606,6 +646,7 @@ def build_parser() -> argparse.ArgumentParser:
     p20.add_argument("--target", default=None)
     p20.add_argument("--disease", default=None)
     p20.add_argument("--config", default=None)
+    p20.add_argument("--source-check", action="store_true")
     p20.add_argument("--out", default="runs")
     p20.add_argument("--tool", default=None)
     p20.add_argument("--use", default="research", choices=["research", "commercial"])

@@ -48,7 +48,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (192 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
+Expected results: the test suite passes (209 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -60,7 +60,7 @@ python3 -m madd check-tool Boltz-2
 python3 -m madd resolve-citations examples/synthetic/dossier.json
 ```
 
-The first four run offline. resolve-citations makes live lookups against PubMed, Crossref, and ClinicalTrials.gov, and on this invented dossier it correctly reports the invented identifiers as not found or badly formatted, since none of them exist in any registry.
+The first four run offline. resolve-citations makes live lookups against the registry that owns each identifier: PubMed (pmid), Crossref (doi), ClinicalTrials.gov (nct), Europe PMC (pmcid and preprint PPR ids), the GWAS Catalog v2 API (gcst study accessions and rsIDs), ChEMBL (chembl molecule ids), PubChem (pubchem_cid), and UniProt (uniprot accessions). On this invented dossier it correctly reports the invented identifiers as not found or badly formatted, since none of them exist in any registry. With --check-quotes it goes one step further for quote_checked claims: Europe PMC serves the source's open-access full text when it has it, and the claim's supporting quote is searched in that text. A quote absent from text that was actually retrieved is reported quote_not_found; a source with no open full text is reported full_text_unavailable, which proves nothing either way.
 
 ## The MADD Console (GUI)
 
@@ -144,6 +144,7 @@ Top-level fields:
 - baseline (required for Gate 0 runs): the single model the debate system must beat.
 - budget (optional): {"max_cost_usd": number, "max_calls": integer}. At least one cap is required when a budget is given; uncapped budgets are rejected. The cap is shared across the whole run, baseline included, and the run stops when it is reached.
 - live_resolution (optional, default false): when true, the evidence call also strikes claims whose identifiers the live registries report as not found. A registry that cannot be reached never strikes anything.
+- live_quote_check (optional, default false): when true, the evidence call additionally strikes a quote_checked claim whose supporting quote is absent from the source's open full text at Europe PMC (reason quote_not_in_full_text). Full text that is not openly available never strikes anything.
 - parallel_cases (optional, default 1): how many case debates may run at once. The bundle is assembled in case order either way; only wall time changes. run-gate0 --jobs overrides it.
 
 Each provider entry:
@@ -204,7 +205,7 @@ python3 -m madd design-brief spec.json
 
 Every claim a candidate carries goes through the research layer's own audit machinery (the document claim audit and the citation auditor), and counts as support only when it is error-free and audited, once per claim id; a candidate whose load-bearing claim carries any audit error, or which records a failed constraint, is excluded from the ranking with its reasons kept. Predicted properties must name their basis, and designer predictions are counted as unverified in every report. The ranking is a fixed rule: audited load-bearing claim count, then fewer unknown constraints, then candidate id. The design gate passes only when the brief came from a locked spec, at least one candidate is ranked, at least one ranked candidate is real (not synthetic), no tool run was license-blocked, and any requested tool run completed - so a mock-only design run writes its bundle, fails its gate, and exits non-zero.
 
-Designers plug in behind one interface. The deterministic mock ships for pipeline exercise: two synthetic, clearly labelled candidates with no structures and no invented numbers, which can never pass the gate. The real designer is the model panel: pass --config <file> and the config's providers propose candidates under a strict contract - each with a real structure (SMILES or sequence), ledger-ruled claims, and predictions labelled as predictions; structureless proposals from real providers are dropped, with the drop recorded in the bundle. Before audit, RDKit (BSD, registry-cleared; install the rdkit package to enable it) validates every SMILES and attaches computed descriptors - molecular weight, logP, TPSA, hydrogen bond donors and acceptors, rotatable bonds - recorded as computed values with the RDKit version, never as model estimates; an unparseable structure enters audit as a failed computed constraint. A finished cycle therefore ends with ranked candidates carrying real structures, calculated properties, and audited claims, or a failed gate explaining why not. External structure tools are the third source: pass --tool Boltz-2 (or Chai-1) with --tool-input, and the runner checks the license registry for the --use first, refuses blocked tools, reports not_installed when the tool is absent, and records every output file it created by path and SHA-256 hash in a manifest. The MADD Console does the same from the browser: a locked frame run's detail view has a DESIGN CANDIDATES button (it uses the config in the run control field when one is set), and design runs appear in the run library like any other bundle. The full specification is docs/PHASE2_SPEC.md.
+Designers plug in behind one interface. The deterministic mock ships for pipeline exercise: two synthetic, clearly labelled candidates with no structures and no invented numbers, which can never pass the gate. The real designer is the model panel: pass --config <file> and the config's providers propose candidates under a strict contract - each with a real structure (SMILES or sequence), ledger-ruled claims, and predictions labelled as predictions; structureless proposals from real providers are dropped, with the drop recorded in the bundle. Before audit, RDKit (BSD, registry-cleared; install the rdkit package to enable it) validates every SMILES and attaches computed descriptors - molecular weight, logP, TPSA, hydrogen bond donors and acceptors, rotatable bonds - recorded as computed values with the RDKit version, never as model estimates; an unparseable structure enters audit as a failed computed constraint. With --source-check, each candidate's InChIKey is also looked up in ChEMBL and PubChem and the result is recorded on the candidate as source_check (known compound, with the registry ids, or no record found); the check is information, not a verdict, and never excludes a candidate. A finished cycle therefore ends with ranked candidates carrying real structures, calculated properties, and audited claims, or a failed gate explaining why not. External structure tools are the third source: pass --tool Boltz-2 (or Chai-1) with --tool-input, and the runner checks the license registry for the --use first, refuses blocked tools, reports not_installed when the tool is absent, and records every output file it created by path and SHA-256 hash in a manifest. The MADD Console does the same from the browser: a locked frame run's detail view has a DESIGN CANDIDATES button (it uses the config in the run control field when one is set), and design runs appear in the run library like any other bundle. The full specification is docs/PHASE2_SPEC.md.
 
 Installing the package instead of running it from the checkout also works, and provides the same commands as the madd entry point:
 
@@ -245,7 +246,9 @@ madd/            the package (standard library only)
   config.py          run configuration loading and validation
   claims.py          the claim ledger audit
   citation_auditor.py  offline identifier format and consistency checks
-  resolve.py         live citation resolution (PubMed, Crossref, ClinicalTrials.gov)
+  resolve.py         live citation resolution (PubMed, Crossref, ClinicalTrials.gov,
+                     Europe PMC, GWAS Catalog, ChEMBL, PubChem, UniProt) and
+                     full-text quote checking via Europe PMC
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score
   gate0.py           the Gate 0 dataset tools, scorer, and threshold evaluator

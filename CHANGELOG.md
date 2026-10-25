@@ -4,6 +4,26 @@
 
 ### Added
 
+- Sources batch: live resolution grows from three registries to eight.
+  New identifier types, each format-checked offline and resolved
+  against its owning registry: pmcid and preprint (PPR) via Europe PMC,
+  gcst and rsid via the GWAS Catalog REST API v2 (the v1 API is
+  retired and returns no records), chembl via the ChEMBL API,
+  pubchem_cid via PubChem PUG REST, and uniprot via the UniProt REST
+  API. All seven verified live against the real registries.
+- Full-text quote checking: Europe PMC serves open-access full text
+  for PMCID records, and a claim's supporting quote can now be checked
+  against the actual source text (resolve.check_quote_against_source;
+  resolve-citations --check-quotes). Statuses are honest about the
+  middle case: full_text_unavailable proves nothing. Behind the new
+  live_quote_check run-config flag, the evidence call strikes a
+  quote_checked claim whose quote is absent from retrieved full text
+  (quote_not_in_full_text); unavailable text never strikes.
+- Design source check (design-run --source-check): each candidate's
+  InChIKey is looked up in ChEMBL and PubChem, and the known-compound
+  result is recorded on the candidate. Information, not a verdict; it
+  never excludes a candidate, and registry failures are recorded as
+  lookup failures, never as novelty.
 - The real design cycle: ModelDesigner turns the run config's provider
   panel into the designer (design-run --config, or the console's
   config field). Providers answer a strict candidate contract through

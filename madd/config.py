@@ -7,6 +7,11 @@ A run is described by a JSON config (see examples/run-config.example.json):
 - budget: a budget dict for madd/budget.py, or null.
 - live_resolution: when true, the evidence call also strikes claims
   whose identifiers the live registries report as not found.
+- live_quote_check: when true, the evidence call additionally checks
+  quote_checked claims against the source's open full text at Europe
+  PMC and strikes a claim whose quote is absent from text that was
+  actually retrieved (quote_not_in_full_text). Unavailable full text
+  never strikes.
 - parallel_cases: how many case debates may run at once (default 1).
 
 A provider entry is {name, kind, model, family, base_url,
@@ -145,7 +150,8 @@ def _build_one(entry, environ):
 def build_providers(config, environ=None) -> dict:
     """Construct provider objects from a validated config.
 
-    Returns {providers, judge, baseline, budget, live_resolution}.
+    Returns {providers, judge, baseline, budget, live_resolution,
+    live_quote_check}.
     Raises ConfigError on any problem, including a missing key
     variable (named, never valued).
     """
@@ -160,5 +166,6 @@ def build_providers(config, environ=None) -> dict:
         if config.get("baseline") else None,
         "budget": config.get("budget"),
         "live_resolution": bool(config.get("live_resolution", False)),
+        "live_quote_check": bool(config.get("live_quote_check", False)),
         "max_workers": int(config.get("parallel_cases", 1)),
     }

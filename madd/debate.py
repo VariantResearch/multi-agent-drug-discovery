@@ -54,7 +54,7 @@ from .consensus import run_consensus_tests
 from .focus import focus_score
 
 
-def audit_dossier(dossier: dict, resolver=None) -> dict:
+def audit_dossier(dossier: dict, resolver=None, quote_checker=None) -> dict:
     """Evidence call for one dossier: split claims into surviving/struck.
 
     A claim is struck when the claim ledger rules fail it (no source,
@@ -70,6 +70,14 @@ def audit_dossier(dossier: dict, resolver=None) -> dict:
     lookup_error, format problems already handled above) never strikes
     on its own: a registry that cannot be reached proves nothing about
     the claim.
+
+    quote_checker, when given, is a callable(claim) returning a quote
+    check status (see madd/resolve.check_quote_against_source). It is
+    consulted only for quote_checked claims that survived everything
+    above, and only the quote_not_found status strikes, with reason
+    quote_not_in_full_text: the source's open full text was retrieved
+    and the quote the claim carries is not in it. Unavailable full
+    text, like an unreachable registry, proves nothing.
     """
     claims = dossier.get("claims") if isinstance(dossier, dict) else None
     if not isinstance(claims, list):
@@ -105,6 +113,10 @@ def audit_dossier(dossier: dict, resolver=None) -> dict:
                               claim.get("identifier_type"))
             if status == "not_found":
                 reasons.append("citation_not_found_live")
+        if (quote_checker is not None and not reasons
+                and claim.get("verification_status") == "quote_checked"):
+            if quote_checker(claim) == "quote_not_found":
+                reasons.append("quote_not_in_full_text")
         if reasons:
             struck.append({"claim_id": claim.get("claim_id", "<missing claim_id>"),
                            "reasons": sorted(set(reasons))})
@@ -239,7 +251,7 @@ def _evolve_spec(frame: dict, audited_dossiers: list, ranking: list,
 
 def run_debate(frame: dict, providers: list, judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
-               resolver=None) -> dict:
+               resolver=None, quote_checker=None) -> dict:
     """Run the full debate protocol over a frame. Returns the run record.
 
     providers: at least two Provider objects (see madd/providers.py).
@@ -301,7 +313,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                          + "); dossier identifiers must be unique within a run, "
                            "or the ranking and the record would silently merge them")
     # Step 2: evidence call.
-    audited = [audit_dossier(d, resolver=resolver) for d in dossiers]
+    audited = [audit_dossier(d, resolver=resolver, quote_checker=quote_checker)
+               for d in dossiers]
     strike_list = [{"dossier_id": a["dossier_id"], "claim_id": s["claim_id"],
                     "reasons": s["reasons"]}
                    for a in audited for s in a["struck"]]
@@ -333,7 +346,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     judge_info = None
     if judge_provider is not None:
         judge_dossier = research(judge_provider)
-        judge_audited = audit_dossier(judge_dossier, resolver=resolver)
+        judge_audited = audit_dossier(judge_dossier, resolver=resolver,
+                                      quote_checker=quote_checker)
         swapped_spec = dict(spec)
         swapped_spec["focus_id"] = judge_audited["proposed_focus_id"]
         judge_info = {"provider": getattr(judge_provider, "name", None),

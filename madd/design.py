@@ -28,6 +28,7 @@ import json as _json
 from . import citation_auditor
 from . import claims as claims_mod
 from . import design_rdkit
+from . import design_sources
 from . import schemas
 from .artifacts import freeze_artifact
 from .providers import MockProvider
@@ -153,7 +154,7 @@ DESIGN_SYSTEM_PROMPT = """You are a medicinal chemistry design agent in an evide
 
 Rules you cannot escape:
 - Every candidate must carry a real structure: a SMILES string for a small molecule, an amino acid sequence for a peptide or biologic.
-- Any factual claim you attach follows the claim ledger: a load-bearing claim needs a real primary-source identifier (PubMed id, DOI, or NCT number), an identifier_type, a supporting_quote, and an evidence_tier. Claims that cannot meet that bar must be marked load_bearing false or omitted. Unsourced assertions presented as support are struck by mechanical audit and exclude the candidate.
+- Any factual claim you attach follows the claim ledger: a load-bearing claim needs a real primary-source identifier (PubMed id, DOI, NCT number, PMCID, preprint PPR id, GWAS GCST or rsID, ChEMBL id, PubChem CID, or UniProt accession), an identifier_type, a supporting_quote, and an evidence_tier. Claims that cannot meet that bar must be marked load_bearing false or omitted. Unsourced assertions presented as support are struck by mechanical audit and exclude the candidate.
 - Predicted properties are your estimates: give each a basis of "designer_prediction". Never present an estimate as a measurement or a calculation.
 - Assess the brief's constraints honestly in constraint_results: status pass, fail, or unknown, with the basis for the assessment. A failed constraint excludes the candidate, and hiding one is worse than reporting it.
 Answer with the JSON object specified in the user message and nothing else."""
@@ -387,7 +388,8 @@ def run_design(spec: dict, source: str, designer=None,
                design_constraints: tuple = (), tool_runs: tuple = (),
                extra_candidates: tuple = (),
                target: str = None, disease: str = None,
-               use: str = "research", rdkit: bool = True) -> dict:
+               use: str = "research", rdkit: bool = True,
+               source_check: bool = False) -> dict:
     """Run the design stage for a locked spec and freeze the bundle.
 
     The gate passes only when the brief came from a locked spec (which
@@ -409,6 +411,13 @@ def run_design(spec: dict, source: str, designer=None,
         # structure enters audit as a failed computed constraint and a
         # valid one carries calculated properties, not estimates.
         all_tool_runs.append(design_rdkit.enrich_candidates(candidates, use=use))
+    if source_check:
+        # Operator-requested network step: ask ChEMBL and PubChem
+        # whether each candidate compound is already known there. The
+        # result is recorded on the candidate; it never excludes one.
+        source_record = design_sources.check_candidates(candidates)
+        source_record["requested"] = True
+        all_tool_runs.append(source_record)
     candidate_ids = [c.get("candidate_id") for c in candidates]
     if len(set(candidate_ids)) != len(candidate_ids):
         raise ValueError("duplicate candidate_id in one design run: "

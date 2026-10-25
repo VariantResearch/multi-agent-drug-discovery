@@ -70,11 +70,11 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
     }
 
 
-def baseline_prediction(dossier: dict, resolver=None) -> str:
+def baseline_prediction(dossier: dict, resolver=None, quote_checker=None) -> str:
     """The baseline rule, fixed in advance: advance when the lone
     dossier proposes a focus backed by at least one audited surviving
     claim; kill otherwise."""
-    audited = audit_dossier(dossier, resolver=resolver)
+    audited = audit_dossier(dossier, resolver=resolver, quote_checker=quote_checker)
     if not audited["proposed_focus_id"]:
         return "kill"
     if any(is_audited(c) for c in audited["surviving_claims"]):
@@ -135,7 +135,7 @@ def _emit(on_event, event: dict):
 
 def run_gate0(providers, judge_provider=None, baseline_provider=None,
               budget=None, gate0_dir=None, resolver=None, run_id=None,
-              on_event=None, max_workers=1) -> dict:
+              on_event=None, max_workers=1, quote_checker=None) -> dict:
     """Run the full Gate 0 protocol. Returns the run bundle.
 
     baseline_provider is required: the approved thresholds include a
@@ -172,7 +172,8 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         _settle_retries(tracker, baseline_provider,
                         float(getattr(baseline_provider, "cost_per_call_usd", 0.0) or 0.0))
         baseline_dossiers[case_id] = dossier
-        baseline_predictions[case_id] = baseline_prediction(dossier, resolver=resolver)
+        baseline_predictions[case_id] = baseline_prediction(
+            dossier, resolver=resolver, quote_checker=quote_checker)
         _emit(on_event, {"event": "baseline_case_done", "case_id": case_id,
                          "prediction": baseline_predictions[case_id]})
 
@@ -183,7 +184,8 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         _emit(on_event, {"event": "debate_case_started", "case_id": case_id})
         frame = frame_for_case(case_id, packs[case_id])
         record = run_debate(frame, providers, judge_provider=judge_provider,
-                            budget_tracker=tracker, resolver=resolver)
+                            budget_tracker=tracker, resolver=resolver,
+                            quote_checker=quote_checker)
         prediction = "advance" if record["outcome"] == "locked" else "kill"
         _emit(on_event, {"event": "debate_case_done", "case_id": case_id,
                          "prediction": prediction,
@@ -304,7 +306,7 @@ def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
 
 
 def run_frame(frame, providers, judge_provider=None, budget=None,
-              resolver=None, run_id=None, on_event=None) -> dict:
+              resolver=None, run_id=None, on_event=None, quote_checker=None) -> dict:
     """Run the debate once on a prospective frame (not a Gate 0 case).
 
     Returns a frame run bundle whose record is the debate record: a
@@ -313,7 +315,8 @@ def run_frame(frame, providers, judge_provider=None, budget=None,
     _emit(on_event, {"event": "debate_case_started",
                      "case_id": frame.get("frame_id")})
     record = run_debate(frame, providers, judge_provider=judge_provider,
-                        budget=budget, resolver=resolver)
+                        budget=budget, resolver=resolver,
+                        quote_checker=quote_checker)
     _emit(on_event, {"event": "debate_case_done",
                      "case_id": frame.get("frame_id"),
                      "outcome": record["outcome"],

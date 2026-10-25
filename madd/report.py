@@ -138,10 +138,14 @@ def _design_markdown(bundle: dict) -> str:
     lines += ["", "## Tool runs"]
     if bundle.get("tool_runs"):
         for t in bundle["tool_runs"]:
-            if "checked" in t:
+            if "valid" in t:
                 detail = ("checked " + str(t.get("checked")) + ", valid "
                           + str(t.get("valid")) + ", invalid "
                           + str(t.get("invalid")))
+            elif "known" in t:
+                detail = ("checked " + str(t.get("checked")) + ", known "
+                          + str(t.get("known")) + ", no record "
+                          + str(t.get("no_record")))
             else:
                 detail = str(len(t.get("outputs") or [])) + " outputs"
             lines.append("- " + str(t.get("tool")) + ": " + str(t.get("status"))

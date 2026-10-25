@@ -66,11 +66,14 @@ quotation. Until that module exists and is tested, every claim in every
 run remains at most "unverified" in practice, and no specification may be
 locked on the basis of this scaffold alone.
 
-Addendum, 2026-10-23: the resolver now exists as madd/resolve.py. It
-resolves identifiers against PubMed, Crossref, and ClinicalTrials.gov
-and reports the registry title. It does not fetch source text or check
-supporting quotations, so the caution in the last sentence above still
-stands for quote support.
+Addendum, updated 2026-10-25: the resolver exists as madd/resolve.py.
+It resolves identifiers against the registry that owns each type -
+PubMed, Crossref, ClinicalTrials.gov, Europe PMC, the GWAS Catalog,
+ChEMBL, PubChem, and UniProt - and reports the registry title. It also
+checks supporting quotations against open-access full text served by
+Europe PMC: a quote absent from retrieved text is reported, while a
+source with no open full text proves nothing either way, so the
+caution above still stands wherever full text is not openly available.
 
 ## Gate 0: retrospective test set design
 

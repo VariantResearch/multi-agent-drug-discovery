@@ -57,6 +57,22 @@ def describe_smiles(smiles: str) -> dict:
     }
 
 
+def inchikey(smiles: str):
+    """Return the standard InChIKey for a SMILES string, or None when
+    RDKit is unavailable or the structure does not parse. The InChIKey
+    is the join key the public chemistry registries index by."""
+    if not available() or not isinstance(smiles, str):
+        return None
+    from rdkit import Chem
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    try:
+        return Chem.MolToInchiKey(mol)
+    except Exception:
+        return None
+
+
 def enrich_candidates(candidates: list, use: str = "research") -> dict:
     """Validate SMILES candidates and attach computed descriptors.
 
