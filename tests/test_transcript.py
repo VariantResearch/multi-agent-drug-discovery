@@ -18,16 +18,17 @@ class TestTranscript(unittest.TestCase):
         record = run_debate(FRAME, [MockProvider("001"), MockProvider("002")],
                             judge_provider=MockProvider("003"))
         md = record_to_markdown(record)
-        for heading in ("# Debate transcript", "## Dossiers after the evidence call",
+        for heading in ("# Debate transcript", "## Providers",
+                        "## Evidence call: struck claims",
                         "## Cross-examination", "## Ranking",
                         "## Evolution round", "## Consensus tests",
                         "## Judge swap", "## Specification and dissent"):
             self.assertIn(heading, md)
         self.assertIn("Outcome: no_go", md)
-        self.assertIn("SYN-C-BAD", md)  # the struck mock claim is shown
+        self.assertIn("SYN-C1", md)  # the struck mock claim is shown
 
     def test_partial_record_does_not_crash(self):
-        md = record_to_markdown({"frame": {"frame_id": "X"}, "outcome": "no_go"})
+        md = record_to_markdown({"frame_id": "X", "outcome": "no_go"})
         self.assertIn("Frame: X", md)
 
 

@@ -353,7 +353,8 @@ def _cmd_transcript(args) -> int:
     bundle's record, as a readable markdown transcript."""
     data = _load(args.file)
     record = data.get("record") if data.get("kind") == "frame_run" else data
-    if not isinstance(record, dict) or "dossiers" not in record:
+    if not isinstance(record, dict) or "outcome" not in record \
+            or "strike_list" not in record:
         print("not a debate record or frame run bundle:", args.file)
         return 2
     print(record_to_markdown(record))

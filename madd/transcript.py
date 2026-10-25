@@ -1,17 +1,19 @@
 """Debate transcript: a debate record rendered for a human reader.
 
 The frozen record is the evidence; this is the reading copy. It lays
-out the debate in the order it happened: the dossiers after the
-evidence call (what survived, what was struck and why), the
-cross-examination, the ranking, the evolution round, the consensus
-tests, the judge swap, and the dissent log, ending at the outcome.
-It renders the record's contents only - no interpretation, no new
-claims - and tolerates partial records by printing what is there.
+out what the record holds, in the order the debate happened: who the
+providers were, what the evidence call struck and why, how the
+dossiers ranked, the cross-examination and any red-team round, the
+evolution merge, the consensus tests, the judge swap, and the final
+specification with its dissent log. It renders the record's contents
+only - no interpretation, no new claims - and tolerates partial
+records by printing what is there.
 """
 from __future__ import annotations
 
 
 def _claim_line(claim):
+    """One surviving claim as a markdown bullet with its citation."""
     return ("- [" + str(claim.get("evidence_tier")) + "] "
             + str(claim.get("claim_id")) + ": " + str(claim.get("text"))
             + " (" + str(claim.get("identifier_type")) + ": "
@@ -21,46 +23,30 @@ def _claim_line(claim):
 
 def record_to_markdown(record: dict) -> str:
     """Render one debate record (see madd/debate.py) as markdown."""
-    frame = record.get("frame") or {}
     lines = ["# Debate transcript",
              "",
-             "Frame: " + str(frame.get("frame_id")),
-             "Question: " + str(frame.get("question")),
+             "Frame: " + str(record.get("frame_id")),
              "Outcome: " + str(record.get("outcome")),
-             "",
-             "## Dossiers after the evidence call", ""]
-    for dossier in record.get("dossiers") or []:
-        score = (dossier.get("focus_score") or {}).get("score")
-        lines.append("### " + str(dossier.get("dossier_id"))
-                     + " (agent " + str(dossier.get("agent_id")) + ")")
-        lines.append("")
-        lines.append("Proposed focus: " + str(dossier.get("proposed_focus_id"))
-                     + " | audited focus score: " + str(score))
-        lines.append("")
-        lines.append("Surviving claims:")
-        lines.extend(_claim_line(c) for c in dossier.get("surviving_claims") or [])
-        if not dossier.get("surviving_claims"):
-            lines.append("- none")
-        lines.append("")
-        lines.append("Struck claims:")
-        for struck in dossier.get("struck") or []:
-            lines.append("- " + str(struck.get("claim_id")) + ": "
-                         + ", ".join(struck.get("reasons") or []))
-        if not dossier.get("struck"):
-            lines.append("- none")
-        lines.append("")
-    cross = record.get("cross_examination") or {}
-    lines += ["## Cross-examination", ""]
-    if cross.get("red_team_round"):
+             ""]
+    if record.get("red_team_round"):
         lines.append("Instant agreement triggered the red-team round.")
         lines.append("")
-    for objection in cross.get("records") or []:
-        lines.append("- " + str(objection.get("from_dossier"))
-                     + " objected to " + str(objection.get("to_dossier"))
-                     + " over claims: "
-                     + ", ".join(objection.get("claim_ids") or []))
-    if not cross.get("records"):
-        lines.append("- no objections recorded")
+    lines += ["## Providers", ""]
+    for provider in record.get("providers") or []:
+        lines.append("- " + str(provider.get("name"))
+                     + " (" + str(provider.get("model_version")) + ")"
+                     + " | agent " + str(provider.get("agent_id"))
+                     + " | dossier " + str(provider.get("dossier_id")))
+    if not record.get("providers"):
+        lines.append("- none recorded")
+    lines += ["", "## Evidence call: struck claims", ""]
+    strikes = record.get("strike_list") or []
+    for strike in strikes:
+        lines.append("- " + str(strike.get("dossier_id")) + " / "
+                     + str(strike.get("claim_id")) + ": "
+                     + ", ".join(strike.get("reasons") or []))
+    if not strikes:
+        lines.append("- nothing was struck")
     lines += ["", "## Ranking", "",
               "| dossier | focus score | struck | pairwise wins |",
               "| --- | --- | --- | --- |"]
@@ -69,15 +55,26 @@ def record_to_markdown(record: dict) -> str:
                      + str(row.get("focus_score")) + " | "
                      + str(row.get("struck_count")) + " | "
                      + str(row.get("pairwise_wins")) + " |")
+    lines += ["", "## Cross-examination", ""]
+    objections = record.get("cross_examination") or []
+    for objection in objections:
+        lines.append("- " + str(objection.get("kind")) + ": "
+                     + str(objection.get("objector_agent_id"))
+                     + " -> " + str(objection.get("target_dossier_id"))
+                     + " | claims: "
+                     + (", ".join(objection.get("claim_ids") or []) or "none")
+                     + " | " + str(objection.get("note")))
+    if not objections:
+        lines.append("- no objections recorded")
     evolution = record.get("evolution") or {}
-    lines += ["", "## Evolution round", ""]
-    if evolution.get("applied"):
-        lines.append("Merged the surviving claims of the top two dossiers "
-                     "into dossier " + str(evolution.get("merged_dossier_id"))
-                     + " (focus " + str(evolution.get("focus_id")) + ").")
-    else:
-        lines.append("No merge: " + str(evolution.get("reason")))
-    lines += ["", "## Consensus tests", ""]
+    lines += ["", "## Evolution round", "",
+              "Base dossier: " + str(evolution.get("base_dossier_id"))
+              + " | contributing: "
+              + (", ".join(evolution.get("contributing_dossiers") or []) or "none")
+              + " | claims merged: " + str(evolution.get("claims_merged"))
+              + " | duplicate claim ids skipped: "
+              + str(evolution.get("duplicate_claim_ids_skipped")),
+              "", "## Consensus tests", ""]
     for test in ((record.get("consensus") or {}).get("results") or []):
         lines.append("- " + str(test.get("test")) + ": "
                      + ("pass" if test.get("passed") else "FAIL")
@@ -89,18 +86,27 @@ def record_to_markdown(record: dict) -> str:
                      + " | judge focus: " + str(judge.get("proposed_focus_id"))
                      + " | judge claims struck: "
                      + str(len(judge.get("struck") or [])))
+        for struck in judge.get("struck") or []:
+            lines.append("- " + str(struck.get("claim_id")) + ": "
+                         + ", ".join(struck.get("reasons") or []))
     else:
         lines.append("No judge was supplied; stability is unestablished.")
     spec = record.get("spec") or {}
     lines += ["", "## Specification and dissent", "",
               "Focus: " + str(spec.get("focus_id"))
-              + " | claims carried: " + str(len(spec.get("claims") or [])),
-              ""]
+              + " | outcome on the frame: " + str(spec.get("outcome")),
+              "", "Claims carried into the specification:"]
+    lines.extend(_claim_line(c) for c in spec.get("claims") or [])
+    if not spec.get("claims"):
+        lines.append("- none")
+    lines.append("")
+    lines.append("Dissent log:")
     for entry in spec.get("dissent_log") or []:
         lines.append("- " + str(entry.get("agent_id")) + ": "
                      + str(entry.get("objection"))
                      + " [" + str(entry.get("status")) + "]")
     if not spec.get("dissent_log"):
-        lines.append("- dissent log empty (reason recorded in the record)")
+        lines.append("- empty; reason recorded in the record: "
+                     + str(spec.get("dissent_none_reason")))
     lines.append("")
     return "\n".join(lines)
