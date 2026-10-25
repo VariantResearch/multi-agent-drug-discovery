@@ -366,25 +366,52 @@ def evaluate_thresholds(debate_score, baseline_score=None, audit_violations=None
 
     Every threshold is reported as pass, fail, or not_evaluable. A run
     passes overall only when every threshold passes: a missing input is
-    never treated as a pass.
+    never treated as a pass. A run_completeness check comes first: a
+    run that did not produce a call for every case fails outright,
+    whatever its counts on the cases it did call.
     """
     limits = dict(APPROVED_THRESHOLDS if thresholds is None else thresholds)
     checks = []
 
-    killed = debate_score.get("failures_correctly_killed")
+    missing_predictions = debate_score.get("missing_predictions") or []
+    scored_count = debate_score.get("scored_count")
+    case_count = debate_score.get("case_count")
+    incomplete = (bool(missing_predictions)
+                  or not isinstance(case_count, int) or case_count == 0
+                  or (isinstance(scored_count, int) and isinstance(case_count, int)
+                      and scored_count < case_count))
     checks.append(_threshold_check(
-        "failure_kill_rate",
-        "pass" if isinstance(killed, int) and killed >= limits["min_failures_killed"] else "fail",
-        "failures correctly killed: " + str(killed) + " of "
-        + str(debate_score.get("case_count")) + " cases; need at least "
-        + str(limits["min_failures_killed"])))
+        "run_completeness",
+        "fail" if incomplete else "pass",
+        "scored " + str(scored_count) + " of " + str(case_count) + " cases"
+        + ("; predictions missing for: " + ", ".join(str(c) for c in missing_predictions)
+           if missing_predictions else "")
+        + ("; a run that did not call every case cannot pass" if incomplete else "")))
+
+    killed = debate_score.get("failures_correctly_killed")
+    if not isinstance(killed, int) or isinstance(killed, bool):
+        checks.append(_threshold_check(
+            "failure_kill_rate", "not_evaluable",
+            "the debate score carries no failures_correctly_killed count"))
+    else:
+        checks.append(_threshold_check(
+            "failure_kill_rate",
+            "pass" if killed >= limits["min_failures_killed"] else "fail",
+            "failures correctly killed: " + str(killed) + " of "
+            + str(case_count) + " cases; need at least "
+            + str(limits["min_failures_killed"])))
 
     advanced = debate_score.get("positives_correctly_advanced")
-    checks.append(_threshold_check(
-        "positive_advance_rate",
-        "pass" if isinstance(advanced, int) and advanced >= limits["min_positives_advanced"] else "fail",
-        "positives correctly advanced: " + str(advanced) + "; need at least "
-        + str(limits["min_positives_advanced"])))
+    if not isinstance(advanced, int) or isinstance(advanced, bool):
+        checks.append(_threshold_check(
+            "positive_advance_rate", "not_evaluable",
+            "the debate score carries no positives_correctly_advanced count"))
+    else:
+        checks.append(_threshold_check(
+            "positive_advance_rate",
+            "pass" if advanced >= limits["min_positives_advanced"] else "fail",
+            "positives correctly advanced: " + str(advanced) + "; need at least "
+            + str(limits["min_positives_advanced"])))
 
     if baseline_score is None:
         checks.append(_threshold_check(

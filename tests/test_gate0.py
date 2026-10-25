@@ -188,6 +188,26 @@ class TestEvaluateThresholds(unittest.TestCase):
         self.assertEqual(statuses["judge_swap_stability"], "not_evaluable")
         self.assertEqual(statuses["failure_kill_rate"], "pass")
 
+    def test_missing_counts_are_not_evaluable_not_fail(self):
+        report = evaluate_thresholds({"case_count": 8, "scored_count": 8,
+                                      "correct_calls": 8, "missing_predictions": []},
+                                     baseline_score=_score(5, 2, 3),
+                                     audit_violations=0, judge_swap_flips=0)
+        self.assertFalse(report["passed"])
+        statuses = self._statuses(report)
+        self.assertEqual(statuses["failure_kill_rate"], "not_evaluable")
+        self.assertEqual(statuses["positive_advance_rate"], "not_evaluable")
+
+    def test_incomplete_run_cannot_pass(self):
+        partial = _score(6, 3, 3)
+        partial.update({"scored_count": 6,
+                        "missing_predictions": ["case-x", "case-y"]})
+        report = evaluate_thresholds(partial, baseline_score=_score(4, 2, 2),
+                                     audit_violations=0, judge_swap_flips=0)
+        self.assertFalse(report["passed"])
+        self.assertEqual(self._statuses(report)["run_completeness"], "fail")
+        self.assertEqual(self._statuses(report)["failure_kill_rate"], "pass")
+
 
 if __name__ == "__main__":
     unittest.main()
