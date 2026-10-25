@@ -1,16 +1,14 @@
 ```
-            🔴
+            O
             ||
-        ⚪---⚪
-       /       \
-   ⚪           ⚪---🔵
-       \       /
-        ⚪---⚪
-             |
-             ⚪---🟡
+      C-----C
+     /       \
+   C           C----N
+     \       /
+      C-----C
+            |
+            C----S
 ```
-
-🔴 oxygen · 🔵 nitrogen · 🟡 sulfur · ⚪ carbon scaffold
 
 # Multi-Agent Drug Discovery (MADD)
 

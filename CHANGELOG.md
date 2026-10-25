@@ -47,7 +47,8 @@
 - Repository presentation, 2026-10-24: the GitHub About description
   was simplified to a plain summary of the app (the commands live in
   the README, where they fit), and the README gained a molecule
-  banner above its title.
+  banner above its title: a plain ASCII structural formula, atom
+  letters and bonds, no legend.
 - Documentation and commenting pass, 2026-10-24: the README is now
   the complete manual (what the system does, requirements, exact
   commands for every workflow including a full Gate 0 run, the run
