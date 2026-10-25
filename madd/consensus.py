@@ -16,9 +16,15 @@ def test_agreement(dossiers: list) -> dict:
         if isinstance(d, dict):
             focuses.append(d.get("proposed_focus_id") or d.get("focus_id"))
     distinct = sorted({f for f in focuses if f})
-    passed = len(dossiers) >= 2 and len(distinct) == 1 and len(focuses) == len(dossiers)
-    return {"test": "agreement", "passed": passed,
-            "detail": "focus identifiers seen: " + ", ".join(str(f) for f in distinct)}
+    missing = len(dossiers) - len(focuses) + sum(1 for f in focuses if not f)
+    # Every dossier must actually propose a focus: agreement among the
+    # dossiers that named one, while another named none, is not agreement.
+    passed = (len(dossiers) >= 2 and len(focuses) == len(dossiers)
+              and all(focuses) and len(distinct) == 1)
+    detail = "focus identifiers seen: " + ", ".join(str(f) for f in distinct)
+    if missing:
+        detail += "; dossiers without a focus: " + str(missing)
+    return {"test": "agreement", "passed": passed, "detail": detail}
 
 
 def test_survival(spec: dict) -> dict:

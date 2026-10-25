@@ -146,6 +146,14 @@ class TestLicenses(unittest.TestCase):
 
 
 class TestConsensus(unittest.TestCase):
+    def test_agreement_fails_when_a_dossier_has_no_focus(self):
+        # Regression: agreement used to pass when one dossier proposed a
+        # focus and another proposed none, because missing focuses were
+        # filtered out before the distinct count.
+        out = test_agreement([{"proposed_focus_id": "T1"}, {"agent_id": "x"}])
+        self.assertFalse(out["passed"])
+        self.assertIn("without a focus", out["detail"])
+
     def test_agreement_pass_and_fail(self):
         ds = [dossier("SYN-T1", []), dossier("SYN-T1", [])]
         self.assertTrue(test_agreement(ds)["passed"])
