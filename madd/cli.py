@@ -9,10 +9,17 @@ Subcommands:
   gate0-report <predictions-file> [--baseline <file>]
                [--audit-violations <n>] [--judge-swap-flips <n>]
   gate0-validate [--gate0-dir <dir>]
+  gate0-new-case <case-id> [--gate0-dir <dir>]
   providers-check --config <file>
+  providers-smoke --config <file>
   resolve-citations <file>
   run-frame <frame-file> --config <file> [--out <dir>]
   run-gate0 --config <file> [--out <dir>] [--gate0-dir <dir>]
+               [--dry-run] [--jobs <n>]
+  compare-runs <bundle-a> <bundle-b>
+  transcript <file>
+  report-html <bundle-file>
+  gui [--port 8765] [--host 127.0.0.1] [--runs-dir runs]
   validate-artifact <schema-name> <file>
 
 Output is human-readable. Exit status is non-zero when a check fails.

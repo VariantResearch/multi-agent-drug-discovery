@@ -40,6 +40,8 @@ def compare_bundles(a: dict, b: dict) -> dict:
                          if status_a.get(name) != status_b.get(name)]
 
     def delta(key, source_a, source_b):
+        """Integer delta (b minus a) for one field; None when either
+        side is not an int, so missing data reads as n/a, not zero."""
         va, vb = source_a.get(key), source_b.get(key)
         if isinstance(va, int) and isinstance(vb, int):
             return vb - va

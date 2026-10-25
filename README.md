@@ -48,7 +48,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (128 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it.
+Expected results: the test suite passes (150 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it.
 
 Try the auditors on the synthetic example dossier:
 
@@ -61,6 +61,16 @@ python3 -m madd resolve-citations examples/synthetic/dossier.json
 ```
 
 The first four run offline. resolve-citations makes live lookups against PubMed, Crossref, and ClinicalTrials.gov, and on this invented dossier it correctly reports the invented identifiers as not found or badly formatted, since none of them exist in any registry.
+
+## The MADD Console (GUI)
+
+A retro cyberpunk web interface ships with the package, in the synthwave theme (near-black, neon pink, purple, cyan, laser rules, grid backdrop, a scanning laser line over the header):
+
+```
+python3 -m madd gui
+```
+
+Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. It binds to localhost only and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
 
 ## Run a full Gate 0 run
 
@@ -81,6 +91,13 @@ Check the configuration before spending anything. This builds every provider obj
 
 ```
 python3 -m madd providers-check --config my-run.json
+python3 -m madd run-gate0 --config my-run.json --dry-run
+```
+
+The dry run counts the calls the run will make and prices them from the config, without making any. One step further, providers-smoke makes exactly one small billable call per configured provider and reports latency, the model string the service returned, and usage - the account-level proof that a provider works before a scored run depends on it. It prints the call count before making any:
+
+```
+python3 -m madd providers-smoke --config my-run.json
 ```
 
 Run Gate 0. The baseline model runs first, alone, then the debate runs per case, both are scored against the sealed outcomes, the approved thresholds judge the result, and the full bundle is written under runs/:
@@ -127,6 +144,7 @@ Top-level fields:
 - baseline (required for Gate 0 runs): the single model the debate system must beat.
 - budget (optional): {"max_cost_usd": number, "max_calls": integer}. At least one cap is required when a budget is given; uncapped budgets are rejected. The cap is shared across the whole run, baseline included, and the run stops when it is reached.
 - live_resolution (optional, default false): when true, the evidence call also strikes claims whose identifiers the live registries report as not found. A registry that cannot be reached never strikes anything.
+- parallel_cases (optional, default 1): how many case debates may run at once. The bundle is assembled in case order either way; only wall time changes. run-gate0 --jobs overrides it.
 
 Each provider entry:
 
@@ -153,12 +171,20 @@ python3 -m madd gate0-validate [--gate0-dir <dir>]
 python3 -m madd gate0-list [--gate0-dir <dir>]
 python3 -m madd gate0-report <predictions.json> [--baseline <file>]
                 [--audit-violations <n>] [--judge-swap-flips <n>]
+python3 -m madd gate0-new-case <case-id>       scaffold a new case (templates, fails validation until completed)
 python3 -m madd resolve-citations <file>       live registry lookups for a document's claims
 python3 -m madd debate-mock <frame.json> [--judge] [--out <file>]
 python3 -m madd providers-check --config <file>
-python3 -m madd run-gate0 --config <file> [--out <dir>] [--gate0-dir <dir>]
+python3 -m madd providers-smoke --config <file>   one billable call per provider, reported
+python3 -m madd run-gate0 --config <file> [--out <dir>] [--dry-run] [--jobs <n>]
 python3 -m madd run-frame <frame.json> --config <file> [--out <dir>]
+python3 -m madd compare-runs <bundle-a> <bundle-b>
+python3 -m madd transcript <record-or-bundle.json>
+python3 -m madd report-html <bundle.json>
+python3 -m madd gui [--port 8765] [--runs-dir runs]
 ```
+
+Finished run folders also carry report.html (the styled report), transcripts of every debate, and gate-report.json, next to bundle.json and report.md. compare-runs diffs two Gate 0 bundles: score deltas, exactly which case calls flipped, and which thresholds changed status.
 
 A predictions file for gate0-report maps case ids (see gate0-list) to "advance" or "kill". Example: {"evolocumab-pcsk9-cvd": "advance"}.
 
@@ -211,6 +237,11 @@ madd/            the package (standard library only)
   license_registry.py  tool license checks
   storage.py         run bundle persistence and index
   report.py          the plain-language run report
+  html_report.py     the styled, self-contained HTML report
+  transcript.py      debate records rendered as readable transcripts
+  compare.py         run-to-run comparison
+  smoke.py           one-call provider smoke tests
+  gui.py             the MADD Console web interface (stdlib server)
   cli.py             the command line interface
 gate0/           the Gate 0 dataset: input/, sealed/, ledger, case notes
 docs/            design documents and phase specifications

@@ -134,10 +134,12 @@ def make_handler(manager: RunManager):
     class Handler(BaseHTTPRequestHandler):
         """Routes the console's pages and JSON API. Quiet logging."""
 
-        def log_message(self, *args):  # keep the server quiet
+        def log_message(self, *args):
+            """Silence the default request logging."""
             pass
 
         def do_GET(self):
+            """Route GET requests: the page, the JSON API, run files."""
             path = urlparse(self.path).path
             if path == "/":
                 return _text(self, PAGE, "text/html; charset=utf-8")
@@ -185,6 +187,7 @@ def make_handler(manager: RunManager):
             return _json(self, {"error": "not found"}, 404)
 
         def do_POST(self):
+            """Route POST actions: run start, config check, dry run."""
             path = urlparse(self.path).path
             length = int(self.headers.get("Content-Length") or 0)
             try:

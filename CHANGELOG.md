@@ -44,6 +44,22 @@
   commands gate0-report, resolve-citations, and debate-mock, plus the
   first CLI tests. Test suite is now 82 tests.
 
+- Ten features added 2026-10-24, ranked by improvement and built in
+  dependency order: (1) the MADD Console, a retro cyberpunk web GUI
+  (madd/gui.py, stdlib server, localhost by default) with run
+  control, a live progress console, the Gate 0 scoreboard, and a run
+  library with HTML reports and transcripts; (2) live run progress
+  events from the runner; (3) providers-smoke, one billable call per
+  provider with latency, returned model, and usage; (4) a dry-run
+  call and cost estimator; (5) run comparison (score deltas, flipped
+  calls, threshold changes); (6) a self-contained styled HTML report
+  with inline SVG charts, written with every bundle; (7) debate
+  transcripts rendered from records and written with every bundle;
+  (8) gate0-new-case scaffolding that deliberately fails validation
+  until completed with verified material; (9) bounded provider
+  retries on 429 and 5xx, every retry logged and counted into the
+  bundle; (10) parallel case execution under a thread-safe budget,
+  bundle order deterministic. Test suite is now 150 tests.
 - Repository presentation, 2026-10-24: the GitHub About description
   was simplified to a plain summary of the app (the commands live in
   the README, where they fit), and the README gained a molecule

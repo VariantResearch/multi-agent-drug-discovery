@@ -51,6 +51,7 @@ def _score_chart(debate_correct, baseline_correct, case_count) -> str:
     width = 420
 
     def bar(y, label, value, color):
+        """One labelled horizontal bar as an SVG fragment."""
         w = int(width * (int(value or 0) / total))
         return ("<text x='0' y='" + str(y + 13) + "' fill='" + TEXT
                 + "' font-size='13'>" + _esc(label) + "</text>"

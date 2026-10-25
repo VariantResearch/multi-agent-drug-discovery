@@ -155,6 +155,8 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
 
     # Debate per case, sharing the run budget tracker.
     def debate_one(case_id):
+        """Run one case's debate, emitting its progress events;
+        returns (case_id, record, prediction)."""
         _emit(on_event, {"event": "debate_case_started", "case_id": case_id})
         frame = frame_for_case(case_id, packs[case_id])
         record = run_debate(frame, providers, judge_provider=judge_provider,
@@ -249,6 +251,7 @@ def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
     panel = list(providers)
 
     def cost(provider):
+        """The configured per-call cost of one provider (0 when none)."""
         return float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0) \
             if provider is not None else 0.0
 
