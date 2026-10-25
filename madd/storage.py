@@ -3,7 +3,10 @@
 Layout under the output directory:
   <out>/<run_id>/bundle.json   the full frozen bundle
   <out>/<run_id>/report.md     the plain-language report
+  <out>/<run_id>/report.html   the styled HTML report
   <out>/<run_id>/gate-report.json   Gate 0 runs only
+  <out>/<run_id>/transcripts/<case_id>.md   Gate 0 debate transcripts
+  <out>/<run_id>/transcript.md   frame runs only
   <out>/index.json             one entry per run, oldest first
 
 The runs/ directory is gitignored by default: bundles are run output,
@@ -18,10 +21,13 @@ from pathlib import Path
 
 from .report import bundle_to_markdown
 from .runner import gate_report
+from .transcript import record_to_markdown
 
 BUNDLE_FILE = "bundle.json"
 REPORT_FILE = "report.md"
 GATE_REPORT_FILE = "gate-report.json"
+TRANSCRIPT_FILE = "transcript.md"
+TRANSCRIPTS_DIR = "transcripts"
 INDEX_FILE = "index.json"
 
 
@@ -38,6 +44,14 @@ def write_bundle(bundle: dict, out_dir) -> Path:
         (run_dir / GATE_REPORT_FILE).write_text(
             json.dumps(gate_report(bundle), indent=2, sort_keys=True),
             encoding="utf-8")
+        transcripts = run_dir / TRANSCRIPTS_DIR
+        transcripts.mkdir(exist_ok=True)
+        for case_id, record in (bundle.get("case_records") or {}).items():
+            (transcripts / (case_id + ".md")).write_text(
+                record_to_markdown(record), encoding="utf-8")
+    if bundle.get("kind") == "frame_run" and bundle.get("record"):
+        (run_dir / TRANSCRIPT_FILE).write_text(
+            record_to_markdown(bundle["record"]), encoding="utf-8")
     index_path = base / INDEX_FILE
     index = []
     if index_path.exists():

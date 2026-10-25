@@ -43,6 +43,7 @@ from .runner import estimate_gate0_run, run_frame, run_gate0
 from .schemas import SCHEMA_NAMES, validate_artifact
 from .smoke import smoke_panel
 from .storage import write_bundle
+from .transcript import record_to_markdown
 
 
 def _load(path: str):
@@ -347,6 +348,18 @@ def _cmd_run_frame(args) -> int:
     return 0
 
 
+def _cmd_transcript(args) -> int:
+    """transcript handler: render a debate record, or a frame run
+    bundle's record, as a readable markdown transcript."""
+    data = _load(args.file)
+    record = data.get("record") if data.get("kind") == "frame_run" else data
+    if not isinstance(record, dict) or "dossiers" not in record:
+        print("not a debate record or frame run bundle:", args.file)
+        return 2
+    print(record_to_markdown(record))
+    return 0
+
+
 def _cmd_debate_mock(args) -> int:
     """debate-mock handler: run the debate over a frame with mock
     providers; exit 0 when a specification locks."""
@@ -414,6 +427,8 @@ def build_parser() -> argparse.ArgumentParser:
     p12.set_defaults(fn=_cmd_providers_check)
     p13 = sub.add_parser("providers-smoke"); p13.add_argument("--config", required=True)
     p13.set_defaults(fn=_cmd_providers_smoke)
+    p14 = sub.add_parser("transcript"); p14.add_argument("file")
+    p14.set_defaults(fn=_cmd_transcript)
     return parser
 
 
