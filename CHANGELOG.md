@@ -44,6 +44,24 @@
   commands gate0-report, resolve-citations, and debate-mock, plus the
   first CLI tests. Test suite is now 82 tests.
 
+- Five further upgrades, applied one at a time on 2026-10-24 after a
+  fresh audit of the current code and docs, each finding demonstrated
+  against the tree before it was fixed: (1) the stale-claims sweep was
+  finished repo-wide (the earlier repair pass had missed PHASE0_SPEC's
+  status lines, gate0/README's thresholds text, and a contradictory
+  changelog bullet, all now corrected; the TradeMemory shelf entry no
+  longer narrows that project to losing trades); (2) the agreement
+  consensus test no longer passes when a dossier proposes no focus;
+  (3) duplicate claim identifiers are flagged by the claim audit and
+  counted once in focus scoring; (4) evaluate_thresholds opens with a
+  run_completeness check, so a run missing predictions cannot pass,
+  and absent kill or advance counts report not_evaluable rather than
+  fail; (5) debate records are complete: duplicate dossier ids are
+  rejected, judge strikes are recorded, the manifest carries a
+  per-call entry with prompt hash, and the record states which rubric
+  terms are applied (frame coverage is recorded as not applied, since
+  it is not mechanically defined). Test suite is now 90 tests.
+
 ### Fixed
 
 - A claim with evidence_tier set to a boolean counted as a tier-1
