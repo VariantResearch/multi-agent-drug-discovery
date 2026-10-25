@@ -165,6 +165,35 @@ class TestDebateEngine(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_debate(FRAME, [a])
 
+    def test_duplicate_dossier_ids_rejected(self):
+        a = StubProvider("stub-a", dossier("DUP-ID", "agent-a", "FOCUS-A",
+                                           [good_claim("C-A1")]))
+        b = StubProvider("stub-b", dossier("DUP-ID", "agent-b", "FOCUS-A",
+                                           [good_claim("C-B1")]))
+        with self.assertRaises(ValueError):
+            run_debate(FRAME, [a, b])
+
+    def test_manifest_records_every_call(self):
+        a, b = agreeing_providers()
+        judge = StubProvider("stub-judge", dossier("D-J", "agent-j", "FOCUS-A",
+                                                   [good_claim("C-J1")]))
+        record = run_debate(FRAME, [a, b], judge_provider=judge)
+        calls = record["manifest"]["calls"]
+        self.assertEqual(len(calls), 3)
+        self.assertEqual([c["role"] for c in calls], ["research", "research", "judge"])
+        self.assertTrue(all(c["prompt_hash"] for c in calls))
+        self.assertEqual(len({c["prompt_hash"] for c in calls}), 1)
+        self.assertEqual(record["rubric"]["not_applied"][0].split(":")[0],
+                         "frame coverage")
+
+    def test_judge_strikes_are_recorded(self):
+        a, b = agreeing_providers()
+        judge = StubProvider("stub-judge", dossier("D-J", "agent-j", "FOCUS-A",
+                                                   [good_claim("C-J1"), bad_claim("C-JBAD")]))
+        record = run_debate(FRAME, [a, b], judge_provider=judge)
+        struck_ids = {s["claim_id"] for s in record["judge_swap"]["struck"]}
+        self.assertIn("C-JBAD", struck_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

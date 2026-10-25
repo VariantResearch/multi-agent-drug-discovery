@@ -12,6 +12,12 @@ guarantees is the auditable structure around it: nothing enters a
 locked specification without surviving the claim audit, and every run
 ends in a frozen, hashed record.
 
+What the engine does not do: it does not make agents argue in free
+text. Cross-examination here is the structured objection record the
+protocol's outcome depends on (who objected, to which dossier, over
+which surviving claims). The argumentative prose of a live debate
+belongs to the providers, when real ones are connected.
+
 Steps, matching the protocol:
 1. Blinded dossiers: each provider researches the frame alone.
 2. Evidence call: every claim is audited; failures are struck and
@@ -39,7 +45,8 @@ from __future__ import annotations
 
 import copy
 
-from .artifacts import build_manifest, canonical_hash, canonical_json, freeze_artifact
+from .artifacts import (build_manifest, canonical_hash, canonical_json,
+                        freeze_artifact, prompt_hash)
 from .budget import BudgetExceeded, BudgetTracker
 from .citation_auditor import audit_citations
 from .claims import validate_claim
@@ -235,6 +242,12 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
 
     # Step 1: blinded dossiers. Providers receive only the frame.
     dossiers = [research(p) for p in providers]
+    dossier_ids = [d.get("dossier_id") for d in dossiers]
+    if len(set(dossier_ids)) != len(dossier_ids):
+        raise ValueError("two providers returned the same dossier_id ("
+                         + ", ".join(str(x) for x in dossier_ids)
+                         + "); dossier identifiers must be unique within a run, "
+                           "or the ranking and the record would silently merge them")
     # Step 2: evidence call.
     audited = [audit_dossier(d) for d in dossiers]
     strike_list = [{"dossier_id": a["dossier_id"], "claim_id": s["claim_id"],
@@ -274,7 +287,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         judge_info = {"provider": getattr(judge_provider, "name", None),
                       "model_version": getattr(judge_provider, "model_version", None),
                       "dossier_id": judge_audited["dossier_id"],
-                      "proposed_focus_id": judge_audited["proposed_focus_id"]}
+                      "proposed_focus_id": judge_audited["proposed_focus_id"],
+                      "struck": judge_audited["struck"]}
         if judge_audited["proposed_focus_id"] != spec["focus_id"]:
             spec["dissent_log"] = list(spec["dissent_log"]) + [{
                 "objector_agent_id": judge_audited["agent_id"],
@@ -288,12 +302,26 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     spec["outcome"] = outcome
 
     # Step 7: frozen record.
+    frame_prompt_hash = prompt_hash(canonical_json(frame))
+    calls = [{"role": "research",
+              "provider": getattr(p, "name", None),
+              "model_version": getattr(p, "model_version", None),
+              "agent_id": a["agent_id"], "dossier_id": a["dossier_id"],
+              "prompt_hash": frame_prompt_hash}
+             for p, a in zip(providers, audited)]
+    if judge_info is not None:
+        calls.append({"role": "judge",
+                      "provider": judge_info["provider"],
+                      "model_version": judge_info["model_version"],
+                      "agent_id": None, "dossier_id": judge_info["dossier_id"],
+                      "prompt_hash": frame_prompt_hash})
     manifest = build_manifest(
         model_name=", ".join(str(getattr(p, "name", "?")) for p in providers),
         model_version=", ".join(str(getattr(p, "model_version", "?")) for p in providers),
         prompt_text=canonical_json(frame),
         budget=tracker.to_dict() if tracker is not None else {},
         declared_use="research")
+    manifest["calls"] = calls
     record = {
         "artifact_type": "debate_record",
         "schema_version": "0.1.0",
@@ -305,6 +333,11 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                       for p, a in zip(providers, audited)],
         "strike_list": strike_list,
         "ranking": ranking,
+        "rubric": {"applied": ["tier-weighted audited focus score",
+                               "struck claim count"],
+                   "not_applied": ["frame coverage: named in the protocol "
+                                   "rubric but not mechanically defined, "
+                                   "so it is not scored"]},
         "cross_examination": transcript,
         "red_team_round": red_team,
         "evolution": evolution,
