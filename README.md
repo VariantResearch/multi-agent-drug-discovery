@@ -24,8 +24,10 @@ For each drug program under study, the application:
 2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a PubMed, DOI, or ClinicalTrials.gov identifier), its evidence tier, and a supporting quote.
 3. Runs an evidence call. A claim ledger audit and a citation audit strike any claim that is unsourced, sourced to model opinion, malformed, or - when live resolution is switched on - pointing at a registry record that does not exist. Struck claims take no further part.
 4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, and one evolution round that merges the best material.
-5. Applies four consensus tests (agreement, survival, evidence floor, stability under a judge swap). Only when all four pass does the run lock a target specification. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away.
+5. Applies the consensus tests (agreement, survival, evidence floor, and stability under a judge swap where the run's protocol mode has a judge). Only when every applied test passes does the run lock a target specification. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away.
 6. Freezes the whole run - dossiers, strikes, transcripts, manifest with per-call prompt hashes - into a hashed, verifiable run bundle with a plain-language report.
+
+Runs execute under one of three protocol modes, chosen in the run configuration. The modes count distinct models, not agents: every mode fields several research agents working the same steps. In simple mode every agent runs one and the same model and there is no judge; in dual mode the agents span two models, still with no judge; in dual_judge mode the agents span two models and a judge model adds the stability test. See Protocol modes under "Run a full Gate 0 run" below.
 
 On top of that sits Gate 0, the retrospective test: eight real, completed drug programs, four that succeeded and four that failed, with inputs frozen at pre-outcome evidence and outcomes sealed. A run of the system over Gate 0 is scored against pass thresholds that were fixed and approved before any run took place.
 
@@ -73,6 +75,18 @@ python3 -m madd gui
 Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. A locked frame run also offers one-click Phase 2 design, and design runs appear in the library with their ranked candidates. It binds to localhost only and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
 
 ## Run a full Gate 0 run
+
+### Protocol modes
+
+Every run declares a protocol mode in its configuration (the mode field). The modes count distinct models, not agents: each mode fields a research panel of at least two agents, runs the same debate steps, and puts every dossier through the same evidence call. What changes is how many models the panel spans and whether a judge model sits over it.
+
+- **simple**: every research agent runs one and the same model. No judge, so the judge-swap stability test is recorded as not applied; a specification locks on agreement, survival, and the evidence floor. The cheapest configuration, and the one to validate a setup with.
+- **dual**: the research agents span two models. Still no judge, stability likewise not applied; the gain over simple is a second model's independent read of the same evidence.
+- **dual_judge**: the research agents span two models, plus a judge model whose swap dossier the stability test judges. The full protocol, and the mode a scored Gate 0 run uses.
+
+A configuration with no mode keeps the original behaviour (a panel of two or more providers of any composition, judge optional, no judge means no-go). The mode's shape is enforced when the configuration loads and again before the run starts: a judge in simple or dual, a missing judge in dual_judge, or the wrong number of distinct models on the panel is refused with the reason stated, before any call is made. docs/LIVE_RUN.md is the step-by-step runbook for a live run.
+
+### Configuration and start sequence
 
 A run is described by a JSON configuration file naming the providers, the judge, the baseline model, and the budget. Start from the shipped example:
 
@@ -287,7 +301,7 @@ tests/           the test suite
 runs/            run output (created by runs, gitignored)
 ```
 
-Key documents: docs/PHASE1_SPEC.md (scope, approved thresholds, run protocol), docs/PHASE2_SPEC.md (the candidate design stage), docs/DEBATE_PROTOCOL.md (the seven steps), docs/EVIDENCE_POLICY.md (what counts as evidence), docs/DESIGN-REFERENCES.md (patterns borrowed from other projects, with sources), gate0/VERIFICATION_LEDGER.md (how the test set was built and verified), RESPONSIBLE_USE.md (use boundaries).
+Key documents: docs/PHASE1_SPEC.md (scope, approved thresholds, run protocol), docs/PHASE2_SPEC.md (the candidate design stage), docs/DEBATE_PROTOCOL.md (the seven steps), docs/LIVE_RUN.md (the live run runbook), docs/EVIDENCE_POLICY.md (what counts as evidence), docs/DESIGN-REFERENCES.md (patterns borrowed from other projects, with sources), gate0/VERIFICATION_LEDGER.md (how the test set was built and verified), RESPONSIBLE_USE.md (use boundaries).
 
 ## Contributing and license
 

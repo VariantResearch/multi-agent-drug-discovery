@@ -297,5 +297,69 @@ because the missing ingredient is the roster itself. The spec has
 always required the scored run to field different model families;
 which families, their API keys, and the recorded budget figure are
 the owner's open items in docs/PHASE1_SPEC.md. The first scored
-run, with the roster recorded and real multi-family providers, is
-the production gate, and it remains ahead.
+run, with the roster recorded and real multi-family providers,
+remains ahead. (The owner's 2026-10-25 decision recorded below
+has since made Gate 0 validation optional for the production
+program, so the scored run no longer gates it.)
+
+## Run 4: the first validation under a declared protocol mode (simple)
+
+Later the same day, at the owner's direction, the validation was
+run a fourth time, this time as the first run under a declared
+protocol mode: simple (docs/DEBATE_PROTOCOL.md, Protocol modes).
+Three panel agents per case, all on the same model, plus a
+single-model baseline; no judge, by the mode's definition. The
+driver passed mode="simple" to the production runner, so the
+mode's shape was validated by the shipped code before any call.
+Workspace ~/workspace/madd-validation-r4 (harness record, outside
+the repository); bundle runs/gate0-validation-simple-2026-10-25.
+
+Collection: 32 of 32 dossiers (3 panel + 1 baseline per case),
+zero schema problems, zero failure dossiers. Entailment: 75
+verdicts judged by separate same-model agents under the production
+entailment prompt, zero conflicts, none refuted. The audit struck
+nothing in any dossier: every claim survived live resolution, the
+live quote check, entailment, and retrieval-first.
+
+Result: the debate called 7 of 8 (the four negatives all killed;
+three positives locked). The lone miss was erenumab, where two
+panelists advanced and one declined, so the agreement test refused
+to lock and the case went no_go. Verubecestat divided the panel
+the same way and fell on the correct side of that refusal. The
+baseline, one agent per case under the fixed baseline rule, called
+all 8 correctly, including both divided cases.
+
+Thresholds: run completeness pass; failure kill rate pass (4 of
+4); positive advance rate pass (3 of 4); audit integrity pass (0
+violations); judge-swap stability pass on 0 flips, vacuously,
+because simple mode has no judge to swap (each case record shows
+the stability test as not_applied, as the mode specifies);
+baseline margin FAIL, at -1 (debate 7, baseline 8; at least +1
+required). Run outcome: fail, on the margin alone.
+
+## Verdict after run 4, and the owner's Gate 0 decision
+
+Four runs have now been judged against the approved thresholds.
+Each failed exactly one threshold, and the margin has failed twice,
+both times for the reason run 3's verdict named: in a single-model
+configuration the baseline is the same mind working alone, and the
+debate machinery can only lose calls to panel disagreement, never
+gain one the baseline cannot make. Across the four runs the debate
+scored 6, 6, 7, 7 while the baseline swung 5, 5, 7, 8; the margin
+in this staffing measures baseline variance more than debate
+value. The panel's calls, as distinct from the margin, have
+improved every run and in run 4 were one split panel short of
+perfect.
+
+On 2026-10-25 the owner decided that Gate 0 validation is an
+option, not a requirement for the production program
+(docs/PHASE1_SPEC.md). The production program therefore proceeds
+without a passing Gate 0 run: live frame runs under any protocol
+mode, and Phase 2 design on locked specifications, are unblocked,
+with docs/LIVE_RUN.md as the runbook. The thresholds are
+unchanged, validation remains available at any time, and its
+results keep being recorded plainly, including this one: the
+simple-mode configuration stands validated as a working protocol
+whose panel calls 7 of 8 on this set, and stands not passed
+against the full threshold battery because its own baseline aced
+the same set.

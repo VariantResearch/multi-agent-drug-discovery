@@ -27,6 +27,20 @@
 
 ### Added
 
+- Validation run 4, the first under a declared protocol mode
+  (simple: three panel agents per case on one model, no judge),
+  recorded in docs/VALIDATION_RUN_2026-10-25.md and the spec's
+  validation record: debate 7 of 8, baseline 8 of 8, zero audit
+  strikes, five of six thresholds passed, baseline margin failed
+  at -1, run outcome fail.
+- Gate 0 validation is now optional for the production program
+  (owner's decision, 2026-10-25, recorded in docs/PHASE1_SPEC.md):
+  live frame runs and Phase 2 design no longer wait on a scored or
+  passing Gate 0 run. Thresholds and honest pass/fail reporting of
+  any validation run are unchanged.
+- docs/LIVE_RUN.md: the live run runbook (what a live run needs,
+  the three modes in brief, the providers-check, dry-run,
+  providers-smoke, run sequence, and what comes back).
 - Three protocol modes for runs, selected by the config's mode
   field: simple (every research agent on one and the same model, no
   judge), dual (research agents across two models, no judge), and

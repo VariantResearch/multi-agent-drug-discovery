@@ -177,17 +177,45 @@ own baseline, which is what that threshold exists to detect. The
 remaining lever is the roster itself: different model families in
 the panel seats, under the run protocol below.
 
+Run 4 (gate0-validation-simple-2026-10-25, the first validation
+under a declared protocol mode, simple: three panel agents per
+case on one model, no judge, mode enforced by the shipped runner):
+debate 7 of 8, baseline 8 of 8, zero audit strikes; kill rate
+passed (4 of 4), advance rate passed (3 of 4; erenumab lost to a
+split panel), audit integrity passed, judge-swap stability passed
+vacuously (no judge in simple mode; the test is recorded
+not_applied in every case record), and the baseline margin failed
+(-1), run outcome fail. The lone baseline called every case
+correctly, including both cases the panel split on.
+
 These runs do not satisfy the run protocol below and change
 nothing in it: the roster and budget above remain open, and the
-first scored run still begins at step 1.
+first scored run still begins at step 1. Under the owner's
+2026-10-25 decision (next section), Gate 0 validation is optional
+for the production program, so the absence of a passing scored
+run does not hold the program back.
 
 ## Run protocol for the first scored Gate 0 run
 
 The scored run runs in dual_judge protocol mode (research agents
 across two models, plus a judge model): the approved thresholds
 include judge-swap stability, which only that mode applies. The
-simple and dual modes exist for cheaper exploratory runs and are
-not scored configurations.
+simple and dual modes exist for cheaper exploratory and validation
+runs; a validation run in any mode may be judged against the
+approved thresholds and recorded, without becoming the scored
+Phase 1 run, which is dual_judge with the roster and budget
+recorded above.
+
+Gate 0 validation is an option, not a requirement (owner's
+decision, 2026-10-25). The production program - live frame runs
+under any protocol mode, and Phase 2 design on locked
+specifications - may start and run without a scored Gate 0 run,
+and without any validation run having passed. Validation remains
+available at any time as a check on a configuration, and its
+results are recorded when run; the thresholds above are unchanged,
+and a validation run is still reported as passing or failing
+against them, plainly. What the decision removes is the gate, not
+the measurement.
 
 1. Record in this file: the model roster with exact version
    identifiers, the baseline model, and the budget. (Thresholds were
