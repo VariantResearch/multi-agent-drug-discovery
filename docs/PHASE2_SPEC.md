@@ -13,6 +13,15 @@ first step from "this target is worth pursuing" toward "here is what a
 program against it could look like" - under the same evidence discipline
 as everything else in this repository.
 
+The two phases meet in the target run (madd/target_run.py, CLI
+`madd target-run`), the application's front door since 2026-10-25:
+the operator names a specific target (a disease, a receptor, a
+genetic disorder, or a molecular target in a disease context),
+evidence is retrieved for it, the Phase 1 debate decides whether it
+locks, and on a lock this design stage runs on the locked spec in
+the same invocation. The design stage below is unchanged; the
+target run is how a named target reaches it.
+
 ## Pipeline
 
 1. **Design brief.** Built mechanically from a locked consensus spec

@@ -12,20 +12,21 @@
 
 # Multi-Agent Drug Discovery (MADD)
 
-MADD is a provider-neutral system for multi-agent drug discovery research. Several AI research agents independently study the same drug program from the same pre-outcome evidence, a structured debate compares their work, and mechanical auditors - not the models - decide whose evidence survives. The system's rule is simple: no claim counts unless it rests on a real, checkable primary source, and no model gets to grade its own homework.
+MADD is a provider-neutral application for designing drugs against a specific target. You name the target - a disease, a receptor, a genetic disorder, or a molecular target in a disease context - and the application works it end to end: AI research agents study the target from evidence retrieved for it, a structured debate decides whether that evidence supports locking a design specification, and only then do designer models propose candidate compounds, which are audited, computed on, and ranked. Mechanical auditors, not the models, decide whose evidence survives. The system's rule is simple: no claim counts unless it rests on a real, checkable primary source, and no model gets to grade its own homework.
 
-This repository contains the complete working application: the research and debate engine, the evidence auditors, the Gate 0 retrospective test set of eight real drug programs, the run orchestration, adapters for live models, and a command line interface. The only thing not included is the models themselves: choose a roster, supply API keys, and it runs.
+This repository contains the complete working application: the target-first pipeline, the research and debate engine, the evidence auditors, the Phase 2 design stage, the Gate 0 retrospective test set of eight real drug programs, the run orchestration, adapters for live models, and a command line interface. The only thing not included is the models themselves: choose a roster, supply API keys, and it runs.
 
 ## What it does
 
-For each drug program under study, the application:
+A target run (`madd target-run`) takes one named target through the whole pipeline:
 
-1. Frames the question with a cutoff date, so agents judge the program on the evidence that existed at the time, not on how things turned out.
+1. Frames the target. Evidence is retrieved for it from Europe PMC, and the frame carries those sources as the evidence set the panel may cite.
 2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a PubMed, DOI, or ClinicalTrials.gov identifier), its evidence tier, and a supporting quote.
 3. Runs an evidence call. A claim ledger audit and a citation audit strike any claim that is unsourced, sourced to model opinion, malformed, or - when live resolution is switched on - pointing at a registry record that does not exist. Struck claims take no further part.
 4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, and one evolution round that merges the best material.
-5. Applies the consensus tests (agreement, survival, evidence floor, and stability under a judge swap where the run's protocol mode has a judge). Only when every applied test passes does the run lock a target specification. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away.
-6. Freezes the whole run - dossiers, strikes, transcripts, manifest with per-call prompt hashes - into a hashed, verifiable run bundle with a plain-language report.
+5. Applies the consensus tests (agreement, survival, evidence floor, and stability under a judge swap where the run's protocol mode has a judge). Only when every applied test passes does the run lock a design specification for the target. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away, and no design work starts.
+6. Designs candidates against the locked specification. Designer models propose candidate compounds; a real candidate must carry a structure (a SMILES string or a sequence). RDKit validates structures and computes descriptors, ADMET-AI adds predicted endpoints labelled as predictions, every candidate's claims pass the same audit as the research claims, and the candidates are ranked deterministically. The design gate passes only when at least one real candidate is ranked.
+7. Freezes the whole run - dossiers, strikes, transcripts, candidates, manifest with per-call prompt hashes - into a hashed, verifiable run bundle with a plain-language report.
 
 Runs execute under one of three protocol modes, chosen in the run configuration. The modes count distinct models, not agents: every mode fields several research agents working the same steps. In simple mode every agent runs one and the same model and there is no judge; in dual mode the agents span two models, still with no judge; in dual_judge mode the agents span two models and a judge model adds the stability test. See Protocol modes under "Run a full Gate 0 run" below.
 
@@ -50,7 +51,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (231 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
+Expected results: the test suite passes (271 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -73,6 +74,17 @@ python3 -m madd gui
 ```
 
 Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. A locked frame run also offers one-click Phase 2 design, and design runs appear in the library with their ranked candidates. It binds to localhost only and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
+
+## Design a drug for a target
+
+Name the target and run the pipeline:
+
+```
+python3 -m madd target-run --config run.json --name "KRAS G12C" --kind target \
+    --disease "non-small cell lung cancer" --out runs
+```
+
+`--kind` says what sort of thing you named: `disease`, `receptor`, `genetic_disorder`, or `target` (a molecular target, with `--disease` giving its disease context; `--target` can restate the molecular target in retrieval terms when the name is a disease or disorder). Evidence is retrieved from Europe PMC unless `--no-retrieve` is given; with retrieval on, panel citations are held to the retrieved set. The run proceeds under the config's protocol mode. It ends one of three ways: `designed` (the target locked and the design gate passed, with ranked candidate compounds in the bundle), `design_gate_failed` (locked, but no real candidate passed the gate), or `no_go` (the debate would not lock the target, so no design work started). The command's exit code is 0 only for `designed`. See docs/LIVE_RUN.md for the full start sequence.
 
 ## Run a full Gate 0 run
 
@@ -259,6 +271,8 @@ madd/            the package (standard library only)
   __main__.py      the python -m madd entry point (hands off to cli.py)
   __init__.py      the package marker
   runner.py        full Gate 0 runs and frame runs
+  target_run.py    the target-first pipeline: a named target through
+                     research and debate into the design stage
   debate.py        the debate engine (protocol steps 1 to 7)
   providers_http.py  live provider adapters (OpenAI-compatible, Anthropic)
   providers.py       the provider interface and the mock provider

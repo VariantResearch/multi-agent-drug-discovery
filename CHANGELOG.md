@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- The target-first pipeline (madd/target_run.py, CLI
+  `madd target-run`): the operator names a specific target (a
+  disease, a receptor, a genetic disorder, or a molecular target in
+  a disease context) and one run carries it end to end - evidence
+  retrieved from Europe PMC, the panel debate under the config's
+  protocol mode, and, only on a locked specification, the Phase 2
+  design stage, frozen into one combined bundle with outcome
+  designed, design_gate_failed, or no_go. This is the application's
+  front door, per the owner's 2026-10-25 correction of the product
+  definition: Gate 0 and the debate are the evidence engine in
+  front of design, not the product itself. Validated the same day
+  with an agent-staffed simple-mode run on KRAS G12C in non-small
+  cell lung cancer: the target locked with zero audit strikes and
+  four original designer candidates were ranked, design gate pass
+  (bundle target-kras-g12c-validation-2026-10-25; a validation of
+  the pipeline, not a scored Gate 0 run and not a claim about the
+  candidates, which are untested model proposals).
+
 ### Fixed
 
 - Consensus agreement compared proposed focus labels as exact

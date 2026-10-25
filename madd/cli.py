@@ -56,6 +56,7 @@ from .resolve import (check_quote_against_source, resolve_document,
                       resolve_identifier)
 from .retrieval import retrieve_evidence
 from .runner import estimate_gate0_run, run_frame, run_gate0
+from .target_run import TARGET_KINDS, build_target_frame, run_target
 from .schemas import SCHEMA_NAMES, validate_artifact
 from .smoke import smoke_panel
 from .html_report import bundle_to_html
@@ -498,6 +499,55 @@ def _cmd_run_gate0(args) -> int:
     return 0 if bundle["outcome"] == "pass" else 1
 
 
+def _cmd_target_run(args) -> int:
+    """target-run handler: name a target, run research and debate,
+    and on a locked specification run the design stage, all under the
+    config's protocol mode, writing one combined bundle."""
+    try:
+        built = _built_from_config(args)
+        frame = build_target_frame(args.name, args.kind, target=args.target,
+                                   disease=args.disease, focus_id=args.focus)
+        retrieval_first = bool(built.get("retrieval_first"))
+        if not args.no_retrieve:
+            entries = retrieve_evidence(frame)
+            frame["evidence"] = entries
+            retrieval_first = True
+            print("retrieved evidence:", len(entries),
+                  "sources from Europe PMC")
+        bundle = run_target(
+            frame, built["providers"], judge_provider=built["judge"],
+            mode=built.get("mode"), budget=built["budget"],
+            resolver=_resolver_from_config(built),
+            quote_checker=_quote_checker_from_config(built),
+            entailment_checker=_entailment_checker_from_config(built),
+            retrieval_first=retrieval_first,
+            design_constraints=tuple(args.constraint or ()),
+            source_check=bool(args.source_check),
+            on_event=_print_run_event)
+    except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
+        print("run stopped:", exc)
+        return 2
+    record = bundle["frame_run"]["record"]
+    print("run:", bundle["run_id"])
+    print("target:", bundle["target"]["name"], "| mode:", bundle["mode"])
+    print("debate outcome:", record["outcome"],
+          "| focus:", record["spec"].get("focus_id"),
+          "| strikes:", len(record["strike_list"]))
+    design = bundle.get("design")
+    if design is not None:
+        ranking = design["ranking"]
+        print("design gate:", design["gate_report"]["result"],
+              "| ranked:", len(ranking["ranked"]),
+              "| excluded:", len(ranking["excluded"]))
+        for cid in ranking["ranked"]:
+            print("  ranked:", cid)
+    print("outcome:", bundle["outcome"])
+    if args.out:
+        run_dir = write_bundle(bundle, args.out)
+        print("bundle written to:", run_dir)
+    return 0 if bundle["outcome"] == "designed" else 1
+
+
 def _cmd_run_frame(args) -> int:
     """run-frame handler: run one frame from a config, print the
     outcome, and optionally write the bundle."""
@@ -698,6 +748,17 @@ def build_parser() -> argparse.ArgumentParser:
     p20.add_argument("--use", default="research", choices=["research", "commercial"])
     p20.add_argument("--tool-input", default=None)
     p20.set_defaults(fn=_cmd_design_run)
+    p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
+    p21.add_argument("--name", required=True)
+    p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))
+    p21.add_argument("--target", default=None)
+    p21.add_argument("--disease", default=None)
+    p21.add_argument("--focus", default=None)
+    p21.add_argument("--constraint", action="append", default=None)
+    p21.add_argument("--no-retrieve", action="store_true")
+    p21.add_argument("--source-check", action="store_true")
+    p21.add_argument("--out", default=None)
+    p21.set_defaults(fn=_cmd_target_run)
     p18 = sub.add_parser("gui"); p18.add_argument("--port", type=int, default=8765)
     p18.add_argument("--host", default="127.0.0.1")
     p18.add_argument("--runs-dir", default="runs")

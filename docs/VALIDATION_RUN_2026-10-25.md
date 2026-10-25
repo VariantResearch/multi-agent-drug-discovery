@@ -363,3 +363,25 @@ simple-mode configuration stands validated as a working protocol
 whose panel calls 7 of 8 on this set, and stands not passed
 against the full threshold battery because its own baseline aced
 the same set.
+
+## Target-run validation (2026-10-25, after run 4)
+
+At the owner's correction the same day, the product definition is
+target-first: name a specific target and a drug is designed for it.
+The target-run pipeline (madd/target_run.py) was built and then
+validated end to end the same way the Gate 0 runs were: providers
+staffed by independent subagents, this time for one named target,
+KRAS G12C in non-small cell lung cancer, in simple mode. Evidence
+was retrieved live from Europe PMC (12 sources) and citations were
+held to that set. Three research agents returned 19 claims; live
+resolution, live quote checking, and recorded entailment (4
+supported, 2 partially supported, 0 refuted) produced zero audit
+strikes, and the debate locked the target with 5 surviving
+load-bearing claims as the design brief's evidence constraints.
+Two designer agents then proposed four original covalent-inhibitor
+candidates with valid SMILES structures; RDKit validated all four,
+ADMET-AI completed, all four ranked, and the design gate passed.
+Outcome: designed. This validates the pipeline, not the candidates:
+they are untested model proposals against a target that already has
+approved drugs, offered as chemical starting points, and the record
+says so. Bundle: runs/target-kras-g12c-validation-2026-10-25.

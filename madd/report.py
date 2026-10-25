@@ -162,10 +162,39 @@ def _design_markdown(bundle: dict) -> str:
     return "\n".join(lines)
 
 
+def _target_markdown(bundle: dict) -> str:
+    """Render a target-run bundle: the named target, the debate
+    outcome, and the design stage when the target locked."""
+    target = bundle.get("target") or {}
+    frame_bundle = bundle.get("frame_run") or {}
+    record = frame_bundle.get("record") or {}
+    lines = ["# MADD target run " + str(bundle.get("run_id")), "",
+             "- Target: " + str(target.get("name"))
+             + " (" + str(target.get("kind")) + ")",
+             "- Molecular target: " + str(target.get("target")),
+             "- Disease context: " + str(target.get("disease")),
+             "- Protocol mode: " + str(bundle.get("mode")),
+             "- Debate outcome: " + str(record.get("outcome")),
+             "- Outcome: " + str(bundle.get("outcome")), "",
+             "## Research stage", "",
+             _frame_markdown(frame_bundle)]
+    design = bundle.get("design")
+    if design is not None:
+        lines += ["", "## Design stage", "", _design_markdown(design)]
+    else:
+        lines += ["", "## Design stage", "",
+                  "Not run: the debate did not lock this target, so no "
+                  "design work started."]
+    lines.append("")
+    return "\n".join(lines)
+
+
 def bundle_to_markdown(bundle: dict) -> str:
     """Dispatch on bundle kind and return the markdown report."""
     if bundle.get("kind") == "gate0_run":
         return _gate0_markdown(bundle)
     if bundle.get("kind") == "design_run":
         return _design_markdown(bundle)
+    if bundle.get("kind") == "target_run":
+        return _target_markdown(bundle)
     return _frame_markdown(bundle)

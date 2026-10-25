@@ -188,6 +188,19 @@ def bundle_to_html(bundle: dict) -> str:
         body = _gate0_html(bundle)
     elif bundle.get("kind") == "design_run":
         body = _design_html(bundle)
+    elif bundle.get("kind") == "target_run":
+        target = bundle.get("target") or {}
+        body = ("<h2>Target run</h2><p>Target: <b>"
+                + _esc(target.get("name")) + "</b> ("
+                + _esc(target.get("kind")) + ") | Mode: "
+                + _esc(bundle.get("mode")) + " | Outcome: "
+                + _esc(bundle.get("outcome")) + "</p>"
+                + _frame_html(bundle.get("frame_run") or {}))
+        if bundle.get("design") is not None:
+            body += _design_html(bundle["design"])
+        else:
+            body += ("<h3>Design stage</h3><p class='mut'>Not run: the "
+                     "debate did not lock this target.</p>")
     else:
         body = _frame_html(bundle)
     return ("<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
