@@ -25,11 +25,23 @@ as everything else in this repository.
    operator. A spec that is not locked is refused: no design work starts
    from a killed or unresolved target.
 2. **Candidate generation.** Behind a Designer interface, the same way
-   providers sit behind an interface in Phase 1. The shipped designer
-   is the deterministic mock: it returns synthetic, clearly labelled
-   example candidates so the pipeline can be exercised end to end. It
-   invents no structures: its candidates carry no SMILES, no sequence,
-   and no potency numbers, and say so.
+   providers sit behind an interface in Phase 1. Three designers:
+   the deterministic mock (synthetic, clearly labelled, structure-free;
+   pipeline exercise only); the model panel, in which the run config's
+   providers propose candidates through a strict response contract -
+   every candidate carrying a real structure (SMILES or sequence),
+   ledger-ruled claims, and predictions labelled as predictions, with
+   structureless proposals from real providers dropped and the drop
+   recorded; and external structure tools (next step). A design cycle
+   ends with the audit, ranking, and gate below: ranked candidates
+   with real structures and audited support, or a failed gate saying
+   why. Before audit, every SMILES structure is validated by RDKit
+   (BSD, registry-cleared) and gains computed descriptors - molecular
+   weight, logP, TPSA, donors, acceptors, rotatable bonds - recorded
+   with the basis "computed:RDKit <version>", a calculation rather
+   than an estimate; an unparseable structure enters audit as a failed
+   computed constraint. When RDKit is not installed the step reports
+   not_installed and nothing is fabricated to fill the gap.
 3. **Tool runs (optional).** External structure tools run through
    madd/design_tools.py, which enforces the license registry before
    anything executes: a tool the registry blocks for the intended use
@@ -92,20 +104,23 @@ unverified in every report.
 ## In scope
 
 - Design briefs from locked specs, with refusal for unlocked ones.
-- The Designer interface, the deterministic mock designer, and the
-  license-gated external tool runner.
+- The Designer interface: the deterministic mock designer, the model
+  panel designer (providers proposing structured candidates under a
+  contract), and the license-gated external tool runner.
+- RDKit structure validation and computed descriptors for SMILES
+  candidates, license-gated and honestly reported when absent.
 - Candidate audit, exclusion with reasons, deterministic ranking.
 - Design bundles with gate reports, stored like run bundles, readable
   in the text report, the HTML report, and the MADD Console.
-- CLI: design-brief and design-run.
+- CLI: design-brief and design-run (with --config for the model panel).
 
 ## Out of scope
 
-- Any real molecule generation until a registry-cleared tool is
-  installed and run for real; until then candidates come from the mock
-  designer (synthetic, structure-free) or from recorded tool outputs.
-- Docking, ADMET calculation, synthesis planning, and wet-lab
-  protocols. A future stage may add them behind the same manifest and
-  audit rules.
+- Structure prediction with Boltz-2 or Chai-1 until one is installed
+  and run for real; the runner and manifest machinery are built, and
+  no tool run has happened yet.
+- Docking, ADMET calculation beyond RDKit descriptors, synthesis
+  planning, and wet-lab protocols. A future stage may add them behind
+  the same manifest and audit rules.
 - Any claim that a ranked candidate is a drug or a lead. Ranking orders
   proposals by audited support; it validates nothing about biology.

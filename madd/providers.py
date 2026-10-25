@@ -41,6 +41,24 @@ class MockProvider:
         gets its own dossier and agent identifiers."""
         self.label = label
 
+    def complete(self, system: str, user: str) -> str:
+        """Return a canned design response: one synthetic candidate.
+
+        The candidate carries a real SMILES string so the design
+        pipeline's structure handling can be exercised, and the design
+        layer marks every candidate from a MockProvider synthetic, so
+        it can never pass a design gate.
+        """
+        import json as _json
+        return _json.dumps({"candidates": [{
+            "modality": "small_molecule",
+            "structure": {"format": "smiles", "value": "CCO"},
+            "description": "Synthetic mock candidate (ethanol) for code tests only.",
+            "claims": [],
+            "predicted_properties": [],
+            "constraint_results": [],
+        }]})
+
     def research(self, frame: dict) -> dict:
         """Return the mock dossier: one invented, labelled-synthetic claim
         with no source. The evidence call strikes it by design."""

@@ -125,6 +125,42 @@ class _HttpProvider:
         payload; None when the payload is not in the expected shape."""
         raise NotImplementedError
 
+    def _call_with_retries(self, system, user, frame_id=None):
+        """One logical call: the transport call plus the bounded retry
+        policy. Returns (status, payload) and sets last_attempts to the
+        number of transport attempts actually made."""
+        status, payload = self._call(system, user)
+        attempt = 0
+        while status in RETRYABLE_STATUSES and attempt < self.max_retries:
+            delay = self.backoff_seconds * (2 ** attempt)
+            self.retry_log.append({"status": status, "attempt": attempt + 1,
+                                   "delay_seconds": delay,
+                                   "frame_id": frame_id})
+            self._sleeper(delay)
+            status, payload = self._call(system, user)
+            attempt += 1
+        self.last_attempts = attempt + 1
+        return status, payload
+
+    def complete(self, system: str, user: str) -> str:
+        """Run one prompt pair and return the answer text.
+
+        The generic completion the design stage uses: same transport,
+        same retry policy, same ProviderError failures as research(),
+        without the dossier contract.
+        """
+        status, payload = self._call_with_retries(system, user)
+        if status != 200:
+            raise ProviderError("provider " + self.name + ": HTTP " + str(status)
+                                + " from " + self.base_url)
+        text = self._extract_text(payload)
+        if text is None:
+            raise ProviderError("provider " + self.name
+                                + ": response had no message content in the "
+                                + "expected " + self.protocol + " shape")
+        self.last_response_model = payload.get("model")
+        return text
+
     def research(self, frame: dict) -> dict:
         """Run one research call: build the shared prompt, call, extract
         the text, and parse it through the shared response contract. HTTP
@@ -132,17 +168,8 @@ class _HttpProvider:
         answer text becomes a failure dossier."""
         system = SYSTEM_PROMPT
         user = build_user_prompt(frame)
-        status, payload = self._call(system, user)
-        attempt = 0
-        while status in RETRYABLE_STATUSES and attempt < self.max_retries:
-            delay = self.backoff_seconds * (2 ** attempt)
-            self.retry_log.append({"status": status, "attempt": attempt + 1,
-                                   "delay_seconds": delay,
-                                   "frame_id": frame.get("frame_id")})
-            self._sleeper(delay)
-            status, payload = self._call(system, user)
-            attempt += 1
-        self.last_attempts = attempt + 1
+        status, payload = self._call_with_retries(system, user,
+                                                  frame_id=frame.get("frame_id"))
         if status != 200:
             raise ProviderError("provider " + self.name + ": HTTP " + str(status)
                                 + " from " + self.base_url)

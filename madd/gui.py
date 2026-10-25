@@ -32,7 +32,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .config import ConfigError, build_providers, load_config
-from .design import run_design
+from .design import ModelDesigner, run_design
 from .gate0 import list_case_ids, load_input_pack, validate_dataset
 from .html_report import bundle_to_html
 from .runner import estimate_gate0_run, run_gate0
@@ -219,7 +219,11 @@ def make_handler(manager: RunManager):
                     if not spec:
                         return _json(self, {"ok": False, "error":
                                             "that run has no consensus spec to design from"})
-                    bundle = run_design(spec, source,
+                    designer = None
+                    if payload.get("config"):
+                        built = build_providers(load_config(payload["config"]))
+                        designer = ModelDesigner(built["providers"])
+                    bundle = run_design(spec, source, designer=designer,
                                         target=payload.get("target") or None,
                                         disease=payload.get("disease") or None)
                 except ValueError as exc:
@@ -445,6 +449,8 @@ async function designFrom(runId) {
   const t = $('design-target'), d = $('design-disease');
   if (t && t.value) body.target = t.value;
   if (d && d.value) body.disease = d.value;
+  const cfg = $('config');
+  if (cfg && cfg.value) body.config = cfg.value;
   const out = await (await fetch('/api/design-run', {method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body)})).json();

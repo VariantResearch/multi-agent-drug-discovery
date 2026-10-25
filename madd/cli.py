@@ -19,8 +19,8 @@ Subcommands:
   compare-runs <bundle-a> <bundle-b>
   design-brief <source> [--case <case-id>] [--constraint <text>]...
   design-run <source> [--case <case-id>] [--constraint <text>]...
-               [--out <dir>] [--tool <name>] [--use research|commercial]
-               [--tool-input <file>]
+               [--out <dir>] [--config <file>] [--tool <name>]
+               [--use research|commercial] [--tool-input <file>]
   transcript <file>
   report-html <bundle-file>
   gui [--port 8765] [--host 127.0.0.1] [--runs-dir runs]
@@ -46,7 +46,7 @@ from .debate import run_debate
 from .focus import focus_score
 from .gate0 import (evaluate_thresholds, list_case_ids, load_input_pack,
                    score_run, validate_dataset)
-from .design import build_brief, run_design
+from .design import ModelDesigner, build_brief, run_design
 from .design_tools import candidates_from_tool_run, run_structure_tool
 from .license_registry import check_tool
 from .providers import MockProvider
@@ -112,19 +112,28 @@ def _cmd_design_run(args) -> int:
         constraints = tuple(args.constraint or ())
         brief = build_brief(spec, source, constraints,
                             target=args.target, disease=args.disease)
+        designer = None
+        if args.config:
+            built = build_providers(load_config(args.config))
+            designer = ModelDesigner(built["providers"])
+            print("designer: model panel from " + args.config + " ("
+                  + ", ".join(getattr(p, "name", "?") for p in built["providers"]) + ")")
         tool_runs, extra = [], []
         if args.tool:
             work = Path(args.out) / ("toolwork-" + brief["brief_id"])
             manifest = run_structure_tool(args.tool, args.use, work,
                                           input_path=args.tool_input)
+            manifest["requested"] = True
             tool_runs.append(manifest)
             extra = candidates_from_tool_run(manifest, spec.get("spec_id"))
             print("tool " + args.tool + ": " + manifest["status"]
                   + (" - " + str(manifest.get("reason")) if manifest.get("reason") else ""))
         bundle = run_design(spec, source, design_constraints=constraints,
+                            designer=designer,
                             tool_runs=tuple(tool_runs),
                             extra_candidates=tuple(extra),
-                            target=args.target, disease=args.disease)
+                            target=args.target, disease=args.disease,
+                            use=args.use)
     except (OSError, ValueError) as exc:
         print("design-run failed: " + str(exc), file=sys.stderr)
         return 1
@@ -596,6 +605,7 @@ def build_parser() -> argparse.ArgumentParser:
     p20.add_argument("--constraint", action="append", default=None)
     p20.add_argument("--target", default=None)
     p20.add_argument("--disease", default=None)
+    p20.add_argument("--config", default=None)
     p20.add_argument("--out", default="runs")
     p20.add_argument("--tool", default=None)
     p20.add_argument("--use", default="research", choices=["research", "commercial"])

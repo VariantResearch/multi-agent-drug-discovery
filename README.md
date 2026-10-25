@@ -48,7 +48,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (184 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
+Expected results: the test suite passes (192 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -181,7 +181,8 @@ python3 -m madd run-frame <frame.json> --config <file> [--out <dir>]
 python3 -m madd compare-runs <bundle-a> <bundle-b>
 python3 -m madd design-brief <source> [--case <case-id>] [--target <t>] [--disease <d>]
 python3 -m madd design-run <source> [--case <case-id>] [--constraint <text>]...
-                [--tool <name>] [--use research|commercial] [--tool-input <file>]
+                [--config <file>] [--tool <name>] [--use research|commercial]
+                [--tool-input <file>]
 python3 -m madd transcript <record-or-bundle.json>
 python3 -m madd report-html <bundle.json>
 python3 -m madd gui [--port 8765] [--runs-dir runs]
@@ -203,7 +204,7 @@ python3 -m madd design-brief spec.json
 
 Every claim a candidate carries goes through the research layer's own audit machinery (the document claim audit and the citation auditor), and counts as support only when it is error-free and audited, once per claim id; a candidate whose load-bearing claim carries any audit error, or which records a failed constraint, is excluded from the ranking with its reasons kept. Predicted properties must name their basis, and designer predictions are counted as unverified in every report. The ranking is a fixed rule: audited load-bearing claim count, then fewer unknown constraints, then candidate id. The design gate passes only when the brief came from a locked spec, at least one candidate is ranked, at least one ranked candidate is real (not synthetic), no tool run was license-blocked, and any requested tool run completed - so a mock-only design run writes its bundle, fails its gate, and exits non-zero.
 
-The shipped designer is a deterministic mock: two synthetic, clearly labelled candidates with no structures and no invented numbers, so the pipeline can be exercised honestly end to end. Real structures enter through external tools: pass --tool Boltz-2 (or Chai-1) with --tool-input, and the runner checks the license registry for the --use first, refuses blocked tools, reports not_installed when the tool is absent, and records every output file by path and SHA-256 hash in a manifest when it runs. Each output becomes a candidate with that provenance and no assessment invented for it. The MADD Console does the same from the browser: a locked frame run's detail view has a DESIGN CANDIDATES button, and design runs appear in the run library like any other bundle. The full specification is docs/PHASE2_SPEC.md.
+Designers plug in behind one interface. The deterministic mock ships for pipeline exercise: two synthetic, clearly labelled candidates with no structures and no invented numbers, which can never pass the gate. The real designer is the model panel: pass --config <file> and the config's providers propose candidates under a strict contract - each with a real structure (SMILES or sequence), ledger-ruled claims, and predictions labelled as predictions; structureless proposals from real providers are dropped, with the drop recorded in the bundle. Before audit, RDKit (BSD, registry-cleared; install the rdkit package to enable it) validates every SMILES and attaches computed descriptors - molecular weight, logP, TPSA, hydrogen bond donors and acceptors, rotatable bonds - recorded as computed values with the RDKit version, never as model estimates; an unparseable structure enters audit as a failed computed constraint. A finished cycle therefore ends with ranked candidates carrying real structures, calculated properties, and audited claims, or a failed gate explaining why not. External structure tools are the third source: pass --tool Boltz-2 (or Chai-1) with --tool-input, and the runner checks the license registry for the --use first, refuses blocked tools, reports not_installed when the tool is absent, and records every output file it created by path and SHA-256 hash in a manifest. The MADD Console does the same from the browser: a locked frame run's detail view has a DESIGN CANDIDATES button (it uses the config in the run control field when one is set), and design runs appear in the run library like any other bundle. The full specification is docs/PHASE2_SPEC.md.
 
 Installing the package instead of running it from the checkout also works, and provides the same commands as the madd entry point:
 

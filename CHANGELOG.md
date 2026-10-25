@@ -4,6 +4,22 @@
 
 ### Added
 
+- The real design cycle: ModelDesigner turns the run config's provider
+  panel into the designer (design-run --config, or the console's
+  config field). Providers answer a strict candidate contract through
+  a new complete() completion method on the HTTP adapters and
+  MockProvider; every candidate must carry a real structure (SMILES
+  or sequence), structureless proposals from real providers are
+  dropped with the reason recorded, and mock-provider candidates are
+  marked synthetic so they can never pass a gate. RDKit enrichment
+  (madd/design_rdkit.py, license-gated, BSD) validates every SMILES
+  before audit and attaches computed descriptors (molecular weight,
+  logP, TPSA, HBD, HBA, rotatable bonds) with the basis
+  "computed:RDKit <version>", so a design cycle ends with ranked
+  candidates carrying real structures, calculated properties, and
+  audited claims - or a failed gate saying why not. RDKit is an
+  optional dependency; when absent the step reports not_installed and
+  fabricates nothing.
 - Phase 2 candidate design (docs/PHASE2_SPEC.md): design briefs built
   mechanically from locked consensus specs (unlocked specs refused),
   carrying the spec's surviving load-bearing claims as evidence
