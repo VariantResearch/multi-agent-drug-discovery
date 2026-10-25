@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- Consensus agreement compared proposed focus labels as exact
+  strings, so cases were decided by spelling: a unanimous panel
+  could fail agreement for writing the same target two ways, and a
+  case could be scored killed by the same accident in reverse
+  (validation run 2). Gate 0 packs now declare a canonical
+  focus_id, the frame carries it to providers, the research prompt
+  instructs models to copy it exactly when advancing, and the
+  debate engine canonicalizes any proposal naming the frame's
+  target onto that id before the consensus tests read it, keeping
+  the model's original string as proposed_focus_raw. Frames
+  without a focus_id behave as before.
 - Live quote check searched only the deposited full text XML, whose
   abstract section does not always match the published abstract, so
   genuine abstract quotes struck as quote_not_in_full_text (the
@@ -16,6 +27,17 @@
 
 ### Added
 
+- Validation runs 2 and 3 recorded (docs/VALIDATION_RUN_2026-10-25.md,
+  run record in docs/PHASE1_SPEC.md). Run 2 (repaired quote check,
+  fresh agent panel): debate 6 of 8, baseline 5 of 8, kill rate
+  passed 4 of 4, positive advance rate failed 2 of 4 on a spelling
+  defect in the agreement test, outcome fail. Run 3 (canonical
+  focus repair, fresh panel): debate 7 of 8, baseline 7 of 8, zero
+  audit strikes, kill rate 3 of 4 and advance rate 4 of 4 passed,
+  baseline margin failed at 0 because a single model family in
+  every seat made the baseline an effective extra panelist,
+  outcome fail. Neither is a scored Phase 1 run; the roster and
+  budget in PHASE1_SPEC remain open.
 - Agent-panel validation run recorded (docs/VALIDATION_RUN_2026-10-25.md,
   run record in docs/PHASE1_SPEC.md). On 2026-10-25 the production
   Gate 0 pipeline ran end to end with the owner's own agents as

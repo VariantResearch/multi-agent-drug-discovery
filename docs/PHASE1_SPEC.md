@@ -146,7 +146,38 @@ quote_found, with a fabricated control quote still returning
 quote_not_found. The validation results above stand as executed
 under the rule as it then was; the fix applies to future runs.
 
-This run does not satisfy the run protocol below and changes
+The owner ordered the run repeated with repairs applied. Run 2
+(gate0-validation-agent-panel-r2-2026-10-25, same day, fresh
+panel, repaired quote check): debate 6 of 8, baseline 5 of 8; the
+kill rate passed (4 of 4) and the positive advance rate failed
+(2 of 4), run outcome fail. The advance failure was mechanical:
+the consensus agreement test compared proposed focus labels as
+exact strings, so ivacaftor and semaglutide failed agreement on
+spelling despite unanimous advance judgment, and the 4 of 4 kill
+rate was itself partly the same accident in reverse. The repair
+is general and shipped: each Gate 0 pack declares a canonical
+focus_id, the frame carries it, the research prompt instructs
+models to copy it exactly when advancing, and the debate engine
+canonicalizes any proposal naming the frame's target onto that
+id, preserving the model's original string as proposed_focus_raw;
+the prompt also states the advance standard (target association
+alone is not a case for locking a specification). Full account in
+docs/VALIDATION_RUN_2026-10-25.md.
+
+Run 3 (gate0-validation-agent-panel-r3-2026-10-25, fresh panel,
+repaired code): debate 7 of 8, baseline 7 of 8, zero audit strikes;
+kill rate passed (3 of 4, including REC-994 killed unanimously and
+PF-05089771 refused on a genuine panel split), advance rate
+passed (4 of 4), audit integrity and judge-swap stability passed,
+and the baseline margin failed (0; at least 1 required), run
+outcome fail. With one model family in every seat the baseline
+made the same call as the debate on all eight cases, so the
+single-family configuration shows no measurable margin over its
+own baseline, which is what that threshold exists to detect. The
+remaining lever is the roster itself: different model families in
+the panel seats, under the run protocol below.
+
+These runs do not satisfy the run protocol below and change
 nothing in it: the roster and budget above remain open, and the
 first scored run still begins at step 1.
 
