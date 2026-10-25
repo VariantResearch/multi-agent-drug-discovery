@@ -143,6 +143,26 @@ class TestCli(unittest.TestCase):
             self.assertEqual(len(index), 1)
             self.assertEqual(index[0]["kind"], "gate0_run")
 
+    def test_run_gate0_dry_run_estimates_without_running(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = self._mock_config(tmp)
+            code, out = run_cli(["run-gate0", "--config", str(config),
+                                 "--dry-run"])
+        self.assertEqual(code, 0)
+        self.assertIn("total calls: 32", out)
+        self.assertIn("cases: 8", out)
+
+    def test_estimate_gate0_run_math(self):
+        from madd.runner import estimate_gate0_run
+        from tests.test_runner import CaseStub, GATE0
+        a = CaseStub("a", set(), cost=0.50)
+        b = CaseStub("b", set(), cost=0.25)
+        est = estimate_gate0_run([a, b], judge_provider=CaseStub("j", set(), cost=1.0),
+                                 baseline_provider=CaseStub("base", set(), cost=0.10),
+                                 gate0_dir=GATE0)
+        self.assertEqual(est["total_calls"], 32)
+        self.assertAlmostEqual(est["estimated_cost_usd"], 8 * 1.85)
+
     def test_run_frame_with_mocks(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = self._mock_config(tmp)

@@ -7,6 +7,7 @@ A run is described by a JSON config (see examples/run-config.example.json):
 - budget: a budget dict for madd/budget.py, or null.
 - live_resolution: when true, the evidence call also strikes claims
   whose identifiers the live registries report as not found.
+- parallel_cases: how many case debates may run at once (default 1).
 
 A provider entry is {name, kind, model, family, base_url,
 api_key_env, cost_per_call_usd, max_tokens, label}. kind is one of
@@ -91,6 +92,10 @@ def validate_config(config) -> list:
             BudgetTracker(budget)
         except Exception as exc:
             errors.append("budget: " + str(exc))
+    parallel = config.get("parallel_cases")
+    if parallel is not None and (isinstance(parallel, bool)
+                                 or not isinstance(parallel, int) or parallel < 1):
+        errors.append("parallel_cases: must be a positive integer")
     return errors
 
 
@@ -146,4 +151,5 @@ def build_providers(config, environ=None) -> dict:
         if config.get("baseline") else None,
         "budget": config.get("budget"),
         "live_resolution": bool(config.get("live_resolution", False)),
+        "max_workers": int(config.get("parallel_cases", 1)),
     }

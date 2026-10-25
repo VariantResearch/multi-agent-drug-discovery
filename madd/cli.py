@@ -39,7 +39,7 @@ from .license_registry import check_tool
 from .providers import MockProvider
 from .providers_http import ProviderError
 from .resolve import resolve_document, resolve_identifier
-from .runner import run_frame, run_gate0
+from .runner import estimate_gate0_run, run_frame, run_gate0
 from .schemas import SCHEMA_NAMES, validate_artifact
 from .storage import write_bundle
 
@@ -175,6 +175,22 @@ def _cmd_resolve_citations(args) -> int:
     return 0 if all_resolved else 1
 
 
+def _print_run_event(event):
+    """Render one runner progress event as a single CLI line."""
+    kind = event.get("event")
+    if kind == "run_started":
+        print("run started:", event.get("run_id"), "| cases:",
+              len(event.get("case_ids") or []), flush=True)
+    elif kind == "baseline_case_done":
+        print("  baseline", event.get("case_id"), "->", event.get("prediction"),
+              flush=True)
+    elif kind == "debate_case_done":
+        print("  debate", event.get("case_id"), "->", event.get("prediction"),
+              "| strikes:", event.get("strikes"), flush=True)
+    elif kind == "run_finished":
+        print("run finished:", event.get("outcome"), flush=True)
+
+
 def _resolver_from_config(built):
     """Return the evidence-call resolver when the config enables live
     resolution, else None (audits stay offline)."""
@@ -229,13 +245,31 @@ def _cmd_providers_check(args) -> int:
 
 def _cmd_run_gate0(args) -> int:
     """run-gate0 handler: execute a full Gate 0 run from a config.
-    Exit 0 on a pass, 1 on a fail, 2 when the run itself stopped."""
+    Exit 0 on a pass, 1 on a fail, 2 when the run itself stopped.
+    With --dry-run, print the call and cost estimate and stop."""
     try:
         built = _built_from_config(args)
+    except ConfigError as exc:
+        print("config problem:", exc)
+        return 2
+    if args.dry_run:
+        estimate = estimate_gate0_run(built["providers"], built["judge"],
+                                      built["baseline"], args.gate0_dir)
+        print("cases:", estimate["case_count"])
+        print("calls per case:", estimate["calls_per_case"])
+        print("total calls:", estimate["total_calls"])
+        print("estimated cost (USD):", estimate["estimated_cost_usd"])
+        if not estimate["baseline_configured"]:
+            print("note: no baseline configured; a real run would be refused")
+        print("note:", estimate["note"])
+        return 0
+    try:
         bundle = run_gate0(built["providers"], judge_provider=built["judge"],
                            baseline_provider=built["baseline"],
                            budget=built["budget"], gate0_dir=args.gate0_dir,
-                           resolver=_resolver_from_config(built))
+                           resolver=_resolver_from_config(built),
+                           max_workers=args.jobs or built["max_workers"],
+                           on_event=_print_run_event)
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
         print("run stopped:", exc)
         return 2
@@ -336,6 +370,8 @@ def build_parser() -> argparse.ArgumentParser:
     p10 = sub.add_parser("run-gate0"); p10.add_argument("--config", required=True)
     p10.add_argument("--out", default=None)
     p10.add_argument("--gate0-dir", default=None)
+    p10.add_argument("--dry-run", action="store_true")
+    p10.add_argument("--jobs", type=int, default=None)
     p10.set_defaults(fn=_cmd_run_gate0)
     p11 = sub.add_parser("run-frame"); p11.add_argument("frame")
     p11.add_argument("--config", required=True)

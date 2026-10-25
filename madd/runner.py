@@ -235,6 +235,42 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
     return bundle
 
 
+def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
+                       gate0_dir=None) -> dict:
+    """Count what a Gate 0 run will call and what it will cost, from
+    the configured per-call costs, without making any call.
+
+    Per case: one baseline call, one research call per panel
+    provider, one judge call when a judge is configured. Retries and
+    live-resolution lookups are not counted; they are bounded by
+    their own settings and reported in the finished bundle.
+    """
+    cases = list_case_ids(gate0_dir)
+    panel = list(providers)
+
+    def cost(provider):
+        return float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0) \
+            if provider is not None else 0.0
+
+    per_case_calls = {"baseline": 1 if baseline_provider is not None else 0,
+                      "debate_panel": len(panel),
+                      "judge": 1 if judge_provider is not None else 0}
+    per_case_cost = (cost(baseline_provider) + sum(cost(p) for p in panel)
+                     + cost(judge_provider))
+    return {
+        "case_count": len(cases),
+        "case_ids": cases,
+        "calls_per_case": per_case_calls,
+        "total_calls": len(cases) * sum(per_case_calls.values()),
+        "estimated_cost_usd": round(len(cases) * per_case_cost, 4),
+        "baseline_configured": baseline_provider is not None,
+        "note": ("research calls only; retries are bounded by each "
+                 "provider's max_retries and live-resolution lookups "
+                 "are separate registry calls, both reported in the "
+                 "finished bundle"),
+    }
+
+
 def run_frame(frame, providers, judge_provider=None, budget=None,
               resolver=None, run_id=None, on_event=None) -> dict:
     """Run the debate once on a prospective frame (not a Gate 0 case).
