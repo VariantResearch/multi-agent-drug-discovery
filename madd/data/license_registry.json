@@ -62,6 +62,7 @@
    "commercial_allowed": true,
    "license": "Apache-2.0",
    "name": "Chai-1",
+   "notes": "Verified 2026-10-25 against the chaidiscovery/chai-lab repository: its LICENSE is Apache-2.0 and its README states the license covers both code and model weights, commercial use included. The 2024 technical report's non-commercial language for the weights is superseded by the repository's current terms.",
    "status": "allowed"
   },
   {
