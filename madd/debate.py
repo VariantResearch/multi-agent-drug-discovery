@@ -44,6 +44,7 @@ that would cross the cap are never made.
 from __future__ import annotations
 
 import copy
+import re
 
 from .artifacts import (build_manifest, canonical_hash, canonical_json,
                         freeze_artifact, prompt_hash)
@@ -52,6 +53,72 @@ from .citation_auditor import audit_citations
 from .claims import validate_claim
 from .consensus import run_consensus_tests
 from .focus import focus_score
+
+_FOCUS_TOKEN = re.compile(r"[a-z0-9]+")
+
+
+def _focus_tokens(text) -> frozenset:
+    """The word tokens of a focus string, casefolded: the comparison
+    basis for deciding whether two focus strings name the same target."""
+    if not isinstance(text, str):
+        return frozenset()
+    return frozenset(_FOCUS_TOKEN.findall(text.casefold()))
+
+
+def canonical_focus_id(proposed, frame):
+    """Map a proposed focus onto the frame's canonical focus_id.
+
+    A frame may declare one canonical focus_id for its target. Models
+    asked for "the target identifier" render that target in different
+    surface forms (the full descriptive string, an abbreviation, the
+    gene symbol), and the 2026-10-25 validation run 2 showed the
+    agreement test reading those spellings as different focuses: two
+    unanimous advance panels failed agreement on spelling alone, and
+    two unanimous advances were blocked by the same accident. Agreement
+    must judge whether dossiers name the same target, not whether they
+    spell it identically.
+
+    The mapping is deliberately narrow. It applies only when the frame
+    declares a focus_id, and a proposed focus maps onto it only when
+    it is the focus_id itself (up to case, spacing, and punctuation),
+    or when its word tokens and the frame target's word tokens contain
+    one another, so the proposal is the frame's own target string or a
+    shortening or expansion of it. Anything else is a genuinely
+    different focus and is returned unchanged. Frames without a
+    focus_id get the previous behaviour exactly: the proposed string
+    is returned as it stands.
+    """
+    if not isinstance(frame, dict):
+        return proposed
+    focus_id = frame.get("focus_id")
+    if not isinstance(focus_id, str) or not focus_id.strip():
+        return proposed
+    if not isinstance(proposed, str) or not proposed.strip():
+        return proposed
+    if proposed.strip() == focus_id.strip():
+        return focus_id
+    proposed_tokens = _focus_tokens(proposed)
+    if not proposed_tokens:
+        return proposed
+    if proposed_tokens == _focus_tokens(focus_id):
+        return focus_id
+    target_tokens = _focus_tokens(frame.get("target"))
+    if target_tokens and (proposed_tokens <= target_tokens
+                          or target_tokens <= proposed_tokens):
+        return focus_id
+    return proposed
+
+
+def _canonicalize_dossier_focus(dossier: dict, frame) -> None:
+    """Rewrite one dossier's proposed focus to the frame's canonical
+    focus_id in place, keeping the model's own string under
+    proposed_focus_raw whenever the mapping changed it, so the record
+    shows both what the model wrote and what it was read as."""
+    proposed = dossier.get("proposed_focus_id")
+    canonical = canonical_focus_id(proposed, frame)
+    if canonical != proposed:
+        dossier["proposed_focus_raw"] = proposed
+        dossier["proposed_focus_id"] = canonical
 
 
 def audit_dossier(dossier: dict, resolver=None, quote_checker=None,
@@ -184,10 +251,13 @@ def rank_dossiers(audited_dossiers: list) -> list:
                 wins += 1.0
             elif keys[a["dossier_id"]] == keys[b["dossier_id"]]:
                 wins += 0.5
-        summaries.append({"dossier_id": a["dossier_id"], "agent_id": a["agent_id"],
-                          "proposed_focus_id": a["proposed_focus_id"],
-                          "focus_score": keys[a["dossier_id"]][0],
-                          "struck_count": len(a["struck"]), "wins": wins})
+        summary = {"dossier_id": a["dossier_id"], "agent_id": a["agent_id"],
+                   "proposed_focus_id": a["proposed_focus_id"],
+                   "focus_score": keys[a["dossier_id"]][0],
+                   "struck_count": len(a["struck"]), "wins": wins}
+        if "proposed_focus_raw" in a:
+            summary["proposed_focus_raw"] = a["proposed_focus_raw"]
+        summaries.append(summary)
     summaries.sort(key=lambda s: (-s["wins"], -s["focus_score"], s["struck_count"],
                                   str(s["dossier_id"])))
     return summaries
@@ -366,6 +436,12 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                          + ", ".join(str(x) for x in dossier_ids)
                          + "); dossier identifiers must be unique within a run, "
                            "or the ranking and the record would silently merge them")
+    # Focus canonicalization: when the frame declares a focus_id, each
+    # dossier's proposed focus is read against it before any comparison
+    # is made (see canonical_focus_id), so agreement, ranking, and the
+    # judge swap all judge the target named, not the spelling used.
+    for d in dossiers:
+        _canonicalize_dossier_focus(d, frame)
     # Step 2: evidence call.
     allowed = None
     if retrieval_first:
@@ -377,6 +453,9 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                              entailment_checker=entailment_checker,
                              allowed_identifiers=allowed)
                for d in dossiers]
+    for d, a in zip(dossiers, audited):
+        if "proposed_focus_raw" in d:
+            a["proposed_focus_raw"] = d["proposed_focus_raw"]
     strike_list = [{"dossier_id": a["dossier_id"], "claim_id": s["claim_id"],
                     "reasons": s["reasons"]}
                    for a in audited for s in a["struck"]]
@@ -408,10 +487,14 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     judge_info = None
     if judge_provider is not None:
         judge_dossier = research(judge_provider)
+        _canonicalize_dossier_focus(judge_dossier, frame)
         judge_audited = audit_dossier(judge_dossier, resolver=resolver,
                                       quote_checker=quote_checker,
                                       entailment_checker=entailment_checker,
                                       allowed_identifiers=allowed)
+        if "proposed_focus_raw" in judge_dossier:
+            judge_audited["proposed_focus_raw"] = judge_dossier[
+                "proposed_focus_raw"]
         swapped_spec = dict(spec)
         swapped_spec["focus_id"] = judge_audited["proposed_focus_id"]
         judge_info = {"provider": getattr(judge_provider, "name", None),
@@ -419,6 +502,9 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                       "dossier_id": judge_audited["dossier_id"],
                       "proposed_focus_id": judge_audited["proposed_focus_id"],
                       "struck": judge_audited["struck"]}
+        if "proposed_focus_raw" in judge_audited:
+            judge_info["proposed_focus_raw"] = judge_audited[
+                "proposed_focus_raw"]
         if judge_audited["proposed_focus_id"] != spec["focus_id"]:
             spec["dissent_log"] = list(spec["dissent_log"]) + [{
                 "objector_agent_id": judge_audited["agent_id"],

@@ -51,6 +51,11 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
     sending it to a provider would hand them exactly what the blinding
     exists to withhold. It is stripped here, at the one place a pack
     becomes a frame.
+
+    The pack's focus_id, when it declares one, rides at the top level:
+    it is the canonical identifier a dossier must copy into
+    proposed_focus_id, and the debate engine reads proposed focuses
+    against it (see canonical_focus_id in madd/debate.py).
     """
     case_pack = copy.deepcopy(pack)
     case_pack.pop("forbidden_terms", None)
@@ -63,6 +68,7 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
                      "to a locked specification at the evidence_as_of date."),
         "disease": pack.get("disease"),
         "target": pack.get("target"),
+        "focus_id": pack.get("focus_id"),
         "drug_name": pack.get("drug_name"),
         "evidence_as_of": pack.get("evidence_as_of"),
         "round_cap": 2,

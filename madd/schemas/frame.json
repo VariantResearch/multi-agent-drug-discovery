@@ -17,6 +17,12 @@
       },
       "type": "array"
     },
+    "focus_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "frame_id": {
       "type": "string"
     },

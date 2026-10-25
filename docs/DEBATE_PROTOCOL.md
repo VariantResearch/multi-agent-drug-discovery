@@ -64,8 +64,15 @@ repository comes from a debate.
 ## The four consensus tests
 
 - Agreement - all research dossiers propose the same focus identifier.
-  Disagreement is not papered over by the judge; it is recorded and the
-  specification, if any, must come from the evolution round.
+  When the frame declares a canonical focus_id, each dossier's proposal
+  is first read against it (canonical_focus_id in madd/debate.py): a
+  proposal that is the frame's own target string, or a shortening or
+  expansion of it, counts as the canonical identifier, and the model's
+  original string is preserved in the record as proposed_focus_raw. The
+  test therefore judges whether the dossiers name the same target, not
+  whether they spell it identically. Disagreement is not papered over by
+  the judge; it is recorded and the specification, if any, must come
+  from the evolution round.
 - Survival - every load-bearing claim in the candidate specification
   passes the claim ledger audit. One failed load-bearing claim fails the
   test.
