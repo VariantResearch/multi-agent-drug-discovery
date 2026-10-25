@@ -165,6 +165,26 @@ class TestDebateEngine(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_debate(FRAME, [a])
 
+    def test_live_resolver_strikes_not_found_claims(self):
+        d = dossier("D-R", "agent-r", "FOCUS-A",
+                    [good_claim("C-LIVE"), good_claim("C-GONE")])
+
+        def fake_resolver(identifier, identifier_type):
+            return "not_found" if identifier == "12345678" else "resolved"
+
+        d["claims"][1]["source_identifier"] = "87654321"
+        audited = audit_dossier(d, resolver=fake_resolver)
+        surviving_ids = {c["claim_id"] for c in audited["surviving_claims"]}
+        struck = {s["claim_id"]: s["reasons"] for s in audited["struck"]}
+        self.assertEqual(surviving_ids, {"C-GONE"})
+        self.assertIn("citation_not_found_live", struck["C-LIVE"])
+
+    def test_live_resolver_lookup_error_never_strikes(self):
+        d = dossier("D-R2", "agent-r", "FOCUS-A", [good_claim("C-LIVE")])
+        audited = audit_dossier(d, resolver=lambda i, t: "lookup_error")
+        self.assertEqual(len(audited["surviving_claims"]), 1)
+        self.assertEqual(audited["struck"], [])
+
     def test_duplicate_dossier_ids_rejected(self):
         a = StubProvider("stub-a", dossier("DUP-ID", "agent-a", "FOCUS-A",
                                            [good_claim("C-A1")]))
