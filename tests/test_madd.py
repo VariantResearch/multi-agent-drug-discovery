@@ -89,6 +89,12 @@ class TestClaims(unittest.TestCase):
         report = audit_claims({"claims": [OPINION_CLAIM, SOURCELESS_CLAIM]})
         self.assertGreaterEqual(report["error_count"], 3)
 
+    def test_duplicate_claim_id_flagged(self):
+        report = audit_claims({"claims": [GOOD_CLAIM, dict(GOOD_CLAIM)]})
+        codes = [e["code"] for e in report["errors"]]
+        self.assertIn("duplicate_claim_id", codes)
+        self.assertFalse(report["ok"])
+
     def test_synthetic_dossier_fixture_fails_as_designed(self):
         doc = json.loads((ROOT / "examples/synthetic/dossier.json").read_text())
         self.assertTrue(doc["_synthetic"])
@@ -198,6 +204,13 @@ class TestFocus(unittest.TestCase):
     def test_empty_is_zero(self):
         out = focus_score({"claims": []})
         self.assertEqual(out["score"], 0)
+
+    def test_duplicate_claim_id_counts_once(self):
+        # Regression: the same audited claim listed twice used to score
+        # twice (140 for two copies of a tier-2 claim).
+        out = focus_score({"claims": [GOOD_CLAIM, dict(GOOD_CLAIM)]})
+        self.assertEqual(out["audited_claim_count"], 1)
+        self.assertEqual(out["score"], 70)
 
     def test_boolean_tier_is_not_a_tier(self):
         # Regression: bool is a subclass of int in Python, so a claim with

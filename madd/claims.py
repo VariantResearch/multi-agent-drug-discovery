@@ -59,6 +59,18 @@ def audit_claims(document) -> dict:
     errors = []
     for claim in claims:
         errors.extend(validate_claim(claim))
+    seen = {}
+    for claim in claims:
+        cid = claim.get("claim_id")
+        if cid is not None:
+            seen[cid] = seen.get(cid, 0) + 1
+    for cid, count in seen.items():
+        if count > 1:
+            errors.append({"claim_id": cid, "code": "duplicate_claim_id",
+                           "message": "claim_id appears " + str(count) + " times in one "
+                                      "document; identifiers must be unique within a "
+                                      "document, or a struck claim can re-enter under "
+                                      "the same id as its replacement"})
     return {"claim_count": len(claims), "error_count": len(errors),
             "ok": len(errors) == 0, "errors": errors}
 
