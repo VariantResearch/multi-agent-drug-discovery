@@ -4,6 +4,17 @@
 
 ### Added
 
+- Agent-panel validation run recorded (docs/VALIDATION_RUN_2026-10-25.md,
+  run record in docs/PHASE1_SPEC.md). On 2026-10-25 the production
+  Gate 0 pipeline ran end to end with the owner's own agents as
+  providers and all four live audit checks on: debate 6 of 8
+  correct against a 5 of 8 baseline, five of six approved
+  thresholds passed, and the failure kill rate failed (2 of 4
+  negatives killed, 3 required), so the run outcome under the
+  approved rules is fail. Not a scored Phase 1 run: the roster and
+  budget in PHASE1_SPEC remain open. The run also surfaced a
+  quote-check calibration question (abstract quotes versus
+  full-text body search) recorded for the owner's decision.
 - Design power batch. ADMET-AI enrichment (madd/design_admet.py):
   every SMILES candidate in a design run gains a panel of predicted
   ADMET endpoints from the trained TDC models, recorded as

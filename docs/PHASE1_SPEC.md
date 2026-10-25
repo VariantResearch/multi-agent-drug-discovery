@@ -7,7 +7,7 @@ which must be recorded in this file before the first scored run. No
 scored Gate 0 run may be reported against thresholds that were chosen
 after the run.
 
-Implementation status, 2026-10-24: the full Phase 1 machinery is
+Implementation status, 2026-10-25: the full Phase 1 machinery is
 built - debate engine (madd/debate.py), budget tracker
 (madd/budget.py), threshold evaluator (madd/gate0.py
 evaluate_thresholds), live citation resolution (madd/resolve.py),
@@ -18,11 +18,18 @@ OpenAI-compatible and Anthropic wire protocols
 storage with plain-language reports (madd/storage.py,
 madd/report.py), all driven from the CLI. The adapters are tested
 against fake transports shaped from the documented wire formats;
-they have not been run against a real model account. What remains
-before the first scored run is exactly what this spec reserves to
-the owner: record the model roster and the budget figure above, and
-supply the API keys through the environment. No scored Gate 0 run
-has taken place, and nothing in this repository is a Phase 1 result.
+they have not been run against a real model account. On 2026-10-25,
+at the owner's direction, the full pipeline was validated end to
+end with the owner's own agents standing in as providers (see the
+validation run record below and docs/VALIDATION_RUN_2026-10-25.md).
+That run was judged against the approved thresholds and failed the
+failure kill rate (2 of 4 negatives killed, 3 required); it is not
+a scored Phase 1 run, because this spec's roster and budget were
+never recorded for it. What remains before the first scored run is
+exactly what this spec reserves to the owner: record the model
+roster and the budget figure above, and supply the API keys through
+the environment. No scored Gate 0 run has taken place, and nothing
+in this repository is a Phase 1 result.
 
 ## Purpose
 
@@ -98,7 +105,43 @@ No model is named as approved in this draft. The run needs:
   environment, never committed to this repository.
 
 Until the owner records the roster here, Phase 1 code may be built and
-tested against the mock provider only.
+tested against the mock provider only. The one exception so far is
+the owner-directed validation run of 2026-10-25, recorded below,
+which used the owner's own agents as providers; it does not name or
+imply a roster.
+
+## Validation run record (2026-10-25)
+
+At the owner's direction, the production pipeline was run end to
+end with the owner's own agents as providers: 40 independent agents
+produced the panel, judge, and baseline dossiers from the blinded
+production frames, and 9 more judged entailment, with live
+resolution, live quote checking, entailment checking, and the
+retrieval-first rule all on. Run id
+gate0-validation-agent-panel-2026-10-25; full report in
+docs/VALIDATION_RUN_2026-10-25.md.
+
+Result: debate 6 of 8 correct, baseline 5 of 8. Judged against the
+approved thresholds above: run completeness passed (8 of 8),
+positive advance rate passed (4 of 4), baseline margin passed (1),
+audit integrity passed (0 violations), judge-swap stability passed
+(0 flips), and the failure kill rate failed (2 of 4 killed; 3
+required). The run outcome under the approved rules is fail. The
+two missed negatives (PF-05089771, verubecestat) were advanced by
+every agent on tier 1 genetics evidence, the same call the field
+made pre-outcome.
+
+One calibration finding is the owner's to decide before the first
+scored run: the live quote check searches the open full text body
+only, while Gate 0 pack quotes are drawn from abstracts, and that
+difference struck the lead REC-994 claim in four dossiers. Either
+extend the check to the abstract as well, or keep the strictness
+knowingly. The validation results stand as executed under the rule
+as written.
+
+This run does not satisfy the run protocol below and changes
+nothing in it: the roster and budget above remain open, and the
+first scored run still begins at step 1.
 
 ## Run protocol for the first scored Gate 0 run
 
