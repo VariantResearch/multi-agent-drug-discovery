@@ -19,12 +19,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .html_report import bundle_to_html
 from .report import bundle_to_markdown
 from .runner import gate_report
 from .transcript import record_to_markdown
 
 BUNDLE_FILE = "bundle.json"
 REPORT_FILE = "report.md"
+HTML_REPORT_FILE = "report.html"
 GATE_REPORT_FILE = "gate-report.json"
 TRANSCRIPT_FILE = "transcript.md"
 TRANSCRIPTS_DIR = "transcripts"
@@ -40,6 +42,8 @@ def write_bundle(bundle: dict, out_dir) -> Path:
         json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
     (run_dir / REPORT_FILE).write_text(bundle_to_markdown(bundle),
                                        encoding="utf-8")
+    (run_dir / HTML_REPORT_FILE).write_text(bundle_to_html(bundle),
+                                            encoding="utf-8")
     if bundle.get("kind") == "gate0_run":
         (run_dir / GATE_REPORT_FILE).write_text(
             json.dumps(gate_report(bundle), indent=2, sort_keys=True),

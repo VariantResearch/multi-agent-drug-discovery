@@ -42,6 +42,7 @@ from .resolve import resolve_document, resolve_identifier
 from .runner import estimate_gate0_run, run_frame, run_gate0
 from .schemas import SCHEMA_NAMES, validate_artifact
 from .smoke import smoke_panel
+from .html_report import bundle_to_html
 from .storage import write_bundle
 from .transcript import record_to_markdown
 
@@ -348,6 +349,17 @@ def _cmd_run_frame(args) -> int:
     return 0
 
 
+def _cmd_report_html(args) -> int:
+    """report-html handler: print the styled HTML report for a bundle
+    file (run bundles are also written with report.html at run time)."""
+    bundle = _load(args.file)
+    if not isinstance(bundle, dict) or "kind" not in bundle:
+        print("not a run bundle:", args.file)
+        return 2
+    print(bundle_to_html(bundle))
+    return 0
+
+
 def _cmd_transcript(args) -> int:
     """transcript handler: render a debate record, or a frame run
     bundle's record, as a readable markdown transcript."""
@@ -430,6 +442,8 @@ def build_parser() -> argparse.ArgumentParser:
     p13.set_defaults(fn=_cmd_providers_smoke)
     p14 = sub.add_parser("transcript"); p14.add_argument("file")
     p14.set_defaults(fn=_cmd_transcript)
+    p15 = sub.add_parser("report-html"); p15.add_argument("file")
+    p15.set_defaults(fn=_cmd_report_html)
     return parser
 
 
