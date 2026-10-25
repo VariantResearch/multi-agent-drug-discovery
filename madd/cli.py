@@ -349,6 +349,24 @@ def _cmd_run_frame(args) -> int:
     return 0
 
 
+def _cmd_compare_runs(args) -> int:
+    """compare-runs handler: diff two Gate 0 run bundles (bundle.json
+    paths or run folders) and print what changed."""
+    from .compare import (compare_bundles, comparison_to_text,
+                          load_bundle_anywhere)
+    try:
+        a = load_bundle_anywhere(args.bundle_a)
+        b = load_bundle_anywhere(args.bundle_b)
+    except Exception as exc:
+        print("could not load a bundle:", exc)
+        return 2
+    if a.get("kind") != "gate0_run" or b.get("kind") != "gate0_run":
+        print("compare-runs works on Gate 0 run bundles")
+        return 2
+    print(comparison_to_text(compare_bundles(a, b)))
+    return 0
+
+
 def _cmd_report_html(args) -> int:
     """report-html handler: print the styled HTML report for a bundle
     file (run bundles are also written with report.html at run time)."""
@@ -444,6 +462,8 @@ def build_parser() -> argparse.ArgumentParser:
     p14.set_defaults(fn=_cmd_transcript)
     p15 = sub.add_parser("report-html"); p15.add_argument("file")
     p15.set_defaults(fn=_cmd_report_html)
+    p16 = sub.add_parser("compare-runs"); p16.add_argument("bundle_a")
+    p16.add_argument("bundle_b"); p16.set_defaults(fn=_cmd_compare_runs)
     return parser
 
 
