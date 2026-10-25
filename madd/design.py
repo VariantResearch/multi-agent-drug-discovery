@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 
 import json as _json
 
 from . import citation_auditor
 from . import claims as claims_mod
+from . import design_admet
 from . import design_rdkit
 from . import design_sources
 from . import schemas
@@ -389,7 +391,8 @@ def run_design(spec: dict, source: str, designer=None,
                extra_candidates: tuple = (),
                target: str = None, disease: str = None,
                use: str = "research", rdkit: bool = True,
-               source_check: bool = False) -> dict:
+               source_check: bool = False, admet: bool = True,
+               retro_config=None, retro_work_dir=None) -> dict:
     """Run the design stage for a locked spec and freeze the bundle.
 
     The gate passes only when the brief came from a locked spec (which
@@ -418,6 +421,31 @@ def run_design(spec: dict, source: str, designer=None,
         source_record = design_sources.check_candidates(candidates)
         source_record["requested"] = True
         all_tool_runs.append(source_record)
+    if admet:
+        # Trained-model ADMET predictions (ADMET-AI) for every SMILES
+        # candidate, recorded as unverified predictions from a named
+        # tool - more than a designer's guess, less than a measurement.
+        all_tool_runs.append(design_admet.enrich_candidates(candidates, use=use))
+    if retro_config:
+        # Operator-requested retrosynthesis: one AiZynthFinder route
+        # search per SMILES candidate, recorded on the candidate as
+        # information (route found or not), never as an exclusion.
+        from .design_tools import run_retrosynthesis
+        work_base = Path(retro_work_dir or "retro-work")
+        for cand in candidates:
+            structure = cand.get("structure") or {}
+            if structure.get("format") != "smiles" or not structure.get("value"):
+                continue
+            manifest = run_retrosynthesis(
+                structure["value"], retro_config,
+                work_base / str(cand.get("candidate_id")), use=use)
+            manifest["requested"] = True
+            manifest["candidate_id"] = cand.get("candidate_id")
+            all_tool_runs.append(manifest)
+            cand["retrosynthesis"] = {
+                "status": manifest["status"],
+                "solved": manifest.get("solved"),
+                "reason": manifest.get("reason")}
     candidate_ids = [c.get("candidate_id") for c in candidates]
     if len(set(candidate_ids)) != len(candidate_ids):
         raise ValueError("duplicate candidate_id in one design run: "

@@ -1,77 +1,117 @@
 {
-  "_note": "Entries as stated in the project brief from prior verified research. Listing does not grant rights in any tool. Status verify_terms or non-commercial entries are blocked as recorded here.",
-  "tools": [
-    {
-      "aliases": [
-        "boltz-2",
-        "boltz2",
-        "boltz"
-      ],
-      "commercial_allowed": true,
-      "license": "MIT",
-      "name": "Boltz-2",
-      "status": "allowed"
-    },
-    {
-      "aliases": [
-        "chai-1",
-        "chai1"
-      ],
-      "commercial_allowed": true,
-      "license": "Apache-2.0",
-      "name": "Chai-1",
-      "status": "allowed"
-    },
-    {
-      "aliases": [
-        "alphafold 3",
-        "alphafold3",
-        "af3"
-      ],
-      "commercial_allowed": false,
-      "license": "non-commercial",
-      "name": "AlphaFold 3",
-      "status": "non_commercial"
-    },
-    {
-      "aliases": [
-        "esm3 open",
-        "esm3-open",
-        "esm3"
-      ],
-      "commercial_allowed": false,
-      "license": "non-commercial",
-      "name": "ESM3-open",
-      "status": "non_commercial"
-    },
-    {
-      "aliases": [
-        "rdkit"
-      ],
-      "commercial_allowed": true,
-      "license": "BSD",
-      "name": "RDKit",
-      "status": "allowed"
-    },
-    {
-      "aliases": [
-        "proteinmpnn",
-        "protein mpnn"
-      ],
-      "commercial_allowed": false,
-      "license": "verify_terms",
-      "name": "ProteinMPNN",
-      "status": "verify_terms"
-    },
-    {
-      "aliases": [
-        "rfdiffusion",
-        "rf diffusion"
-      ],
-      "commercial_allowed": false,
-      "license": "verify_terms",
-      "name": "RFdiffusion",
-      "status": "verify_terms"
-    }
-  ]
+ "_note": "Entries as stated in the project brief from prior verified research. Listing does not grant rights in any tool. Status verify_terms or non-commercial entries are blocked as recorded here.",
+ "tools": [
+  {
+   "aliases": [
+    "admet-ai",
+    "admet_ai"
+   ],
+   "commercial_allowed": true,
+   "license": "MIT",
+   "name": "ADMET-AI",
+   "status": "allowed"
+  },
+  {
+   "aliases": [
+    "aizynthfinder",
+    "aizynth"
+   ],
+   "commercial_allowed": true,
+   "license": "MIT",
+   "name": "AiZynthFinder",
+   "status": "allowed"
+  },
+  {
+   "aliases": [
+    "alphafold 3",
+    "alphafold3",
+    "af3"
+   ],
+   "commercial_allowed": false,
+   "license": "non-commercial",
+   "name": "AlphaFold 3",
+   "status": "non_commercial"
+  },
+  {
+   "aliases": [
+    "vina",
+    "autodock-vina",
+    "autodock vina"
+   ],
+   "commercial_allowed": true,
+   "license": "Apache-2.0",
+   "name": "AutoDock Vina",
+   "status": "allowed"
+  },
+  {
+   "aliases": [
+    "boltz-2",
+    "boltz2",
+    "boltz"
+   ],
+   "commercial_allowed": true,
+   "license": "MIT",
+   "name": "Boltz-2",
+   "status": "allowed"
+  },
+  {
+   "aliases": [
+    "chai-1",
+    "chai1"
+   ],
+   "commercial_allowed": true,
+   "license": "Apache-2.0",
+   "name": "Chai-1",
+   "status": "allowed"
+  },
+  {
+   "aliases": [
+    "esm3 open",
+    "esm3-open",
+    "esm3"
+   ],
+   "commercial_allowed": false,
+   "license": "non-commercial",
+   "name": "ESM3-open",
+   "status": "non_commercial"
+  },
+  {
+   "aliases": [
+    "posebusters"
+   ],
+   "commercial_allowed": true,
+   "license": "MIT",
+   "name": "PoseBusters",
+   "status": "allowed"
+  },
+  {
+   "aliases": [
+    "proteinmpnn",
+    "protein mpnn"
+   ],
+   "commercial_allowed": false,
+   "license": "verify_terms",
+   "name": "ProteinMPNN",
+   "status": "verify_terms"
+  },
+  {
+   "aliases": [
+    "rdkit"
+   ],
+   "commercial_allowed": true,
+   "license": "BSD",
+   "name": "RDKit",
+   "status": "allowed"
+  },
+  {
+   "aliases": [
+    "rfdiffusion",
+    "rf diffusion"
+   ],
+   "commercial_allowed": false,
+   "license": "verify_terms",
+   "name": "RFdiffusion",
+   "status": "verify_terms"
+  }
+ ]
 }

@@ -4,6 +4,23 @@
 
 ### Added
 
+- Design power batch. ADMET-AI enrichment (madd/design_admet.py):
+  every SMILES candidate in a design run gains a panel of predicted
+  ADMET endpoints from the trained TDC models, recorded as
+  computed:ADMET-AI with verified: false - a tool's predictions, not
+  measurements, and counted as unverified by the audit. Verified live:
+  aspirin receives 16 endpoints on CPU. AutoDock Vina joins the
+  license-gated tool runner (input is a Vina config file; the docked
+  PDBQT becomes a candidate), verified live by redocking the 1HVR
+  ligand through the runner (best mode -14.5 kcal/mol). PoseBusters
+  pose validation (madd/design_pose.py) reports each geometric check
+  by name; verified live on RDKit conformers, clean and deliberately
+  broken. AiZynthFinder retrosynthesis gets a dedicated runner
+  (design_tools.run_retrosynthesis, design-run --retro-config) with an
+  honest no_config status when its model files were never downloaded.
+  License registry gains all four tools with licenses verified
+  against their own repositories (ADMET-AI MIT, Vina Apache-2.0,
+  PoseBusters MIT, AiZynthFinder MIT).
 - Auditor v2: three evidence-call upgrades, each behind its own
   run-config flag and each striking only on positive evidence.
   Retraction strikes: a DOI whose Crossref record carries a
