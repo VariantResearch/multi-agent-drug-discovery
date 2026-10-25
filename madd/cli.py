@@ -41,6 +41,7 @@ from .providers_http import ProviderError
 from .resolve import resolve_document, resolve_identifier
 from .runner import estimate_gate0_run, run_frame, run_gate0
 from .schemas import SCHEMA_NAMES, validate_artifact
+from .smoke import smoke_panel
 from .storage import write_bundle
 
 
@@ -243,6 +244,38 @@ def _cmd_providers_check(args) -> int:
     return 0
 
 
+def _cmd_providers_smoke(args) -> int:
+    """providers-smoke handler: one billable call per configured
+    provider (panel, judge, baseline), reported per provider. Exit 0
+    only when every provider answers."""
+    try:
+        built = _built_from_config(args)
+    except ConfigError as exc:
+        print("config problem:", exc)
+        return 2
+    targets = list(built["providers"])
+    for role in ("judge", "baseline"):
+        if built[role] is not None:
+            targets.append(built[role])
+    print("This makes ONE billable API call per provider below ("
+          + str(len(targets)) + " calls total).")
+    results = smoke_panel(targets)
+    all_ok = True
+    for result in results:
+        all_ok = all_ok and result["ok"]
+        line = (" - " + str(result["provider"]) + " | "
+                + ("OK" if result["ok"] else "FAILED")
+                + " | " + str(result["latency_ms"]) + " ms"
+                + " | model returned: " + str(result["model_returned"])
+                + " | usage: " + str(result["usage"]))
+        if result["retries"]:
+            line += " | retries: " + str(result["retries"])
+        if result["error"]:
+            line += " | error: " + result["error"]
+        print(line)
+    return 0 if all_ok else 1
+
+
 def _cmd_run_gate0(args) -> int:
     """run-gate0 handler: execute a full Gate 0 run from a config.
     Exit 0 on a pass, 1 on a fail, 2 when the run itself stopped.
@@ -379,6 +412,8 @@ def build_parser() -> argparse.ArgumentParser:
     p11.set_defaults(fn=_cmd_run_frame)
     p12 = sub.add_parser("providers-check"); p12.add_argument("--config", required=True)
     p12.set_defaults(fn=_cmd_providers_check)
+    p13 = sub.add_parser("providers-smoke"); p13.add_argument("--config", required=True)
+    p13.set_defaults(fn=_cmd_providers_smoke)
     return parser
 
 
