@@ -131,13 +131,20 @@ two missed negatives (PF-05089771, verubecestat) were advanced by
 every agent on tier 1 genetics evidence, the same call the field
 made pre-outcome.
 
-One calibration finding is the owner's to decide before the first
-scored run: the live quote check searches the open full text body
-only, while Gate 0 pack quotes are drawn from abstracts, and that
-difference struck the lead REC-994 claim in four dossiers. Either
-extend the check to the abstract as well, or keep the strictness
-knowingly. The validation results stand as executed under the rule
-as written.
+One calibration finding from the run was repaired the same day, at
+the owner's direction: the live quote check searched the open full
+text only, while Gate 0 pack quotes are drawn from abstracts, and
+the deposited full text XML does not always carry the published
+abstract verbatim (for the struck REC-994 source, PMC9311989, the
+XML abstract section is worded differently from the record
+abstract). The check now searches the record's abstract as well as
+the full text: a quote found in either is quote_found, and a strike
+still requires the full text to have been retrieved with the quote
+absent from both, so the abstract can clear a quote but never
+strike one. Live-verified on the struck quote, which now resolves
+quote_found, with a fabricated control quote still returning
+quote_not_found. The validation results above stand as executed
+under the rule as it then was; the fix applies to future runs.
 
 This run does not satisfy the run protocol below and changes
 nothing in it: the roster and budget above remain open, and the

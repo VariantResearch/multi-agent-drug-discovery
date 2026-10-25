@@ -303,15 +303,23 @@ def _plain_text(xml: str) -> str:
 
 
 def check_quote_against_source(identifier, identifier_type, quote, fetcher=None) -> dict:
-    """Check a claim's supporting quote against the source's full text.
+    """Check a claim's supporting quote against the source's text.
 
-    Returns {status, pmcid, detail} with status one of: quote_found
-    (the quote appears in the open full text), quote_not_found (full
-    text was retrieved and the quote is not in it), full_text_unavailable
-    (the source has no open full text at Europe PMC, so nothing is
-    proven either way), source_not_found, lookup_error, not_applicable
-    (identifier types with no full-text source here, and empty quotes).
-    Only quote_not_found is evidence against a claim.
+    The search covers the record's abstract as well as the open full
+    text: the deposited full text XML does not always carry the
+    published abstract verbatim (its own abstract section can be
+    truncated or worded differently), so a quote drawn from the
+    abstract can be genuine and still absent from the XML. Returns
+    {status, pmcid, detail} with status one of: quote_found (the
+    quote appears in the abstract or the open full text),
+    quote_not_found (the full text was retrieved and the quote is in
+    neither it nor the abstract), full_text_unavailable (the source
+    has no open full text at Europe PMC and the quote is not in the
+    abstract either, so nothing is proven either way),
+    source_not_found, lookup_error, not_applicable (identifier types
+    with no full-text source here, and empty quotes). Only
+    quote_not_found is evidence against a claim: an abstract alone
+    can clear a quote, never strike one.
     """
     base = {"pmcid": None, "detail": ""}
     if not isinstance(quote, str) or not quote.strip():
@@ -325,6 +333,12 @@ def check_quote_against_source(identifier, identifier_type, quote, fetcher=None)
         ids = record.get("fullTextIdList", {}).get("fullTextId") or []
         pmcid = ids[0] if ids else None
     base["pmcid"] = pmcid
+    abstract = record.get("abstractText")
+    if isinstance(abstract, str) and abstract.strip() \
+            and _plain_text(quote) in _plain_text(abstract):
+        return dict(base, status="quote_found",
+                    detail="quote located in the abstract of the Europe PMC "
+                           "record" + (" for " + str(pmcid) if pmcid else ""))
     if not pmcid:
         return dict(base, status="full_text_unavailable",
                     detail="record has no PMCID, so no open full text is expected")
@@ -337,4 +351,4 @@ def check_quote_against_source(identifier, identifier_type, quote, fetcher=None)
                     detail="quote located in the open full text of " + str(pmcid))
     return dict(base, status="quote_not_found",
                 detail="full text of " + str(pmcid) + " was retrieved and the "
-                       "quote does not appear in it")
+                       "quote appears in neither it nor the record abstract")

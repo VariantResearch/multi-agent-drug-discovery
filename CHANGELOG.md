@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Live quote check searched only the deposited full text XML, whose
+  abstract section does not always match the published abstract, so
+  genuine abstract quotes struck as quote_not_in_full_text (the
+  validation run's REC-994 lead claim, in four dossiers). The check
+  now searches the Europe PMC record's abstract as well as the full
+  text: a quote found in either is quote_found, and a strike still
+  requires the full text retrieved with the quote absent from both.
+  Live-verified: the struck quote resolves quote_found and a
+  fabricated control quote still strikes.
+
 ### Added
 
 - Agent-panel validation run recorded (docs/VALIDATION_RUN_2026-10-25.md,

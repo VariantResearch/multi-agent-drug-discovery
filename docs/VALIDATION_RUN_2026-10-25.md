@@ -126,13 +126,23 @@ failure.
 
 ## Calibration finding for production
 
-The quote check searches the open full text body only, while Gate 0
+The quote check searched the open full text only, while Gate 0
 pack quotes are drawn from abstracts. For REC-994 that difference
-struck the lead claim in four dossiers. The strike followed the
-approved rule as written, and this run's results stand as executed.
-Before the first scored run, the owner decides one of: extend the
-quote check to search the abstract as well as the body, or keep
-the strictness knowingly. Nothing was changed for this run.
+struck the lead claim in four dossiers: the deposited full text XML
+of PMC9311989 carries an abstract section, but worded differently
+from the published abstract in the Europe PMC record, where the
+quoted sentence does appear. The strike followed the approved rule
+as written, and this run's results stand as executed.
+
+Resolution, 2026-10-25, at the owner's direction: the check now
+searches the record's abstract as well as the full text. A quote
+found in either place is quote_found; a strike still requires the
+full text to have been retrieved with the quote absent from both,
+so the abstract can clear a quote but never strike one. Verified
+live after the fix: the struck REC-994 quote resolves quote_found,
+and a fabricated control quote against the same source still
+returns quote_not_found. The fix applies to future runs; nothing
+about this run's record changes.
 
 ## Caveats
 
@@ -163,6 +173,7 @@ The run does not clear the approved Phase 1 bar: the kill rate is
 2 of 4 against a required 3 of 4. Under the spec's own terms, this
 panel configuration would not be cleared for production. Moving to
 production still needs, from the owner: the commercial model
-roster and API keys, the recorded budget figure for PHASE1_SPEC,
-and a decision on the quote-check calibration above. The first
-scored run should then be run with real multi-family providers.
+roster and API keys, and the recorded budget figure for
+PHASE1_SPEC. The quote-check calibration above has since been
+repaired (see the resolution in that section). The first scored
+run should then be run with real multi-family providers.

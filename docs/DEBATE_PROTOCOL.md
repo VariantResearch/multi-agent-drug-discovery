@@ -30,8 +30,10 @@ repository comes from a debate.
    checks, each striking only on positive evidence: identifier resolution
    against the owning registries (an identifier that does not resolve
    strikes; a lookup failure strikes nothing), Crossref retraction flags,
-   full-text quote checks against Europe PMC open text (a quote absent
-   from retrieved text strikes; unavailable text strikes nothing), judged
+   full-text quote checks against the record abstract and Europe PMC
+   open text (a quote absent from both, with the full text retrieved,
+   strikes; unavailable text strikes nothing, and the abstract alone
+   never strikes), judged
    entailment (a claim refuted by its own cited passage strikes), and,
    in retrieval-first runs, confinement to the identifiers in the
    evidence the run supplied.

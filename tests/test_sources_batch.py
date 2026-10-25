@@ -116,6 +116,65 @@ def test_quote_absent_from_retrieved_full_text_is_the_only_strike_grade():
     assert result["status"] == "quote_not_found"
 
 
+def test_quote_found_in_abstract_when_full_text_lacks_it():
+    """Quote found in abstract when full text lacks it."""
+    def abstract_fetch(url):
+        """Fetch double whose record abstract carries the quote while
+        the deposited full text XML does not (the live REC-994 shape:
+        the XML abstract section is worded differently)."""
+        if "fullTextXML" in url:
+            return 200, XML
+        if "europepmc" in url and "search" in url:
+            record = {"id": "111", "source": "MED", "pmid": "111",
+                      "pmcid": "PMC1", "title": "Aspirin study",
+                      "abstractText": "Background. Aspirin reduces platelet "
+                                      "aggregation in humans. More text."}
+            return 200, json.dumps({"resultList": {"result": [record]},
+                                    "hitCount": 1})
+        return 404, "{}"
+    result = resolve.check_quote_against_source(
+        "111", "pmid", "Aspirin reduces platelet aggregation in humans.",
+        fetcher=abstract_fetch)
+    assert result["status"] == "quote_found"
+
+
+def test_quote_found_in_abstract_without_open_full_text():
+    """Quote found in abstract without open full text."""
+    def abstract_only_fetch(url):
+        """Fetch double with an abstract and no PMCID at all."""
+        if "europepmc" in url and "search" in url:
+            record = {"id": "222", "source": "MED", "pmid": "222",
+                      "title": "Paywalled study",
+                      "abstractText": "Aspirin reduces platelet aggregation "
+                                      "in humans."}
+            return 200, json.dumps({"resultList": {"result": [record]},
+                                    "hitCount": 1})
+        return 404, "{}"
+    result = resolve.check_quote_against_source(
+        "222", "pmid", "Aspirin reduces platelet aggregation in humans.",
+        fetcher=abstract_only_fetch)
+    assert result["status"] == "quote_found"
+
+
+def test_quote_absent_from_abstract_and_full_text_still_strikes():
+    """Quote absent from abstract and full text still strikes."""
+    def abstract_fetch(url):
+        """Fetch double whose abstract exists but lacks the quote."""
+        if "fullTextXML" in url:
+            return 200, XML
+        if "europepmc" in url and "search" in url:
+            record = {"id": "111", "source": "MED", "pmid": "111",
+                      "pmcid": "PMC1", "title": "Aspirin study",
+                      "abstractText": "An abstract about something else."}
+            return 200, json.dumps({"resultList": {"result": [record]},
+                                    "hitCount": 1})
+        return 404, "{}"
+    result = resolve.check_quote_against_source(
+        "111", "pmid", "This sentence was never in the paper.",
+        fetcher=abstract_fetch)
+    assert result["status"] == "quote_not_found"
+
+
 def test_quote_check_unavailable_full_text_proves_nothing():
     """Quote check unavailable full text proves nothing."""
     def no_pmcid_fetch(url):
