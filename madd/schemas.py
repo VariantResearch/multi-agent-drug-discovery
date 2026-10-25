@@ -12,7 +12,7 @@ from pathlib import Path
 
 SCHEMA_DIR = Path(__file__).parent / "schemas"
 SCHEMA_NAMES = ["frame", "claim", "dossier", "consensus_spec", "candidate",
-                "gate_report", "run_manifest"]
+                "gate_report", "run_manifest", "design_brief"]
 
 
 def load_schema(name: str) -> dict:
