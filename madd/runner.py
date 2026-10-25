@@ -35,7 +35,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .artifacts import canonical_hash, freeze_artifact
 from .budget import BudgetExceeded, BudgetTracker
 from .claims import is_audited, validate_claim
-from .debate import audit_dossier, run_debate
+from .debate import audit_dossier, frame_identifier_set, run_debate
 from .gate0 import (build_agent_pack, evaluate_thresholds, list_case_ids,
                     score_run)
 
@@ -70,11 +70,14 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
     }
 
 
-def baseline_prediction(dossier: dict, resolver=None, quote_checker=None) -> str:
+def baseline_prediction(dossier: dict, resolver=None, quote_checker=None,
+                        entailment_checker=None, allowed_identifiers=None) -> str:
     """The baseline rule, fixed in advance: advance when the lone
     dossier proposes a focus backed by at least one audited surviving
     claim; kill otherwise."""
-    audited = audit_dossier(dossier, resolver=resolver, quote_checker=quote_checker)
+    audited = audit_dossier(dossier, resolver=resolver, quote_checker=quote_checker,
+                            entailment_checker=entailment_checker,
+                            allowed_identifiers=allowed_identifiers)
     if not audited["proposed_focus_id"]:
         return "kill"
     if any(is_audited(c) for c in audited["surviving_claims"]):
@@ -135,7 +138,8 @@ def _emit(on_event, event: dict):
 
 def run_gate0(providers, judge_provider=None, baseline_provider=None,
               budget=None, gate0_dir=None, resolver=None, run_id=None,
-              on_event=None, max_workers=1, quote_checker=None) -> dict:
+              on_event=None, max_workers=1, quote_checker=None,
+              entailment_checker=None, retrieval_first: bool = False) -> dict:
     """Run the full Gate 0 protocol. Returns the run bundle.
 
     baseline_provider is required: the approved thresholds include a
@@ -172,8 +176,12 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         _settle_retries(tracker, baseline_provider,
                         float(getattr(baseline_provider, "cost_per_call_usd", 0.0) or 0.0))
         baseline_dossiers[case_id] = dossier
+        allowed = None
+        if retrieval_first:
+            allowed = frame_identifier_set({"case_pack": packs[case_id]}) or set()
         baseline_predictions[case_id] = baseline_prediction(
-            dossier, resolver=resolver, quote_checker=quote_checker)
+            dossier, resolver=resolver, quote_checker=quote_checker,
+            entailment_checker=entailment_checker, allowed_identifiers=allowed)
         _emit(on_event, {"event": "baseline_case_done", "case_id": case_id,
                          "prediction": baseline_predictions[case_id]})
 
@@ -185,7 +193,9 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         frame = frame_for_case(case_id, packs[case_id])
         record = run_debate(frame, providers, judge_provider=judge_provider,
                             budget_tracker=tracker, resolver=resolver,
-                            quote_checker=quote_checker)
+                            quote_checker=quote_checker,
+                            entailment_checker=entailment_checker,
+                            retrieval_first=retrieval_first)
         prediction = "advance" if record["outcome"] == "locked" else "kill"
         _emit(on_event, {"event": "debate_case_done", "case_id": case_id,
                          "prediction": prediction,
@@ -306,7 +316,8 @@ def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
 
 
 def run_frame(frame, providers, judge_provider=None, budget=None,
-              resolver=None, run_id=None, on_event=None, quote_checker=None) -> dict:
+              resolver=None, run_id=None, on_event=None, quote_checker=None,
+              entailment_checker=None, retrieval_first: bool = False) -> dict:
     """Run the debate once on a prospective frame (not a Gate 0 case).
 
     Returns a frame run bundle whose record is the debate record: a
@@ -316,7 +327,9 @@ def run_frame(frame, providers, judge_provider=None, budget=None,
                      "case_id": frame.get("frame_id")})
     record = run_debate(frame, providers, judge_provider=judge_provider,
                         budget=budget, resolver=resolver,
-                        quote_checker=quote_checker)
+                        quote_checker=quote_checker,
+                        entailment_checker=entailment_checker,
+                        retrieval_first=retrieval_first)
     _emit(on_event, {"event": "debate_case_done",
                      "case_id": frame.get("frame_id"),
                      "outcome": record["outcome"],

@@ -48,7 +48,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (209 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
+Expected results: the test suite passes (220 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -145,6 +145,9 @@ Top-level fields:
 - budget (optional): {"max_cost_usd": number, "max_calls": integer}. At least one cap is required when a budget is given; uncapped budgets are rejected. The cap is shared across the whole run, baseline included, and the run stops when it is reached.
 - live_resolution (optional, default false): when true, the evidence call also strikes claims whose identifiers the live registries report as not found. A registry that cannot be reached never strikes anything.
 - live_quote_check (optional, default false): when true, the evidence call additionally strikes a quote_checked claim whose supporting quote is absent from the source's open full text at Europe PMC (reason quote_not_in_full_text). Full text that is not openly available never strikes anything.
+- entailment_check (optional, default false): when true, the evidence call asks the config's judge provider whether each surviving quote_checked claim is supported by the passage it cites, and strikes claims the judge finds refuted by their own quote (reason claim_refuted_by_its_quote). Partial support is recorded nowhere as a strike: it is a warning grade, not a contradiction. A judge that cannot answer strikes nothing.
+- retrieval_first (optional, default false): when true, load-bearing claims may cite only identifiers present in the evidence the run supplied - the Gate 0 case pack, or a prospective frame's evidence entries (run-frame --retrieve builds that set live from Europe PMC). Anything else is struck as citation_not_in_evidence, however real the outside source is: the run's evidence, not the model's memory, is what may be cited.
+- Retractions: when live_resolution is on, a DOI whose Crossref record carries a retraction or withdrawal notice is struck as citation_retracted_live. The record still resolves; it is flagged, and flagged sources cannot carry claims.
 - parallel_cases (optional, default 1): how many case debates may run at once. The bundle is assembled in case order either way; only wall time changes. run-gate0 --jobs overrides it.
 
 Each provider entry:
@@ -247,8 +250,10 @@ madd/            the package (standard library only)
   claims.py          the claim ledger audit
   citation_auditor.py  offline identifier format and consistency checks
   resolve.py         live citation resolution (PubMed, Crossref, ClinicalTrials.gov,
-                     Europe PMC, GWAS Catalog, ChEMBL, PubChem, UniProt) and
-                     full-text quote checking via Europe PMC
+                     Europe PMC, GWAS Catalog, ChEMBL, PubChem, UniProt),
+                     retraction flags, and full-text quote checking
+  entailment.py      judged claim-versus-quote entailment verdicts
+  retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score
   gate0.py           the Gate 0 dataset tools, scorer, and threshold evaluator

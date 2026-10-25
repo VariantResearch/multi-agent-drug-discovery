@@ -4,6 +4,19 @@
 
 ### Added
 
+- Auditor v2: three evidence-call upgrades, each behind its own
+  run-config flag and each striking only on positive evidence.
+  Retraction strikes: a DOI whose Crossref record carries a
+  retraction or withdrawal is flagged at resolution and struck as
+  citation_retracted_live under live_resolution. Entailment checking
+  (entailment_check, madd/entailment.py): the config's judge provider
+  compares each surviving quote_checked claim with the passage it
+  cites; only a refuted verdict strikes (claim_refuted_by_its_quote),
+  and an unanswerable judge strikes nothing. Retrieval-first rule
+  (retrieval_first): load-bearing claims may cite only identifiers in
+  the evidence the run supplied (citation_not_in_evidence otherwise);
+  madd/retrieval.py builds a prospective frame's evidence set live
+  from Europe PMC, wired as run-frame --retrieve.
 - Sources batch: live resolution grows from three registries to eight.
   New identifier types, each format-checked offline and resolved
   against its owning registry: pmcid and preprint (PPR) via Europe PMC,

@@ -12,6 +12,14 @@ A run is described by a JSON config (see examples/run-config.example.json):
   PMC and strikes a claim whose quote is absent from text that was
   actually retrieved (quote_not_in_full_text). Unavailable full text
   never strikes.
+- entailment_check: when true, the evidence call asks the config's
+  judge provider whether each surviving quote_checked claim is
+  supported by the passage it cites, and strikes claims the judge
+  finds refuted by their own quote. Requires a judge provider.
+- retrieval_first: when true, load-bearing claims may cite only
+  identifiers present in the evidence the run supplied (the case pack
+  or the frame's evidence entries); anything else is struck as
+  citation_not_in_evidence.
 - parallel_cases: how many case debates may run at once (default 1).
 
 A provider entry is {name, kind, model, family, base_url,
@@ -151,7 +159,7 @@ def build_providers(config, environ=None) -> dict:
     """Construct provider objects from a validated config.
 
     Returns {providers, judge, baseline, budget, live_resolution,
-    live_quote_check}.
+    live_quote_check, entailment_check, retrieval_first}.
     Raises ConfigError on any problem, including a missing key
     variable (named, never valued).
     """
@@ -167,5 +175,7 @@ def build_providers(config, environ=None) -> dict:
         "budget": config.get("budget"),
         "live_resolution": bool(config.get("live_resolution", False)),
         "live_quote_check": bool(config.get("live_quote_check", False)),
+        "entailment_check": bool(config.get("entailment_check", False)),
+        "retrieval_first": bool(config.get("retrieval_first", False)),
         "max_workers": int(config.get("parallel_cases", 1)),
     }

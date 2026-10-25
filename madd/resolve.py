@@ -211,8 +211,19 @@ def resolve_identifier(identifier, identifier_type, fetcher=None) -> dict:
     if not found:
         return dict(base, status="not_found",
                     detail="registry response contains no record for this identifier")
-    return dict(base, status="resolved", title=title, related=related,
-                detail="record exists in the registry; title as recorded there")
+    result = dict(base, status="resolved", title=title, related=related,
+                  detail="record exists in the registry; title as recorded there")
+    if itype == "doi":
+        # Crossref records retractions on the retracted work itself, as
+        # an update-to entry pointing at the retraction notice. A
+        # retracted source still resolves - it exists - but no claim
+        # should rest on it, so the flag travels with the result.
+        updates = payload.get("message", {}).get("update-to") or []
+        if any(str(u.get("type", "")).lower() in ("retraction", "withdrawal")
+               for u in updates if isinstance(u, dict)):
+            result["retracted"] = True
+            result["detail"] += "; Crossref records a retraction or withdrawal for this work"
+    return result
 
 
 def resolve_document(document, fetcher=None) -> dict:

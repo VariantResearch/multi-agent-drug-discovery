@@ -51,8 +51,10 @@ from .design_tools import candidates_from_tool_run, run_structure_tool
 from .license_registry import check_tool
 from .providers import MockProvider
 from .providers_http import ProviderError
+from .entailment import check_entailment
 from .resolve import (check_quote_against_source, resolve_document,
                       resolve_identifier)
+from .retrieval import retrieve_evidence
 from .runner import estimate_gate0_run, run_frame, run_gate0
 from .schemas import SCHEMA_NAMES, validate_artifact
 from .smoke import smoke_panel
@@ -324,8 +326,13 @@ def _resolver_from_config(built):
 
     def resolver(identifier, identifier_type):
         """Resolve one identifier live and return just its status string,
-        the shape debate.audit_dossier expects from a resolver."""
-        return resolve_identifier(identifier, identifier_type)["status"]
+        the shape debate.audit_dossier expects from a resolver. A
+        resolved-but-retracted record reports as retracted so the
+        evidence call strikes it."""
+        result = resolve_identifier(identifier, identifier_type)
+        if result["status"] == "resolved" and result.get("retracted"):
+            return "retracted"
+        return result["status"]
 
     return resolver
 
@@ -344,6 +351,26 @@ def _quote_checker_from_config(built):
             claim.get("supporting_quote"))["status"]
 
     return quote_checker
+
+
+def _entailment_checker_from_config(built):
+    """Return the evidence-call entailment checker when the config
+    enables entailment checking, else None. The checker judges with
+    the config's judge provider; enabling the check without one is a
+    configuration error, raised as ValueError."""
+    if not built.get("entailment_check"):
+        return None
+    judge = built.get("judge")
+    if judge is None:
+        raise ValueError("entailment_check is on but the config names no "
+                         "judge provider to judge entailment with")
+
+    def entailment_checker(claim):
+        """Judge one claim against its cited passage and return the
+        verdict string debate.audit_dossier expects."""
+        return check_entailment(claim, judge)
+
+    return entailment_checker
 
 
 def _built_from_config(args):
@@ -442,6 +469,8 @@ def _cmd_run_gate0(args) -> int:
                            budget=built["budget"], gate0_dir=args.gate0_dir,
                            resolver=_resolver_from_config(built),
                            quote_checker=_quote_checker_from_config(built),
+                           entailment_checker=_entailment_checker_from_config(built),
+                           retrieval_first=bool(built.get("retrieval_first")),
                            max_workers=args.jobs or built["max_workers"],
                            on_event=_print_run_event)
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
@@ -469,11 +498,19 @@ def _cmd_run_frame(args) -> int:
     frame = _load(args.frame)
     try:
         built = _built_from_config(args)
+        retrieval_first = bool(built.get("retrieval_first"))
+        if getattr(args, "retrieve", False):
+            entries = retrieve_evidence(frame)
+            frame["evidence"] = entries
+            retrieval_first = True
+            print("retrieved evidence:", len(entries), "sources from Europe PMC")
         bundle = run_frame(frame, built["providers"],
                            judge_provider=built["judge"],
                            budget=built["budget"],
                            resolver=_resolver_from_config(built),
-                           quote_checker=_quote_checker_from_config(built))
+                           quote_checker=_quote_checker_from_config(built),
+                           entailment_checker=_entailment_checker_from_config(built),
+                           retrieval_first=retrieval_first)
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
         print("run stopped:", exc)
         return 2
@@ -618,6 +655,7 @@ def build_parser() -> argparse.ArgumentParser:
     p10.add_argument("--jobs", type=int, default=None)
     p10.set_defaults(fn=_cmd_run_gate0)
     p11 = sub.add_parser("run-frame"); p11.add_argument("frame")
+    p11.add_argument("--retrieve", action="store_true")
     p11.add_argument("--config", required=True)
     p11.add_argument("--out", default=None)
     p11.set_defaults(fn=_cmd_run_frame)

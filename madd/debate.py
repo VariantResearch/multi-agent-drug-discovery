@@ -54,7 +54,8 @@ from .consensus import run_consensus_tests
 from .focus import focus_score
 
 
-def audit_dossier(dossier: dict, resolver=None, quote_checker=None) -> dict:
+def audit_dossier(dossier: dict, resolver=None, quote_checker=None,
+                  entailment_checker=None, allowed_identifiers=None) -> dict:
     """Evidence call for one dossier: split claims into surviving/struck.
 
     A claim is struck when the claim ledger rules fail it (no source,
@@ -66,10 +67,11 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None) -> dict:
     resolver, when given, is a callable(identifier, identifier_type)
     returning a live resolution status (see madd/resolve.py). A claim
     whose identifier the registry reports as not_found is struck with
-    reason citation_not_found_live. Any other status (resolved,
-    lookup_error, format problems already handled above) never strikes
-    on its own: a registry that cannot be reached proves nothing about
-    the claim.
+    reason citation_not_found_live, and one the registry reports as
+    retracted is struck with reason citation_retracted_live. Any other
+    status (resolved, lookup_error, format problems already handled
+    above) never strikes on its own: a registry that cannot be reached
+    proves nothing about the claim.
 
     quote_checker, when given, is a callable(claim) returning a quote
     check status (see madd/resolve.check_quote_against_source). It is
@@ -78,6 +80,20 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None) -> dict:
     quote_not_in_full_text: the source's open full text was retrieved
     and the quote the claim carries is not in it. Unavailable full
     text, like an unreachable registry, proves nothing.
+
+    entailment_checker, when given, is a callable(claim) returning an
+    entailment verdict (see madd/entailment.py). It is consulted only
+    for surviving quote_checked claims, and only the refuted verdict
+    strikes, with reason claim_refuted_by_its_quote: the passage the
+    claim itself cites contradicts it. An unverifiable verdict, like
+    an unreachable registry, proves nothing.
+
+    allowed_identifiers, when given, is the retrieval-first rule: a
+    set of (identifier_type, identifier) pairs drawn from the
+    evidence the agents were actually given. A load-bearing claim
+    citing anything outside that set is struck with reason
+    citation_not_in_evidence, however real the outside source may be:
+    the run's evidence, not the model's memory, is what may be cited.
     """
     claims = dossier.get("claims") if isinstance(dossier, dict) else None
     if not isinstance(claims, list):
@@ -113,10 +129,23 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None) -> dict:
                               claim.get("identifier_type"))
             if status == "not_found":
                 reasons.append("citation_not_found_live")
+            elif status == "retracted":
+                reasons.append("citation_retracted_live")
         if (quote_checker is not None and not reasons
                 and claim.get("verification_status") == "quote_checked"):
             if quote_checker(claim) == "quote_not_found":
                 reasons.append("quote_not_in_full_text")
+        if (entailment_checker is not None and not reasons
+                and claim.get("verification_status") == "quote_checked"):
+            if entailment_checker(claim) == "refuted":
+                reasons.append("claim_refuted_by_its_quote")
+        if (allowed_identifiers is not None and not reasons
+                and claim.get("load_bearing")
+                and claim.get("source_identifier")):
+            key = (str(claim.get("identifier_type") or "").strip().lower(),
+                   str(claim.get("source_identifier")).strip())
+            if key not in allowed_identifiers:
+                reasons.append("citation_not_in_evidence")
         if reasons:
             struck.append({"claim_id": claim.get("claim_id", "<missing claim_id>"),
                            "reasons": sorted(set(reasons))})
@@ -249,9 +278,34 @@ def _evolve_spec(frame: dict, audited_dossiers: list, ranking: list,
     return spec, evolution
 
 
+def frame_identifier_set(frame) -> set | None:
+    """The (identifier_type, identifier) pairs a frame's evidence carries.
+
+    Drawn from the Gate 0 case pack's claims and from any evidence
+    entries on a prospective frame (including retrieved evidence).
+    Returns None when the frame carries no identifiable evidence, so
+    callers can tell "no evidence supplied" from "evidence supplied".
+    """
+    pairs = set()
+    carriers = []
+    if isinstance(frame, dict):
+        pack = frame.get("case_pack")
+        if isinstance(pack, dict):
+            carriers += pack.get("claims") or []
+        carriers += frame.get("evidence") or []
+    for entry in carriers:
+        if isinstance(entry, dict):
+            ident = entry.get("source_identifier") or entry.get("identifier")
+            itype = entry.get("identifier_type") or entry.get("type")
+            if ident and itype:
+                pairs.add((str(itype).strip().lower(), str(ident).strip()))
+    return pairs or None
+
+
 def run_debate(frame: dict, providers: list, judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
-               resolver=None, quote_checker=None) -> dict:
+               resolver=None, quote_checker=None, entailment_checker=None,
+               retrieval_first: bool = False) -> dict:
     """Run the full debate protocol over a frame. Returns the run record.
 
     providers: at least two Provider objects (see madd/providers.py).
@@ -313,7 +367,15 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                          + "); dossier identifiers must be unique within a run, "
                            "or the ranking and the record would silently merge them")
     # Step 2: evidence call.
-    audited = [audit_dossier(d, resolver=resolver, quote_checker=quote_checker)
+    allowed = None
+    if retrieval_first:
+        # Retrieval-first: only the evidence this run actually supplied
+        # (case pack or retrieved set) may be cited. A frame with no
+        # identifiable evidence allows nothing, by design.
+        allowed = frame_identifier_set(frame) or set()
+    audited = [audit_dossier(d, resolver=resolver, quote_checker=quote_checker,
+                             entailment_checker=entailment_checker,
+                             allowed_identifiers=allowed)
                for d in dossiers]
     strike_list = [{"dossier_id": a["dossier_id"], "claim_id": s["claim_id"],
                     "reasons": s["reasons"]}
@@ -347,7 +409,9 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     if judge_provider is not None:
         judge_dossier = research(judge_provider)
         judge_audited = audit_dossier(judge_dossier, resolver=resolver,
-                                      quote_checker=quote_checker)
+                                      quote_checker=quote_checker,
+                                      entailment_checker=entailment_checker,
+                                      allowed_identifiers=allowed)
         swapped_spec = dict(spec)
         swapped_spec["focus_id"] = judge_audited["proposed_focus_id"]
         judge_info = {"provider": getattr(judge_provider, "name", None),
