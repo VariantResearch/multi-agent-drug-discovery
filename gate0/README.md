@@ -76,6 +76,8 @@ pre-declared measures, written and frozen before the first Gate 0 run.
 The measures are the counts produced by madd.gate0.score_run: correct
 calls, failures correctly killed, and positives correctly advanced.
 
-Thresholds to be set and recorded before the first scored run, not yet
-set. No Gate 0 run has been performed with this dataset yet, and no
-score reported anywhere in this repository is a Gate 0 result.
+The threshold values were set and approved on 2026-10-22, before any
+scored run, and are recorded in docs/PHASE1_SPEC.md;
+madd.gate0.evaluate_thresholds applies them. No Gate 0 run has been
+performed with this dataset yet, and no score reported anywhere in
+this repository is a Gate 0 result.

@@ -33,11 +33,15 @@ artifacts are identified by the SHA-256 of their canonical JSON form
 - unverified - recorded, not yet checked. Cannot support a locked
   specification.
 - resolved - the identifier was resolved against its issuing registry and
-  the record found matches the citation metadata. Not implemented in
-  Phase 0; no code in this repository performs live resolution.
+  the record found matches the citation metadata. Live resolution was
+  not implemented in Phase 0; it exists now as madd/resolve.py, which
+  resolves the identifier and reports the registry title. Matching the
+  record against the full citation metadata is not automated.
 - quote_checked - resolved, and a supporting quotation from the source was
   recorded in the supporting_quote field and checked against the claim
-  text. Not implemented as a live check in Phase 0.
+  text. Quote checking against source text is not automated anywhere in
+  this repository; the Gate 0 quotes were checked by hand at dataset
+  construction (see gate0/VERIFICATION_LEDGER.md).
 - struck - failed a check, or sourced from an agent or model opinion, or
   otherwise excluded under docs/EVIDENCE_POLICY.md.
 
@@ -78,7 +82,9 @@ Selection design:
 
 - Cases are selected by criteria written before any case is chosen:
   the case class, the time window, and the inclusion rule are fixed first.
-  The specific criteria values are not yet established.
+  (For Gate 0 v1 the criteria were applied at construction: eight
+  well-documented pivotal programs, four positive and four negative.
+  See gate0/README.md.)
 - Each case must be documented from a primary source, recorded with its
   identifier in the case file before the case is admitted.
 - Cases are split into a selection set and a held-out set by a rule fixed
@@ -97,17 +103,21 @@ Blinding design:
 Pass criteria:
 
 - Pass criteria are numeric thresholds on pre-declared measures, written
-  and frozen before the first Gate 0 run. The threshold values are not
-  yet established and must not be set after seeing results.
+  and frozen before the first Gate 0 run, and never set after seeing
+  results. The values were set and approved on 2026-10-22 and are
+  recorded in docs/PHASE1_SPEC.md; madd.gate0.evaluate_thresholds
+  applies them.
 - Failing Gate 0 stops the program at this phase. It is not a prompt to
   tune until it passes on the same set.
 
 Current status, stated plainly:
 
-- No Gate 0 cases are included in this repository.
+- Eight Gate 0 cases are included in this repository, in gate0/, each
+  with its primary sources recorded in gate0/VERIFICATION_LEDGER.md.
 - No case may be added without a primary source recorded for it.
-- No Gate 0 run has been performed, and no pass criteria values have been
-  set.
+- No Gate 0 run has been performed with live models, and no score
+  reported anywhere in this repository is a Gate 0 result. Mock and
+  stub runs in the test suite are plumbing checks only.
 
 ## Gates after Gate 0 (names only in Phase 0)
 

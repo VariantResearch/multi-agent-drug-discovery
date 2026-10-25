@@ -19,9 +19,9 @@
   2026-10-22 and are applied by evaluate_thresholds, added 2026-10-23).
 - CLI subcommands gate0-validate and gate0-list.
 - tests/test_gate0.py: dataset integrity tests over the real Gate 0 set.
-- docs/PHASE1_SPEC.md: draft specification for the debate engine,
-  including proposed Gate 0 pass thresholds. Draft only, awaiting owner
-  approval; no threshold is in force and no model roster is approved.
+- docs/PHASE1_SPEC.md: specification for the debate engine, including
+  the Gate 0 pass thresholds approved on 2026-10-22 (see the approval
+  entry below); the model roster is not yet approved.
 - Phase 1 thresholds approved by the project owner on 2026-10-22 and
   recorded as in force in docs/PHASE1_SPEC.md: kill at least 3 of 4
   known negatives, advance at least 3 of 4 known positives, beat the

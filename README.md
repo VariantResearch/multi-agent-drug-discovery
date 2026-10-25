@@ -109,7 +109,7 @@ mock debate ends in a no-go for the same reason: the mock claim is
 struck at the evidence call, so nothing audited remains to stand on.
 resolve-citations makes live calls to the public registries; on the
 synthetic dossier it correctly reports the invented identifiers as not
-found. gate0-report takes a JSON file mapping case ids to calls
+found or badly formatted, since none of them exist in any registry. gate0-report takes a JSON file mapping case ids to calls
 ("advance" or "kill") and judges it against the approved thresholds;
 with --baseline it takes a second such file as the single-model
 baseline the run must beat.

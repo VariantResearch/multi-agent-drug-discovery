@@ -11,8 +11,10 @@ approval.
 Recorded 2026-10-23 at the owner's direction.
 Source: github.com/mnemox-ai/tradememory-protocol
 
-The project gives trading agents a memory of their
-losing trades plus a brake that throttles risky repeats.
+The project gives trading agents a persistent memory
+of their past trades, weighted by outcome, plus a
+pre-trade brake that refuses orders its policy cannot
+evaluate.
 The pattern that transfers to MADD: research agents that
 can see the project's own killed hypotheses and failed
 arguments before re-arguing a similar case, with the
