@@ -52,6 +52,15 @@ def _check_entry(entry, where, errors):
     if kind not in KINDS:
         errors.append(where + ": kind must be one of " + ", ".join(sorted(KINDS)))
         return
+    cost = entry.get("cost_per_call_usd")
+    if cost is not None and (isinstance(cost, bool)
+                             or not isinstance(cost, (int, float)) or cost < 0):
+        errors.append(where + ": cost_per_call_usd must be a non-negative number")
+    max_tokens = entry.get("max_tokens")
+    if max_tokens is not None and (isinstance(max_tokens, bool)
+                                   or not isinstance(max_tokens, int)
+                                   or max_tokens < 1):
+        errors.append(where + ": max_tokens must be a positive integer")
     if kind == "mock":
         return
     if not entry.get("model"):

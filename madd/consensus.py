@@ -12,20 +12,36 @@ from .claims import audit_claims, is_audited
 
 def test_agreement(dossiers: list) -> dict:
     """Agreement: at least two dossiers, every one of them naming a
-    focus, and exactly one distinct focus across all of them."""
+    focus, exactly one distinct focus across all of them, and - when
+    any dossier states a direction - exactly one distinct direction.
+
+    The direction rule matters because a locked spec is scored as an
+    advance: two dossiers pointing at the same focus in opposite
+    directions (one advance, one kill) are not agreement, and before
+    this rule the panel could lock a spec whose direction said kill
+    and have it scored as advance.
+    """
     focuses = []
+    directions = []
     for d in dossiers:
         if isinstance(d, dict):
             focuses.append(d.get("proposed_focus_id") or d.get("focus_id"))
+            directions.append(d.get("direction"))
     distinct = sorted({f for f in focuses if f})
     missing = len(dossiers) - len(focuses) + sum(1 for f in focuses if not f)
+    stated = [x for x in directions if x]
+    distinct_directions = sorted(set(stated))
+    direction_ok = len(distinct_directions) <= 1 and len(stated) in (0, len(dossiers))
     # Every dossier must actually propose a focus: agreement among the
     # dossiers that named one, while another named none, is not agreement.
     passed = (len(dossiers) >= 2 and len(focuses) == len(dossiers)
-              and all(focuses) and len(distinct) == 1)
+              and all(focuses) and len(distinct) == 1 and direction_ok)
     detail = "focus identifiers seen: " + ", ".join(str(f) for f in distinct)
     if missing:
         detail += "; dossiers without a focus: " + str(missing)
+    if not direction_ok:
+        detail += ("; directions disagree or are only partly stated: "
+                   + ", ".join(str(x) for x in distinct_directions))
     return {"test": "agreement", "passed": passed, "detail": detail}
 
 

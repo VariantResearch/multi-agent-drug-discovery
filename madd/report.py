@@ -100,8 +100,56 @@ def _frame_markdown(bundle):
     return "\n".join(lines)
 
 
+def _design_markdown(bundle: dict) -> str:
+    """Markdown report for a Phase 2 design bundle."""
+    brief = bundle.get("brief") or {}
+    gate = bundle.get("gate_report") or {}
+    lines = ["# Design run " + str(bundle.get("run_id")),
+             "",
+             "Target: " + str(brief.get("target")) + " | Disease: "
+             + str(brief.get("disease")) + " | Spec: " + str(brief.get("spec_id")),
+             "Designer: " + str(bundle.get("designer")) + " | Gate: "
+             + str(gate.get("result")),
+             "", "## Gate checks"]
+    for check in gate.get("checks", []):
+        lines.append("- " + str(check.get("name")) + ": " + str(check.get("status"))
+                     + " (" + str(check.get("detail")) + ")")
+    ranking = bundle.get("ranking") or {}
+    audits = {a["candidate_id"]: a for a in bundle.get("audits", [])}
+    cand_by_id = {c.get("candidate_id"): c for c in bundle.get("candidates", [])}
+    lines += ["", "## Ranked candidates"]
+    if ranking.get("ranked"):
+        for i, cid in enumerate(ranking["ranked"], start=1):
+            a = audits.get(cid) or {}
+            marker = (" [SYNTHETIC placeholder - not a real candidate]"
+                      if (cand_by_id.get(cid) or {}).get("_synthetic") else "")
+            lines.append(str(i) + ". " + str(cid) + " - audited load-bearing claims: "
+                         + str(a.get("audited_load_bearing")) + ", unverified predictions: "
+                         + str(a.get("unverified_predictions")) + marker)
+    else:
+        lines.append("(none)")
+    lines += ["", "## Excluded candidates"]
+    if ranking.get("excluded"):
+        for ex in ranking["excluded"]:
+            lines.append("- " + str(ex.get("candidate_id")) + ": "
+                         + "; ".join(ex.get("reasons") or []))
+    else:
+        lines.append("(none)")
+    lines += ["", "## Tool runs"]
+    if bundle.get("tool_runs"):
+        for t in bundle["tool_runs"]:
+            lines.append("- " + str(t.get("tool")) + ": " + str(t.get("status"))
+                         + " (" + str(len(t.get("outputs") or [])) + " outputs)")
+    else:
+        lines.append("(none)")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def bundle_to_markdown(bundle: dict) -> str:
     """Dispatch on bundle kind and return the markdown report."""
     if bundle.get("kind") == "gate0_run":
         return _gate0_markdown(bundle)
+    if bundle.get("kind") == "design_run":
+        return _design_markdown(bundle)
     return _frame_markdown(bundle)

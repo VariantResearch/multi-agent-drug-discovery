@@ -29,7 +29,9 @@ it looks.
 ## Pull request checklist
 
 - [ ] Tests added or updated, and the full suite passes:
-      python3 -m unittest discover -s tests -v
+      python3 -m pytest tests/
+      (pytest, not unittest discovery: unittest silently skips the
+      pytest-style test files and reports a smaller, misleading green)
 - [ ] Citation audit run on any fixture or example changed:
       python3 -m madd audit-claims <file>
 - [ ] No load-bearing claim without a primary-source identifier.

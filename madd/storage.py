@@ -7,7 +7,7 @@ Layout under the output directory:
   <out>/<run_id>/gate-report.json   Gate 0 runs only
   <out>/<run_id>/transcripts/<case_id>.md   Gate 0 debate transcripts
   <out>/<run_id>/transcript.md   frame runs only
-  <out>/index.json             one entry per run, oldest first
+  <out>/index.json             one entry per run, sorted by run id
 
 The runs/ directory is gitignored by default: bundles are run output,
 not source. Publishing a scored run's bundle to the repository, as
@@ -75,14 +75,31 @@ def write_bundle(bundle: dict, out_dir) -> Path:
 
 
 def list_runs(out_dir) -> list:
-    """The index entries for an output directory (empty when none)."""
+    """The index entries for an output directory (empty when none).
+
+    A corrupt index reads as empty, matching write_bundle's tolerance:
+    the console's run library must not 500 on a damaged index file.
+    """
     index_path = Path(out_dir) / INDEX_FILE
     if not index_path.exists():
         return []
-    return json.loads(index_path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(index_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    return data if isinstance(data, list) else []
 
 
 def load_bundle(out_dir, run_id) -> dict:
-    """Read back a written bundle by run id."""
-    path = Path(out_dir) / str(run_id) / BUNDLE_FILE
+    """Read back a written bundle by run id.
+
+    The run id becomes a path segment, so separators and dot segments
+    are refused: the console serves bundles by URL segment, and an
+    unsanitized ../ segment would read bundle files outside the runs
+    directory.
+    """
+    run_id = str(run_id)
+    if run_id in ("", ".", "..") or "/" in run_id or "\\" in run_id:
+        raise ValueError("invalid run id: " + run_id)
+    path = Path(out_dir) / run_id / BUNDLE_FILE
     return json.loads(path.read_text(encoding="utf-8"))

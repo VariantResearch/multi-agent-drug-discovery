@@ -17,6 +17,10 @@ Subcommands:
   run-gate0 --config <file> [--out <dir>] [--gate0-dir <dir>]
                [--dry-run] [--jobs <n>]
   compare-runs <bundle-a> <bundle-b>
+  design-brief <source> [--case <case-id>] [--constraint <text>]...
+  design-run <source> [--case <case-id>] [--constraint <text>]...
+               [--out <dir>] [--tool <name>] [--use research|commercial]
+               [--tool-input <file>]
   transcript <file>
   report-html <bundle-file>
   gui [--port 8765] [--host 127.0.0.1] [--runs-dir runs]
@@ -42,6 +46,8 @@ from .debate import run_debate
 from .focus import focus_score
 from .gate0 import (evaluate_thresholds, list_case_ids, load_input_pack,
                    score_run, validate_dataset)
+from .design import build_brief, run_design
+from .design_tools import candidates_from_tool_run, run_structure_tool
 from .license_registry import check_tool
 from .providers import MockProvider
 from .providers_http import ProviderError
@@ -57,6 +63,85 @@ from .transcript import record_to_markdown
 def _load(path: str):
     """Read and parse a JSON file argument."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _load_spec_arg(path, case_id=None):
+    """Load a consensus spec from a spec file or a run bundle.
+
+    Accepts a consensus_spec artifact, a frame run bundle (its record's
+    spec), or a Gate 0 bundle with --case naming the case whose spec to
+    design from. Returns (spec, source label).
+    """
+    data = _load(path)
+    if not isinstance(data, dict):
+        raise ValueError("expected a JSON object in " + str(path)
+                         + " (a spec, a frame bundle, or a Gate 0 bundle)")
+    if data.get("artifact_type") == "consensus_spec":
+        return data, "spec file " + str(path)
+    if data.get("kind") == "frame_run":
+        spec = (data.get("record") or {}).get("spec")
+        if spec:
+            return spec, "frame run " + str(data.get("run_id"))
+    if data.get("kind") == "gate0_run":
+        if not case_id:
+            raise ValueError("a Gate 0 bundle holds one spec per case; pass --case <case_id>")
+        record = (data.get("case_records") or {}).get(case_id)
+        if record and record.get("spec"):
+            return record["spec"], "gate 0 case " + case_id
+        raise ValueError("no record with a spec for case " + str(case_id))
+    raise ValueError("could not find a consensus spec in " + str(path))
+
+
+def _cmd_design_brief(args) -> int:
+    """Print the design brief a locked spec produces."""
+    try:
+        spec, source = _load_spec_arg(args.source, args.case)
+        brief = build_brief(spec, source, tuple(args.constraint or ()),
+                            target=args.target, disease=args.disease)
+    except (OSError, ValueError) as exc:
+        print("design-brief failed: " + str(exc), file=sys.stderr)
+        return 1
+    print(json.dumps(brief, indent=2, sort_keys=True))
+    return 0
+
+
+def _cmd_design_run(args) -> int:
+    """Run the Phase 2 design stage for a locked spec and store the bundle."""
+    try:
+        spec, source = _load_spec_arg(args.source, args.case)
+        constraints = tuple(args.constraint or ())
+        brief = build_brief(spec, source, constraints,
+                            target=args.target, disease=args.disease)
+        tool_runs, extra = [], []
+        if args.tool:
+            work = Path(args.out) / ("toolwork-" + brief["brief_id"])
+            manifest = run_structure_tool(args.tool, args.use, work,
+                                          input_path=args.tool_input)
+            tool_runs.append(manifest)
+            extra = candidates_from_tool_run(manifest, spec.get("spec_id"))
+            print("tool " + args.tool + ": " + manifest["status"]
+                  + (" - " + str(manifest.get("reason")) if manifest.get("reason") else ""))
+        bundle = run_design(spec, source, design_constraints=constraints,
+                            tool_runs=tuple(tool_runs),
+                            extra_candidates=tuple(extra),
+                            target=args.target, disease=args.disease)
+    except (OSError, ValueError) as exc:
+        print("design-run failed: " + str(exc), file=sys.stderr)
+        return 1
+    run_dir = write_bundle(bundle, args.out)
+    ranking = bundle["ranking"]
+    print("design run " + bundle["run_id"] + " written to " + str(run_dir))
+    print("gate: " + bundle["gate_report"]["result"] + " | ranked: "
+          + str(len(ranking["ranked"])) + " | excluded: "
+          + str(len(ranking["excluded"])))
+    for cid in ranking["ranked"]:
+        print("  ranked: " + str(cid))
+    for ex in ranking["excluded"]:
+        print("  excluded: " + str(ex.get("candidate_id")) + " - "
+              + "; ".join(ex.get("reasons") or []))
+    # Like run-gate0, a failed gate is a failed command: the bundle is
+    # written either way, but scripts must be able to see the failure.
+    return 0 if bundle["gate_report"]["result"] == "pass" else 1
 
 
 def _cmd_audit_claims(args) -> int:
@@ -500,6 +585,22 @@ def build_parser() -> argparse.ArgumentParser:
     p17 = sub.add_parser("gate0-new-case"); p17.add_argument("case_id")
     p17.add_argument("--gate0-dir", default=None)
     p17.set_defaults(fn=_cmd_gate0_new_case)
+    p19 = sub.add_parser("design-brief"); p19.add_argument("source")
+    p19.add_argument("--case", default=None)
+    p19.add_argument("--constraint", action="append", default=None)
+    p19.add_argument("--target", default=None)
+    p19.add_argument("--disease", default=None)
+    p19.set_defaults(fn=_cmd_design_brief)
+    p20 = sub.add_parser("design-run"); p20.add_argument("source")
+    p20.add_argument("--case", default=None)
+    p20.add_argument("--constraint", action="append", default=None)
+    p20.add_argument("--target", default=None)
+    p20.add_argument("--disease", default=None)
+    p20.add_argument("--out", default="runs")
+    p20.add_argument("--tool", default=None)
+    p20.add_argument("--use", default="research", choices=["research", "commercial"])
+    p20.add_argument("--tool-input", default=None)
+    p20.set_defaults(fn=_cmd_design_run)
     p18 = sub.add_parser("gui"); p18.add_argument("--port", type=int, default=8765)
     p18.add_argument("--host", default="127.0.0.1")
     p18.add_argument("--runs-dir", default="runs")

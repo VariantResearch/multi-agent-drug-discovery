@@ -15,7 +15,7 @@ VALID_USES = {"research", "commercial"}
 
 
 def load_registry() -> dict:
-    """Load the shipped tool license registry (madd/data/tool_licenses.json)."""
+    """Load the shipped tool license registry (madd/data/license_registry.json)."""
     return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
 
 

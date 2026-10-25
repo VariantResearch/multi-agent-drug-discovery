@@ -139,10 +139,55 @@ def _frame_html(bundle) -> str:
     return "".join(parts)
 
 
+def _design_html(bundle: dict) -> str:
+    """HTML body for a Phase 2 design bundle."""
+    brief = bundle.get("brief") or {}
+    gate = bundle.get("gate_report") or {}
+    audits = {a["candidate_id"]: a for a in bundle.get("audits", [])}
+    ranking = bundle.get("ranking") or {}
+    parts = ["<h1><span class='pink'>MADD</span> // DESIGN "
+             + _esc(bundle.get("run_id")) + "</h1><div class='laser'></div>"
+             "<p>Target <b>" + _esc(brief.get("target")) + "</b> &middot; "
+             + _esc(brief.get("disease")) + " &middot; designer "
+             + _esc(bundle.get("designer")) + " &middot; gate <b class='"
+             + ("pass" if gate.get("result") == "pass" else "fail") + "'>"
+             + _esc(gate.get("result")) + "</b></p>",
+             "<h2>RANKED CANDIDATES</h2><table><tr><th>#</th><th>candidate</th>"
+             "<th>audited claims</th><th>unverified predictions</th></tr>"]
+    cand_by_id = {c.get("candidate_id"): c for c in bundle.get("candidates", [])}
+    for i, cid in enumerate(ranking.get("ranked", []), start=1):
+        a = audits.get(cid) or {}
+        marker = (" <span class='mut'>SYNTHETIC placeholder</span>"
+                  if (cand_by_id.get(cid) or {}).get("_synthetic") else "")
+        parts.append("<tr><td>" + str(i) + "</td><td>" + _esc(cid) + marker + "</td><td>"
+                     + _esc(a.get("audited_load_bearing")) + "</td><td>"
+                     + _esc(a.get("unverified_predictions")) + "</td></tr>")
+    parts.append("</table><h2>EXCLUDED</h2>")
+    if ranking.get("excluded"):
+        for ex in ranking["excluded"]:
+            parts.append("<p class='mut'>" + _esc(ex.get("candidate_id")) + ": "
+                         + _esc("; ".join(ex.get("reasons") or [])) + "</p>")
+    else:
+        parts.append("<p class='mut'>(none)</p>")
+    parts.append("<h2>TOOL RUNS</h2>")
+    if bundle.get("tool_runs"):
+        for t in bundle["tool_runs"]:
+            parts.append("<p class='mut'>" + _esc(t.get("tool")) + ": "
+                         + _esc(t.get("status")) + " ("
+                         + _esc(len(t.get("outputs") or [])) + " outputs)</p>")
+    else:
+        parts.append("<p class='mut'>(none)</p>")
+    return "".join(parts)
+
+
 def bundle_to_html(bundle: dict) -> str:
     """Return a complete, self-contained HTML document for a bundle."""
-    body = _gate0_html(bundle) if bundle.get("kind") == "gate0_run" \
-        else _frame_html(bundle)
+    if bundle.get("kind") == "gate0_run":
+        body = _gate0_html(bundle)
+    elif bundle.get("kind") == "design_run":
+        body = _design_html(bundle)
+    else:
+        body = _frame_html(bundle)
     return ("<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
             "<title>MADD run report " + _esc(bundle.get("run_id"))
             + "</title><style>" + CSS + "</style></head><body>"

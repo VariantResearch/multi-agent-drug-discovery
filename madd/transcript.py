@@ -54,7 +54,7 @@ def record_to_markdown(record: dict) -> str:
         lines.append("| " + str(row.get("dossier_id")) + " | "
                      + str(row.get("focus_score")) + " | "
                      + str(row.get("struck_count")) + " | "
-                     + str(row.get("pairwise_wins")) + " |")
+                     + str(row.get("wins")) + " |")
     lines += ["", "## Cross-examination", ""]
     objections = record.get("cross_examination") or []
     for objection in objections:
@@ -102,7 +102,7 @@ def record_to_markdown(record: dict) -> str:
     lines.append("")
     lines.append("Dissent log:")
     for entry in spec.get("dissent_log") or []:
-        lines.append("- " + str(entry.get("agent_id")) + ": "
+        lines.append("- " + str(entry.get("objector_agent_id")) + ": "
                      + str(entry.get("objection"))
                      + " [" + str(entry.get("status")) + "]")
     if not spec.get("dissent_log"):

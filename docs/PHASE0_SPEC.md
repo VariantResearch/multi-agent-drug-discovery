@@ -19,6 +19,7 @@ Schema compliance.
 | Dossier | dossier.json | One agent's sealed research output: claims plus a proposed focus. |
 | ConsensusSpec | consensus_spec.json | The locked specification, or a no-go, produced after debate. |
 | Candidate | candidate.json | A design produced only against a locked ConsensusSpec. |
+| DesignBrief | design_brief.json | The Phase 2 design brief built from a locked ConsensusSpec (added in Phase 2; listed here so the inventory stays complete). |
 | GateReport | gate_report.json | The outcome of one validation gate for one artifact. |
 | RunManifest | run_manifest.json | Model, version, prompt hash, tool versions, and budget for a run. |
 

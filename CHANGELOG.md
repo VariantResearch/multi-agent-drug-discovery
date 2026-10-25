@@ -4,6 +4,109 @@
 
 ### Added
 
+- Phase 2 candidate design (docs/PHASE2_SPEC.md): design briefs built
+  mechanically from locked consensus specs (unlocked specs refused),
+  carrying the spec's surviving load-bearing claims as evidence
+  constraints; a Designer interface with a deterministic mock designer
+  whose synthetic candidates carry no structures and no invented
+  numbers; candidate audit under the same claim rules as the research
+  layer, with exclusion and reasons for failed claims or constraints;
+  a fixed deterministic ranking rule; design bundles with gate
+  reports, stored and reported like run bundles (text, HTML, console).
+  CLI: design-brief and design-run, with --case for Gate 0 bundles and
+  --target/--disease overrides (specs record a focus id but no disease).
+  External structure tools run through a license-gated runner: the
+  registry verdict is enforced before anything executes, outputs are
+  recorded by path and SHA-256 hash in a manifest, and each output
+  becomes a candidate with that provenance and no invented assessment.
+  The MADD Console starts a design run from a locked frame run and
+  shows design bundles in the run library.
+
+### Fixed
+
+Full-codebase audit of 2026-10-24 (independent review, every finding
+probe-verified against the tree; regression tests in
+tests/test_audit_regressions.py):
+
+- Gate 0 blinding: the input pack's forbidden_terms list - the leakage
+  scanner's wordlist of outcome vocabulary and pivotal-trial
+  identifiers - was copied into every case frame and serialized into
+  provider prompts. frame_for_case now strips it; a regression test
+  asserts no forbidden term appears in a built prompt.
+- Budget race: the check-then-record flow was not atomic, so parallel
+  case debates sharing one tracker overshot max_calls (a probe made
+  12 calls against a cap of 9). BudgetTracker.reserve() now charges
+  atomically before a call is made, in debates and for the baseline.
+- Retried provider calls were invisible to the budget, and the smoke
+  test could make three transport calls while claiming exactly one.
+  Providers now report last_attempts and debates settle retry costs
+  against the tracker (stopping the run if they cross the cap); the
+  smoke test disables retries for its one call.
+- Consensus agreement compared only focus ids, so a panel split
+  advance/kill on the same focus could lock a spec whose direction
+  said kill and have it scored as advance. Direction agreement is
+  required when directions are stated. A frame round_cap below 1 is
+  now refused before any provider call.
+- Duplicate claim_ids inside one dossier defeated the evidence call's
+  citation check (dict keyed by claim_id): every copy of a duplicated
+  id is now struck, matching the document-level rule.
+- Candidate audit parity: the design layer's audit ran only ledger
+  presence checks. It now uses the document claim audit and the
+  citation auditor, counts audited support once per claim_id, and
+  excludes candidates whose load-bearing claims carry any audit error.
+- Design gate honesty: the gate previously passed on synthetic mock
+  candidates alone, even when a requested tool never ran, and
+  design-run exited 0 on a failed gate. The gate now requires a real
+  ranked candidate and completed requested tools; design-run exits
+  non-zero on gate failure. Design bundles are frozen under the
+  canonical hash envelope, and the design gate report validates
+  against the gate_report schema (gate_name and subject_id added).
+- design_tools claimed stale files in a reused output directory as a
+  run's outputs and turned every output file (including logs) into a
+  structure candidate. Outputs are snapshotted before the run; only
+  created or changed files are recorded, and only structure-suffixed
+  files become candidates.
+- Duplicate candidate_ids in one design run are refused (audits and
+  ranking are keyed by id), and MockDesigner candidates no longer
+  share mutable list state.
+- Console: bundle fields were interpolated into innerHTML unescaped
+  and run ids into inline onclick handlers; fields are escaped now
+  and clicks bind through data attributes. storage.load_bundle
+  refuses path separators and dot segments (a ../ URL segment could
+  read bundle files outside the runs directory). list_runs tolerates
+  a corrupt index instead of failing the run library.
+- Reports now mark synthetic candidates as SYNTHETIC placeholders in
+  the text report, the HTML report, and the console, so a ranked list
+  is never mistaken for real candidates.
+- Transport failures (DNS, refused connections) escaped as raw
+  URLError tracebacks; they now surface as ProviderError and stop run
+  commands cleanly. Config validation rejects non-numeric
+  cost_per_call_usd and non-integer max_tokens, which previously
+  crashed providers-check with a bare ValueError.
+- Judge-swap flips counted no_go records whose call could not have
+  changed; flips now count only locked records the swap would have
+  unmade. Threshold details state their real denominators (of 4
+  negative / 4 positive cases), fed by new score_run counts.
+  Transcripts rendered None for pairwise wins and anonymous dissent:
+  they read ranking wins and dissent objector_agent_id, the fields
+  debate records actually carry.
+- tests/test_madd.py imported the consensus test functions under their
+  test_* names, so pytest collected them as tests and errored on
+  their parameters (they are library functions, called from unittest
+  methods). The imports are aliased now.
+- Documentation: the documented test command is pytest everywhere
+  (unittest discovery silently skips the pytest-style files and
+  reported 150 tests while pytest runs the full suite); the README
+  key-documents list named two files that do not exist
+  (GATE0_NOTES.md, DECISIONS.md) and now cites the real ones;
+  gate0/README's synthetic-fixtures line now includes
+  examples/synthetic/; DEBATE_PROTOCOL describes frame coverage as
+  the recorded not_applied it is, the evolution re-audit as the
+  claim-ledger audit it is, and the round cap as the enforced floor
+  it is; PHASE0_SPEC's artifact table lists design_brief;
+  madd/__init__ and license_registry docstrings describe the package
+  and registry file as they are.
+
 - Gate 0 retrospective dataset (gate0/): 8 real historical drug programs
   with known pivotal outcomes, 4 positive and 4 negative, each verified
   on primary sources fetched and read on 2026-10-22. Blinded input packs

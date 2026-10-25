@@ -77,6 +77,10 @@ def audit_dossier(dossier: dict, resolver=None) -> dict:
     citation_entries = {}
     for entry in audit_citations({"claims": claims})["entries"]:
         citation_entries[entry["claim_id"]] = entry
+    id_counts = {}
+    for claim in claims:
+        if isinstance(claim, dict) and claim.get("claim_id") is not None:
+            id_counts[claim["claim_id"]] = id_counts.get(claim["claim_id"], 0) + 1
     surviving = []
     struck = []
     for claim in claims:
@@ -84,6 +88,12 @@ def audit_dossier(dossier: dict, resolver=None) -> dict:
             struck.append({"claim_id": "<not an object>", "reasons": ["claim_not_object"]})
             continue
         reasons = [e["code"] for e in validate_claim(claim)]
+        if id_counts.get(claim.get("claim_id"), 0) > 1:
+            # A duplicated claim_id makes the citation entry ambiguous:
+            # the dict above can only hold one entry per id, so a clean
+            # copy could mask a malformed twin. Every copy is struck,
+            # matching the document-level duplicate rule in claims.py.
+            reasons.append("duplicate_claim_id")
         entry = citation_entries.get(claim.get("claim_id", "<missing claim_id>"))
         if entry is not None:
             if not entry["format"]["ok"]:
@@ -245,6 +255,13 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     """
     if not isinstance(frame, dict) or not frame.get("frame_id"):
         raise ValueError("frame must be a dict with a frame_id")
+    round_cap = frame.get("round_cap")
+    if round_cap is not None and (isinstance(round_cap, bool)
+                                  or not isinstance(round_cap, int)
+                                  or round_cap < 1):
+        raise ValueError("frame round_cap must be a positive integer when "
+                         "present; a cap below 1 would forbid the debate "
+                         "the protocol requires")
     providers = list(providers)
     if len(providers) < 2:
         raise ValueError("the debate protocol needs at least two research providers")
@@ -252,16 +269,27 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         BudgetTracker(budget) if budget is not None else None)
 
     def research(provider):
-        """One provider call, charged to the run budget before it happens."""
+        """One provider call, reserved against the run budget first.
+
+        The reserve is atomic (BudgetTracker.reserve), so parallel case
+        debates sharing one tracker cannot overshoot the cap together.
+        Transport retries the provider made inside the call are settled
+        afterwards from its last_attempts count: they cost real calls,
+        and if settling them crosses the cap the run stops there rather
+        than absorbing them silently.
+        """
         cost = float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0)
-        if tracker is not None and tracker.would_exceed(cost):
-            raise BudgetExceeded("budget cap reached before a provider call; run stopped")
+        if tracker is not None:
+            tracker.reserve(cost, note="research:" + str(getattr(provider, "name", "?")))
         dossier = provider.research(copy.deepcopy(frame))
         if not isinstance(dossier, dict):
             raise ValueError("provider " + str(getattr(provider, "name", "?"))
                              + " returned a non-dict dossier")
         if tracker is not None:
-            tracker.record(cost, note="research:" + str(getattr(provider, "name", "?")))
+            extra = int(getattr(provider, "last_attempts", 1) or 1) - 1
+            if extra > 0:
+                tracker.record(cost * extra, calls=extra,
+                                note="transport retries:" + str(getattr(provider, "name", "?")))
         return dossier
 
     # Step 1: blinded dossiers. Providers receive only the frame.

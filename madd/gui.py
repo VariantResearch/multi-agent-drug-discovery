@@ -32,6 +32,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .config import ConfigError, build_providers, load_config
+from .design import run_design
 from .gate0 import list_case_ids, load_input_pack, validate_dataset
 from .html_report import bundle_to_html
 from .runner import estimate_gate0_run, run_gate0
@@ -199,6 +200,36 @@ def make_handler(manager: RunManager):
                 if not config_path:
                     return _json(self, {"error": "config path required"}, 400)
                 return _json(self, manager.start_gate0(config_path))
+            if path == "/api/design-run":
+                run_id = payload.get("run_id")
+                if not run_id:
+                    return _json(self, {"error": "run_id required"}, 400)
+                try:
+                    src = load_bundle(manager.runs_dir, run_id)
+                    if src.get("kind") == "frame_run":
+                        spec = (src.get("record") or {}).get("spec")
+                        source = "console, frame run " + str(run_id)
+                    elif src.get("kind") == "gate0_run" and payload.get("case"):
+                        spec = ((src.get("case_records") or {})
+                                .get(payload["case"]) or {}).get("spec")
+                        source = "console, gate 0 case " + str(payload["case"])
+                    else:
+                        spec = None
+                        source = ""
+                    if not spec:
+                        return _json(self, {"ok": False, "error":
+                                            "that run has no consensus spec to design from"})
+                    bundle = run_design(spec, source,
+                                        target=payload.get("target") or None,
+                                        disease=payload.get("disease") or None)
+                except ValueError as exc:
+                    return _json(self, {"ok": False, "error": str(exc)})
+                except Exception:
+                    return _json(self, {"error": "no such run"}, 404)
+                write_bundle(bundle, manager.runs_dir)
+                return _json(self, {"ok": True, "run_id": bundle["run_id"],
+                                    "gate": bundle["gate_report"]["result"],
+                                    "ranked": bundle["ranking"]["ranked"]})
             if path in ("/api/providers-check", "/api/dry-run"):
                 try:
                     config = load_config(config_path)
@@ -289,6 +320,10 @@ PAGE = """<!DOCTYPE html>
   <div id="detail"></div></div>
 <script>
 const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (ch) {
+    return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch]; });
+}
 function log(line) { $('console').textContent += "\\n" + line; $('console').scrollTop = 1e6; }
 async function post(path, body) {
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
@@ -337,41 +372,90 @@ async function loadScoreboard() {
   let h = "<div>dataset validation: " + (g.ok ? "<span class='pass'>PASS</span>"
         : "<span class='fail'>FAIL (" + g.error_count + " errors)</span>") +
         "</div><table><tr><th>case</th><th>drug</th><th>target</th><th>disease</th></tr>";
-  for (const c of g.cases) h += "<tr><td>" + c.case_id + "</td><td>" + c.drug_name +
-    "</td><td>" + c.target + "</td><td>" + c.disease + "</td></tr>";
+  for (const c of g.cases) h += "<tr><td>" + esc(c.case_id) + "</td><td>" + esc(c.drug_name) +
+    "</td><td>" + esc(c.target) + "</td><td>" + esc(c.disease) + "</td></tr>";
   $('scoreboard').innerHTML = h + "</table>";
 }
 async function loadLibrary() {
   const out = await (await fetch('/api/runs')).json();
   if (!out.runs.length) { $('library').innerHTML = "<span class='mut'>no runs yet</span>"; return; }
   let h = "<table><tr><th>run</th><th>kind</th><th>outcome</th></tr>";
-  for (const r of out.runs) h += "<tr><td class='runlink' onclick=\\"show('" + r.run_id +
-    "')\\">" + r.run_id + "</td><td>" + r.kind + "</td><td>" + r.outcome + "</td></tr>";
+  for (const r of out.runs) h += "<tr><td class='runlink' data-runid=\\"" + esc(r.run_id) +
+    "\\">" + esc(r.run_id) + "</td><td>" + esc(r.kind) + "</td><td>" + esc(r.outcome) + "</td></tr>";
   $('library').innerHTML = h + "</table>";
+  document.querySelectorAll('.runlink').forEach(function (el) {
+    el.addEventListener('click', function () { show(el.dataset.runid); });
+  });
 }
 async function show(runId) {
-  const b = await (await fetch('/api/runs/' + runId)).json();
-  let h = "<h2>RUN " + runId + "</h2>";
+  const b = await (await fetch('/api/runs/' + encodeURIComponent(runId))).json();
+  let h = "<h2>RUN " + esc(runId) + "</h2>";
   if (b.kind === 'gate0_run') {
-    h += "<div>outcome: <b>" + b.outcome + "</b> | debate correct " +
+    h += "<div>outcome: <b>" + esc(b.outcome) + "</b> | debate correct " +
       b.debate_score.correct_calls + "/" + b.debate_score.case_count +
       " | baseline correct " + b.baseline_score.correct_calls + "</div>";
     h += "<table><tr><th>threshold</th><th>status</th><th>detail</th></tr>";
-    for (const c of b.thresholds.checks) h += "<tr><td>" + c.threshold + "</td><td class='" +
-      (c.status === 'pass' ? 'pass' : 'fail') + "'>" + c.status + "</td><td>" +
-      c.detail + "</td></tr>";
-    h += "</table><p><a href='/api/runs/" + runId + "/report.html' target='_blank'>HTML report</a></p>";
+    for (const c of b.thresholds.checks) h += "<tr><td>" + esc(c.threshold) + "</td><td class='" +
+      (c.status === 'pass' ? 'pass' : 'fail') + "'>" + esc(c.status) + "</td><td>" +
+      esc(c.detail) + "</td></tr>";
+    h += "</table><p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a></p>";
     h += "<div class='mut'>transcripts:</div>";
-    for (const cid of b.case_ids) h += "<div><a href='#' onclick=\\"tx('" + runId + "','" +
-      cid + "');return false;\\">" + cid + "</a></div>";
+    for (const cid of b.case_ids) h += "<div><a href='#' class='txlink' data-runid=\\"" +
+      esc(runId) + "\\" data-caseid=\\"" + esc(cid) + "\\">" + esc(cid) + "</a></div>";
+  } else if (b.kind === 'design_run') {
+    const candById = {};
+    for (const c of b.candidates) candById[c.candidate_id] = c;
+    h += "<div>target <b>" + esc(b.brief.target) + "</b> | spec " + esc(b.brief.spec_id) +
+      " | gate <b>" + esc(b.gate_report.result) + "</b> | designer " + esc(b.designer) + "</div>";
+    h += "<table><tr><th>#</th><th>ranked candidate</th></tr>";
+    b.ranking.ranked.forEach(function (cid, i) {
+      const syn = candById[cid] && candById[cid]._synthetic;
+      h += "<tr><td>" + (i + 1) + "</td><td>" + esc(cid) +
+        (syn ? " <span class='mut'>(synthetic)</span>" : "") + "</td></tr>"; });
+    h += "</table>";
+    if (b.ranking.excluded.length) {
+      h += "<div class='mut'>excluded:</div>";
+      for (const ex of b.ranking.excluded) h += "<div>" + esc(ex.candidate_id) + " - " +
+        esc(ex.reasons.join('; ')) + "</div>";
+    }
+    if (b.tool_runs.length) {
+      h += "<div class='mut'>tool runs:</div>";
+      for (const t of b.tool_runs) h += "<div>" + esc(t.tool) + ": " + esc(t.status) + "</div>";
+    }
+    h += "<p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a></p>";
   } else {
-    h += "<div>frame " + b.frame_id + " | outcome <b>" + b.outcome + "</b></div>";
+    h += "<div>frame " + esc(b.frame_id) + " | outcome <b>" + esc(b.outcome) + "</b></div>";
+    if (b.record && b.record.spec && b.record.spec.outcome === 'locked') {
+      h += "<p><input id='design-target' placeholder='target override (optional)' style='width:260px'> "
+        + "<input id='design-disease' placeholder='disease (specs record none)' style='width:260px'></p>"
+        + "<p><button id='designbtn'>DESIGN CANDIDATES FROM THIS SPEC</button></p>"
+        + "<div id='designmsg' class='mut'></div>";
+    }
   }
   $('detail').innerHTML = h;
+  document.querySelectorAll('.txlink').forEach(function (el) {
+    el.addEventListener('click', function (ev) {
+      ev.preventDefault(); tx(el.dataset.runid, el.dataset.caseid); });
+  });
+  const db = $('designbtn');
+  if (db) db.addEventListener('click', function () { designFrom(runId); });
+}
+async function designFrom(runId) {
+  const body = {run_id: runId};
+  const t = $('design-target'), d = $('design-disease');
+  if (t && t.value) body.target = t.value;
+  if (d && d.value) body.disease = d.value;
+  const out = await (await fetch('/api/design-run', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)})).json();
+  if (!out.ok) { $('designmsg').textContent = 'design refused: ' + (out.error || 'unknown'); return; }
+  $('designmsg').textContent = 'design run ' + out.run_id + ' written, gate ' + out.gate;
+  loadLibrary(); show(out.run_id);
 }
 async function tx(runId, caseId) {
-  const t = await (await fetch('/api/runs/' + runId + '/transcript/' + caseId)).text();
-  $('detail').innerHTML = "<h2>TRANSCRIPT " + caseId + "</h2><pre>" +
+  const t = await (await fetch('/api/runs/' + encodeURIComponent(runId) +
+    '/transcript/' + encodeURIComponent(caseId))).text();
+  $('detail').innerHTML = "<h2>TRANSCRIPT " + esc(caseId) + "</h2><pre>" +
     t.replace(/</g, '&lt;') + "</pre>";
 }
 loadScoreboard(); loadLibrary();

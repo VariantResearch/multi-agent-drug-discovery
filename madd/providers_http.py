@@ -64,6 +64,12 @@ def default_transport(method, url, headers, body, timeout=TIMEOUT_SECONDS):
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
         status = exc.code
+    except urllib.error.URLError as exc:
+        # DNS failures, refused connections, TLS errors, timeouts: the
+        # module's failure policy is that transport problems surface as
+        # ProviderError so run commands stop cleanly, never as a raw
+        # urllib traceback.
+        raise ProviderError("transport failure: " + str(exc.reason or exc)) from exc
     try:
         return status, json.loads(raw) if raw else {}
     except Exception:
@@ -104,6 +110,10 @@ class _HttpProvider:
         self.retry_log = []
         self.last_usage = None
         self.last_response_model = None
+        # Transport attempts the most recent research call actually
+        # made (1 + retries used). The budget layer reads this to
+        # settle retry costs; see debate.run_debate's research().
+        self.last_attempts = 1
 
     def _call(self, system, user):
         """Send one prompt pair through the transport; subclasses build
@@ -132,6 +142,7 @@ class _HttpProvider:
             self._sleeper(delay)
             status, payload = self._call(system, user)
             attempt += 1
+        self.last_attempts = attempt + 1
         if status != 200:
             raise ProviderError("provider " + self.name + ": HTTP " + str(status)
                                 + " from " + self.base_url)

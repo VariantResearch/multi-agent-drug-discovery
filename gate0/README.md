@@ -10,7 +10,8 @@ Every case here is a real historical drug program. Every input claim
 rests on a primary source that was fetched and read during dataset
 construction, recorded in VERIFICATION_LEDGER.md. No case, claim, number,
 or date in this directory is synthetic. Synthetic fixtures exist only in
-tests/ as code plumbing, never as research content.
+tests/ and examples/synthetic/ as code plumbing, always labelled
+synthetic, never as research content.
 
 ## Layout
 

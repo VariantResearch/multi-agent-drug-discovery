@@ -32,12 +32,17 @@ repository comes from a debate.
    or by withdrawing the point. New claims introduced here enter the
    ledger and are audited before they can be used.
 4. Pairwise ranking. Surviving dossiers are ranked pairwise on the
-   pre-declared rubric: tier-weighted audited evidence, coverage of the
-   frame, and number of struck claims (fewer is better). Prose quality is
-   not a rubric item.
+   pre-declared rubric: tier-weighted audited evidence and number of
+   struck claims (fewer is better). Prose quality is not a rubric item.
+   A third item, coverage of the frame, is recorded in every record's
+   rubric as not_applied: it is not scored until an implementation
+   exists, and the record says so rather than implying a score.
 5. Evolution round. The top-ranked dossier may be revised once, using only
    surviving claims from any dossier, with every reused claim keeping its
-   original identifier. The revision is re-audited in full.
+   original identifier. The merged specification's claim ledger is
+   re-audited by the survival consensus test; its claims already
+   survived the step 2 evidence call, and no second citation audit runs
+   on the merge.
 6. Consensus tests. The revised (or top) dossier is tested as a candidate
    specification under the four tests below, implemented in
    madd/consensus.py.
@@ -69,7 +74,10 @@ no-go or a return to step 3, within the round cap below.
 - Round cap: cross-examination and evolution together are capped at a
   number of rounds fixed in the frame, before the run starts. Reaching the
   cap without passing all four tests is a no-go, not a prompt to keep
-  arguing.
+  arguing. Implementation note: the engine runs a single pass of steps
+  1 to 7, so the cap is enforced as a validity floor (a frame whose
+  round_cap is below 1 is refused before any provider is called) and
+  recorded in the record; multi-pass iteration is not implemented.
 - Mandatory dissent log: every run produces a dissent log, including
   runs that end in agreement. Unresolved objections are recorded verbatim,
   with the dissenting agent and the claim identifiers involved. An empty

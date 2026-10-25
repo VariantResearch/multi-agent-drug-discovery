@@ -379,11 +379,17 @@ def score_run(predictions, sealed_dir=None) -> dict:
     correct = 0
     killed = 0
     advanced = 0
+    positive_cases = 0
+    negative_cases = 0
     incorrect = []
     missing = []
     for case_id in case_ids:
         outcome = load_sealed_outcome(case_id, base)
         actual = outcome.get("outcome_class")
+        if actual == "positive":
+            positive_cases += 1
+        elif actual == "negative":
+            negative_cases += 1
         predicted = normalised.get(case_id)
         if predicted is None:
             missing.append(case_id)
@@ -398,6 +404,7 @@ def score_run(predictions, sealed_dir=None) -> dict:
             incorrect.append(case_id)
     extra = sorted(c for c in normalised if c not in case_ids)
     return {"case_count": len(case_ids), "scored_count": len(case_ids) - len(missing),
+            "positive_cases": positive_cases, "negative_cases": negative_cases,
             "correct_calls": correct, "failures_correctly_killed": killed,
             "positives_correctly_advanced": advanced, "incorrect_calls": incorrect,
             "missing_predictions": missing, "unknown_prediction_cases": extra,
@@ -463,11 +470,13 @@ def evaluate_thresholds(debate_score, baseline_score=None, audit_violations=None
             "failure_kill_rate", "not_evaluable",
             "the debate score carries no failures_correctly_killed count"))
     else:
+        negatives = debate_score.get("negative_cases")
         checks.append(_threshold_check(
             "failure_kill_rate",
             "pass" if killed >= limits["min_failures_killed"] else "fail",
             "failures correctly killed: " + str(killed) + " of "
-            + str(case_count) + " cases; need at least "
+            + (str(negatives) + " negative cases" if isinstance(negatives, int)
+               else str(case_count) + " cases") + "; need at least "
             + str(limits["min_failures_killed"])))
 
     advanced = debate_score.get("positives_correctly_advanced")
@@ -476,10 +485,13 @@ def evaluate_thresholds(debate_score, baseline_score=None, audit_violations=None
             "positive_advance_rate", "not_evaluable",
             "the debate score carries no positives_correctly_advanced count"))
     else:
+        positives = debate_score.get("positive_cases")
         checks.append(_threshold_check(
             "positive_advance_rate",
             "pass" if advanced >= limits["min_positives_advanced"] else "fail",
-            "positives correctly advanced: " + str(advanced) + "; need at least "
+            "positives correctly advanced: " + str(advanced)
+            + (" of " + str(positives) + " positive cases" if isinstance(positives, int)
+               else "") + "; need at least "
             + str(limits["min_positives_advanced"])))
 
     if baseline_score is None:

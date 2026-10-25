@@ -10,7 +10,9 @@ from madd.artifacts import build_manifest, canonical_hash, freeze_artifact, thaw
 from madd.citation_auditor import audit_citations, check_identifier
 from madd.claims import audit_claims
 from madd.consensus import (check_dissent_log, run_consensus_tests,
-                            test_agreement, test_evidence_floor, test_stability)
+                            test_agreement as consensus_agreement,
+                            test_evidence_floor as consensus_evidence_floor,
+                            test_stability as consensus_stability)
 from madd.focus import focus_score
 from madd.license_registry import check_tool
 from madd.providers import MockProvider
@@ -156,30 +158,30 @@ class TestConsensus(unittest.TestCase):
         # Regression: agreement used to pass when one dossier proposed a
         # focus and another proposed none, because missing focuses were
         # filtered out before the distinct count.
-        out = test_agreement([{"proposed_focus_id": "T1"}, {"agent_id": "x"}])
+        out = consensus_agreement([{"proposed_focus_id": "T1"}, {"agent_id": "x"}])
         self.assertFalse(out["passed"])
         self.assertIn("without a focus", out["detail"])
 
     def test_agreement_pass_and_fail(self):
         ds = [dossier("SYN-T1", []), dossier("SYN-T1", [])]
-        self.assertTrue(test_agreement(ds)["passed"])
+        self.assertTrue(consensus_agreement(ds)["passed"])
         ds2 = [dossier("SYN-T1", []), dossier("SYN-T2", [])]
-        self.assertFalse(test_agreement(ds2)["passed"])
+        self.assertFalse(consensus_agreement(ds2)["passed"])
 
     def test_evidence_floor_fails_on_tier5_only(self):
         tier5 = dict(GOOD_CLAIM); tier5["evidence_tier"] = 5
-        self.assertFalse(test_evidence_floor(spec("SYN-T1", [tier5]))["passed"])
+        self.assertFalse(consensus_evidence_floor(spec("SYN-T1", [tier5]))["passed"])
 
     def test_evidence_floor_passes_with_audited_tier2(self):
-        self.assertTrue(test_evidence_floor(spec("SYN-T1", [GOOD_CLAIM]))["passed"])
+        self.assertTrue(consensus_evidence_floor(spec("SYN-T1", [GOOD_CLAIM]))["passed"])
 
     def test_evidence_floor_fails_when_claims_unaudited(self):
         unaudited = dict(GOOD_CLAIM); unaudited["verification_status"] = "unverified"
-        self.assertFalse(test_evidence_floor(spec("SYN-T1", [unaudited]))["passed"])
+        self.assertFalse(consensus_evidence_floor(spec("SYN-T1", [unaudited]))["passed"])
 
     def test_stability(self):
-        self.assertTrue(test_stability(spec("SYN-T1", []), spec("SYN-T1", []))["passed"])
-        self.assertFalse(test_stability(spec("SYN-T1", []), spec("SYN-T2", []))["passed"])
+        self.assertTrue(consensus_stability(spec("SYN-T1", []), spec("SYN-T1", []))["passed"])
+        self.assertFalse(consensus_stability(spec("SYN-T1", []), spec("SYN-T2", []))["passed"])
 
     def test_dissent_log_required(self):
         s = spec("SYN-T1", []); del s["dissent_log"]

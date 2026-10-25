@@ -7,8 +7,11 @@ invented frame per provider and reports whether the call returned, how
 long it took, which model string the service actually reported back,
 and its token usage. Exactly one call per provider, never more: this
 is a billable operation on a real account, and the CLI says so before
-running. A smoke pass proves reachability and parsing on the real
-service; it says nothing about research quality.
+running. To keep that promise true at the transport level, the smoke
+call disables the provider's retry policy for its one call - a 429
+during a smoke test is reported, not retried into three calls. A smoke
+pass proves reachability and parsing on the real service; it says
+nothing about research quality.
 """
 from __future__ import annotations
 
@@ -33,6 +36,9 @@ def smoke_provider(provider, frame=None) -> dict:
     so a panel can be reported in one pass.
     """
     started = time.monotonic()
+    saved_retries = getattr(provider, "max_retries", None)
+    if saved_retries is not None:
+        provider.max_retries = 0
     try:
         dossier = provider.research(dict(frame or SMOKE_FRAME))
         error = None
@@ -42,6 +48,9 @@ def smoke_provider(provider, frame=None) -> dict:
     except Exception as exc:  # a smoke tool reports, it does not crash
         dossier = None
         error = type(exc).__name__ + ": " + str(exc)
+    finally:
+        if saved_retries is not None:
+            provider.max_retries = saved_retries
     latency_ms = round((time.monotonic() - started) * 1000)
     return {
         "provider": getattr(provider, "name", "?"),

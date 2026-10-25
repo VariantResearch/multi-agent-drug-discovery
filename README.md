@@ -42,13 +42,13 @@ Clone the repository and run the built-in checks and the mock debate:
 ```
 git clone https://github.com/VariantResearch/multi-agent-drug-discovery.git
 cd multi-agent-drug-discovery
-python3 -m unittest discover -s tests
+python3 -m pytest tests/
 python3 -m madd gate0-validate
 python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (150 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it.
+Expected results: the test suite passes (184 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -70,7 +70,7 @@ A retro cyberpunk web interface ships with the package, in the synthwave theme (
 python3 -m madd gui
 ```
 
-Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. It binds to localhost only and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
+Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. A locked frame run also offers one-click Phase 2 design, and design runs appear in the library with their ranked candidates. It binds to localhost only and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
 
 ## Run a full Gate 0 run
 
@@ -179,6 +179,9 @@ python3 -m madd providers-smoke --config <file>   one billable call per provider
 python3 -m madd run-gate0 --config <file> [--out <dir>] [--dry-run] [--jobs <n>]
 python3 -m madd run-frame <frame.json> --config <file> [--out <dir>]
 python3 -m madd compare-runs <bundle-a> <bundle-b>
+python3 -m madd design-brief <source> [--case <case-id>] [--target <t>] [--disease <d>]
+python3 -m madd design-run <source> [--case <case-id>] [--constraint <text>]...
+                [--tool <name>] [--use research|commercial] [--tool-input <file>]
 python3 -m madd transcript <record-or-bundle.json>
 python3 -m madd report-html <bundle.json>
 python3 -m madd gui [--port 8765] [--runs-dir runs]
@@ -187,6 +190,20 @@ python3 -m madd gui [--port 8765] [--runs-dir runs]
 Finished run folders also carry report.html (the styled report), transcripts of every debate, and gate-report.json, next to bundle.json and report.md. compare-runs diffs two Gate 0 bundles: score deltas, exactly which case calls flipped, and which thresholds changed status.
 
 A predictions file for gate0-report maps case ids (see gate0-list) to "advance" or "kill". Example: {"evolocumab-pcsk9-cvd": "advance"}.
+
+## Phase 2: design candidates from a locked target
+
+Phase 2 starts where a debate ends. design-run takes a locked consensus spec - from a spec file, a frame run bundle, or a Gate 0 bundle with --case naming the case - and refuses anything that is not locked. It builds a design brief (the target from the spec's focus, the surviving load-bearing claims as evidence constraints, plus any --constraint you add; specs record no disease, so pass --disease when it matters), generates candidates, audits them, ranks them, and stores a design bundle with a gate report, next to the run bundles.
+
+```
+python3 -m madd design-run runs/<frame-run>/bundle.json --disease "Cardiovascular disease"
+python3 -m madd design-run runs/<gate0-run>/bundle.json --case evolocumab-pcsk9-cvd
+python3 -m madd design-brief spec.json
+```
+
+Every claim a candidate carries goes through the research layer's own audit machinery (the document claim audit and the citation auditor), and counts as support only when it is error-free and audited, once per claim id; a candidate whose load-bearing claim carries any audit error, or which records a failed constraint, is excluded from the ranking with its reasons kept. Predicted properties must name their basis, and designer predictions are counted as unverified in every report. The ranking is a fixed rule: audited load-bearing claim count, then fewer unknown constraints, then candidate id. The design gate passes only when the brief came from a locked spec, at least one candidate is ranked, at least one ranked candidate is real (not synthetic), no tool run was license-blocked, and any requested tool run completed - so a mock-only design run writes its bundle, fails its gate, and exits non-zero.
+
+The shipped designer is a deterministic mock: two synthetic, clearly labelled candidates with no structures and no invented numbers, so the pipeline can be exercised honestly end to end. Real structures enter through external tools: pass --tool Boltz-2 (or Chai-1) with --tool-input, and the runner checks the license registry for the --use first, refuses blocked tools, reports not_installed when the tool is absent, and records every output file by path and SHA-256 hash in a manifest when it runs. Each output becomes a candidate with that provenance and no assessment invented for it. The MADD Console does the same from the browser: a locked frame run's detail view has a DESIGN CANDIDATES button, and design runs appear in the run library like any other bundle. The full specification is docs/PHASE2_SPEC.md.
 
 Installing the package instead of running it from the checkout also works, and provides the same commands as the madd entry point:
 
@@ -250,7 +267,7 @@ tests/           the test suite
 runs/            run output (created by runs, gitignored)
 ```
 
-Key documents: docs/PHASE1_SPEC.md (scope, approved thresholds, run protocol), docs/DEBATE_PROTOCOL.md (the seven steps), docs/EVIDENCE_POLICY.md (what counts as evidence), docs/GATE0_NOTES.md (how the test set was built), docs/DESIGN-REFERENCES.md (patterns borrowed from other projects, with sources), docs/DECISIONS.md (the decision log), RESPONSIBLE_USE.md (use boundaries).
+Key documents: docs/PHASE1_SPEC.md (scope, approved thresholds, run protocol), docs/PHASE2_SPEC.md (the candidate design stage), docs/DEBATE_PROTOCOL.md (the seven steps), docs/EVIDENCE_POLICY.md (what counts as evidence), docs/DESIGN-REFERENCES.md (patterns borrowed from other projects, with sources), gate0/VERIFICATION_LEDGER.md (how the test set was built and verified), RESPONSIBLE_USE.md (use boundaries).
 
 ## Contributing and license
 

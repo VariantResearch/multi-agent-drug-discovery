@@ -45,8 +45,15 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
 
     The blinded pack rides inside the frame as case_pack: it is the
     pre-outcome evidence, already leakage-scanned by build_agent_pack.
-    Sealed outcomes are never part of a frame.
+    Sealed outcomes are never part of a frame. Neither is the pack's
+    forbidden_terms list: that list is the leakage scanner's wordlist,
+    full of outcome vocabulary and pivotal-trial identifiers, and
+    sending it to a provider would hand them exactly what the blinding
+    exists to withhold. It is stripped here, at the one place a pack
+    becomes a frame.
     """
+    case_pack = copy.deepcopy(pack)
+    case_pack.pop("forbidden_terms", None)
     return {
         "artifact_type": "frame",
         "schema_version": "0.1.0",
@@ -59,7 +66,7 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
         "drug_name": pack.get("drug_name"),
         "evidence_as_of": pack.get("evidence_as_of"),
         "round_cap": 2,
-        "case_pack": copy.deepcopy(pack),
+        "case_pack": case_pack,
     }
 
 
@@ -91,13 +98,27 @@ def spec_audit_violations(spec: dict) -> int:
 
 
 def _charge(tracker, provider):
-    """Charge one baseline call to the shared run tracker; a call
-    that would cross the cap raises BudgetExceeded before it happens."""
+    """Reserve one baseline call against the shared run tracker,
+    atomically; a call that would cross the cap raises BudgetExceeded
+    before it happens."""
     cost = float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0)
     if tracker is not None:
-        if tracker.would_exceed(cost):
-            raise BudgetExceeded("run budget cap reached before a baseline call")
-        tracker.record(cost, note="baseline:" + str(getattr(provider, "name", "?")))
+        tracker.reserve(cost, note="baseline:" + str(getattr(provider, "name", "?")))
+
+
+def _settle_retries(tracker, provider, cost):
+    """Charge a finished call's transport retries to the tracker.
+
+    Retries are real provider calls the reserve did not know about;
+    recording them can raise BudgetExceeded, which stops the run with
+    honest numbers rather than absorbing the overage silently.
+    """
+    if tracker is None:
+        return
+    extra = int(getattr(provider, "last_attempts", 1) or 1) - 1
+    if extra > 0:
+        tracker.record(cost * extra, calls=extra,
+                       note="transport retries:" + str(getattr(provider, "name", "?")))
 
 
 def _emit(on_event, event: dict):
@@ -148,6 +169,8 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         frame = frame_for_case(case_id, packs[case_id])
         _charge(tracker, baseline_provider)
         dossier = baseline_provider.research(copy.deepcopy(frame))
+        _settle_retries(tracker, baseline_provider,
+                        float(getattr(baseline_provider, "cost_per_call_usd", 0.0) or 0.0))
         baseline_dossiers[case_id] = dossier
         baseline_predictions[case_id] = baseline_prediction(dossier, resolver=resolver)
         _emit(on_event, {"event": "baseline_case_done", "case_id": case_id,
@@ -189,8 +212,14 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
     debate_score = score_run(predictions, gate0_dir)
     baseline_score = score_run(baseline_predictions, gate0_dir)
     violations = sum(spec_audit_violations(rec["spec"]) for rec in case_records.values())
+    # A judge-swap flip is a case call that changed. Only a locked
+    # record made an advance call that a different judge focus would
+    # have unmade; a no_go record's call is kill under either focus,
+    # so a differing judge focus there changes no call and is not
+    # counted (the earlier count included those, overstating flips).
     flips = sum(1 for rec in case_records.values()
-                if rec.get("judge_swap")
+                if rec["spec"].get("outcome") == "locked"
+                and rec.get("judge_swap")
                 and rec["judge_swap"]["proposed_focus_id"] != rec["spec"]["focus_id"])
     thresholds = evaluate_thresholds(debate_score, baseline_score=baseline_score,
                                    audit_violations=violations,

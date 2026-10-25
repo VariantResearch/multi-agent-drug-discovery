@@ -3,11 +3,14 @@
 docs/PHASE1_SPEC.md requires per-run budgets that are set before the run
 and enforced by stopping the run when they are hit. A run manifest can
 carry a budget dict, but a recorded number enforces nothing on its own;
-this tracker is the enforcement point. The flow for a caller is: check
-the projected cost first with would_exceed, make the call only if it
-fits, then record the actual cost. record() itself also refuses any
-entry that would cross a cap, so an over-cap call is never silently
-absorbed even by a caller that skipped the check.
+this tracker is the enforcement point. The flow for a caller is:
+reserve() before the call - an atomic check-and-record under the
+tracker's lock, so two threads sharing one tracker cannot both pass
+the check and overshoot the cap together - and make the call only when
+the reserve succeeds. record() remains for settling costs that only
+become known after a call (transport retries of a reserved call); it
+also refuses any entry that would cross a cap, so an over-cap entry is
+never silently absorbed even by a caller that skipped the reserve.
 
 Standard library only. Costs are plain numbers in US dollars as reported
 by the caller; this module does no pricing lookups and invents no rates.
@@ -74,6 +77,20 @@ class BudgetTracker:
             if self.max_calls is not None and self.calls_made + calls > self.max_calls:
                 return True
             return False
+
+    def reserve(self, cost_usd: float = 0.0, calls: int = 1, note: str = "") -> dict:
+        """Atomically check the caps and record a call BEFORE it is made.
+
+        would_exceed() plus record() as separate steps is a race when
+        several threads share one tracker: both can pass the check and
+        overshoot together. reserve() holds the lock across check and
+        record, so a call that would cross a cap raises BudgetExceeded
+        here and is never made. The charge stands even if the call then
+        fails: the attempt happened, and the budget accounts for it
+        conservatively rather than pretending it was free.
+        """
+        with self._lock:
+            return self.record(cost_usd, calls=calls, note=note)
 
     def record(self, cost_usd: float = 0.0, calls: int = 1, note: str = "") -> dict:
         """Record a call's actual cost. Raises BudgetExceeded over a cap.
