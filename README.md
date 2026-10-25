@@ -44,14 +44,27 @@ This is early work. What is in the repo now:
 - Gate 0, a test set of eight real drug programs (see below), plus the
   code that judges a scored run against the pass thresholds in
   docs/PHASE1_SPEC.md.
+- A runner that executes the whole Gate 0 protocol end to end:
+  baseline first, a debate per case, scoring against the sealed
+  outcomes, threshold judgement, and a frozen run bundle with a
+  plain-language report.
+- Provider adapters for live models, behind the same interface as the
+  mock: OpenAI-compatible chat completions and Anthropic Messages,
+  sharing one research prompt and one dossier response contract.
+- A run configuration file that names the providers, the judge, the
+  baseline, and the budget. API keys are read from environment
+  variables named in the config, never stored in it.
 - A command line tool and a mock model provider for testing.
 
-Real models are not wired in yet. The debate engine runs against the
-mock provider and test stubs today; it designs no molecule and runs no
-experiment. The Gate 0 pass thresholds in docs/PHASE1_SPEC.md were
-approved on 2026-10-22; the model roster is still to be chosen, and the
-budget figure with it. The only network calls in the package are the
-citation lookups named above.
+What is missing is the models themselves. The adapters are built and
+tested against fake transports shaped from the documented wire
+formats; they have not yet been run against a real model account,
+because the roster has not been chosen and no keys are set. Pick the
+roster, record it in docs/PHASE1_SPEC.md with the budget figure, set
+the keys, and the system runs. It designs no molecule and runs no
+experiment; candidate design is a later phase. The only network calls
+in the package today are the citation lookups named above and, once
+configured, the provider calls themselves.
 
 ## Gate 0
 
@@ -102,6 +115,9 @@ RESPONSIBLE_USE.md.
     python3 -m madd debate-mock examples/synthetic/frame.json --judge
     python3 -m madd gate0-report predictions.json --baseline baseline.json
     python3 -m madd resolve-citations examples/synthetic/dossier.json
+    python3 -m madd providers-check --config examples/run-config.example.json
+    python3 -m madd run-gate0 --config my-run.json --out runs
+    python3 -m madd run-frame my-frame.json --config my-run.json --out runs
 
 The audit of the synthetic dossier fails on purpose: it contains a claim
 resting on model opinion, and the auditor is supposed to catch it. The
@@ -112,7 +128,12 @@ synthetic dossier it correctly reports the invented identifiers as not
 found or badly formatted, since none of them exist in any registry. gate0-report takes a JSON file mapping case ids to calls
 ("advance" or "kill") and judges it against the approved thresholds;
 with --baseline it takes a second such file as the single-model
-baseline the run must beat.
+baseline the run must beat. providers-check validates a run config and
+reports which key variables are set, without making any network call;
+the shipped example config fails it until real model ids replace the
+placeholders and the named environment variables are set. run-gate0
+and run-frame execute full runs from such a config and write the run
+bundle (record, scores, report) under the output folder.
 
 ## Layout
 

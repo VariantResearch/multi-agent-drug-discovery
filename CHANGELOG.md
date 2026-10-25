@@ -44,6 +44,27 @@
   commands gate0-report, resolve-citations, and debate-mock, plus the
   first CLI tests. Test suite is now 82 tests.
 
+- Feature completion pass, 2026-10-24: the application now runs end
+  to end and lacks only the models. Ten features, ranked by
+  improvement and built in order: (1) madd/runner.py orchestrates a
+  full Gate 0 run (baseline first under a rule fixed in code, debate
+  per case, one shared run budget, scoring, threshold judgement,
+  frozen bundle) and single-frame runs; (2) madd/providers_http.py
+  adds OpenAI-compatible and Anthropic Messages adapters over stdlib
+  HTTPS (tested offline against fake transports shaped from the
+  documented wire formats; not yet run against a real model account);
+  (3) madd/prompting.py holds the shared research prompt and the
+  dossier response contract, whose failure mode is an honest empty
+  dossier, never a repaired invention; (4) madd/config.py loads and
+  validates run configs, reading API keys from the environment by
+  variable name only; (5) prospective frame runs; (6) gate_report
+  produces the GateReport artifact, with audit violations and
+  judge-swap flips computed from the records; (7) live citation
+  resolution can strike not_found claims inside the evidence call,
+  config-gated, and a lookup error never strikes; (8) CLI commands
+  run-gate0, run-frame, and providers-check; (9) madd/storage.py
+  writes one folder per run plus an index; (10) madd/report.py
+  renders the plain-language run report. Test suite is now 128 tests.
 - Five further upgrades, applied one at a time on 2026-10-24 after a
   fresh audit of the current code and docs, each finding demonstrated
   against the tree before it was fixed: (1) the stale-claims sweep was

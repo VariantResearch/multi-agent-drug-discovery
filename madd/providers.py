@@ -1,9 +1,10 @@
 """Provider interface and a deterministic mock provider.
 
-Phase 0 makes no live model calls and imports no provider SDK. A provider
-is any object with a name, a model_version, and a research(frame) method
-returning a dossier-shaped dict. Real providers are a future module behind
-this same interface.
+A provider is any object with a name, a model_version, and a
+research(frame) method returning a dossier-shaped dict. This module
+holds the interface and the mock. Live providers live in
+madd/providers_http.py behind the same interface and import no
+provider SDK either.
 """
 from __future__ import annotations
 

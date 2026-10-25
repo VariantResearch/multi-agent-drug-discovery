@@ -7,11 +7,21 @@ which must be recorded in this file before the first scored run. No
 scored Gate 0 run may be reported against thresholds that were chosen
 after the run.
 
-Implementation status, 2026-10-23: the debate engine
-(madd/debate.py), the budget tracker (madd/budget.py), the threshold
-evaluator (madd/gate0.py evaluate_thresholds), and live citation
-resolution (madd/resolve.py) are built and tested against mock and
-stub providers only. No model has been connected, no scored Gate 0 run
+Implementation status, 2026-10-24: the full Phase 1 machinery is
+built - debate engine (madd/debate.py), budget tracker
+(madd/budget.py), threshold evaluator (madd/gate0.py
+evaluate_thresholds), live citation resolution (madd/resolve.py),
+run orchestration (madd/runner.py), provider adapters for the
+OpenAI-compatible and Anthropic wire protocols
+(madd/providers_http.py) behind one prompt and response contract
+(madd/prompting.py), run configuration (madd/config.py), and bundle
+storage with plain-language reports (madd/storage.py,
+madd/report.py), all driven from the CLI. The adapters are tested
+against fake transports shaped from the documented wire formats;
+they have not been run against a real model account. What remains
+before the first scored run is exactly what this spec reserves to
+the owner: record the model roster and the budget figure above, and
+supply the API keys through the environment. No scored Gate 0 run
 has taken place, and nothing in this repository is a Phase 1 result.
 
 ## Purpose
