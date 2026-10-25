@@ -349,6 +349,15 @@ def _cmd_run_frame(args) -> int:
     return 0
 
 
+def _cmd_gui(args) -> int:
+    """gui handler: serve the MADD Console web interface locally
+    until interrupted."""
+    from .gui import serve
+    serve(host=args.host, port=args.port, runs_dir=args.runs_dir,
+          gate0_dir=args.gate0_dir)
+    return 0
+
+
 def _cmd_gate0_new_case(args) -> int:
     """gate0-new-case handler: scaffold the three files for a new
     Gate 0 case. The dataset will fail validation until the case is
@@ -484,6 +493,11 @@ def build_parser() -> argparse.ArgumentParser:
     p17 = sub.add_parser("gate0-new-case"); p17.add_argument("case_id")
     p17.add_argument("--gate0-dir", default=None)
     p17.set_defaults(fn=_cmd_gate0_new_case)
+    p18 = sub.add_parser("gui"); p18.add_argument("--port", type=int, default=8765)
+    p18.add_argument("--host", default="127.0.0.1")
+    p18.add_argument("--runs-dir", default="runs")
+    p18.add_argument("--gate0-dir", default=None)
+    p18.set_defaults(fn=_cmd_gui)
     return parser
 
 
