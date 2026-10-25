@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import copy
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .artifacts import canonical_hash, freeze_artifact
 from .budget import BudgetExceeded, BudgetTracker
@@ -99,12 +100,29 @@ def _charge(tracker, provider):
         tracker.record(cost, note="baseline:" + str(getattr(provider, "name", "?")))
 
 
+def _emit(on_event, event: dict):
+    """Deliver one progress event to the caller's callback, if any.
+
+    Events are plain dicts with an "event" name plus event-specific
+    fields: run_started, baseline_case_done, debate_case_started,
+    debate_case_done, run_finished. Interfaces (CLI, GUI) render them;
+    the runner itself prints nothing.
+    """
+    if on_event is not None:
+        on_event(event)
+
+
 def run_gate0(providers, judge_provider=None, baseline_provider=None,
-              budget=None, gate0_dir=None, resolver=None, run_id=None) -> dict:
+              budget=None, gate0_dir=None, resolver=None, run_id=None,
+              on_event=None, max_workers=1) -> dict:
     """Run the full Gate 0 protocol. Returns the run bundle.
 
     baseline_provider is required: the approved thresholds include a
     baseline margin, and a run without a baseline cannot be judged.
+    on_event, when given, receives progress events (see _emit).
+    max_workers runs case debates concurrently; the bundle is
+    assembled in case order either way, so results are identical,
+    only the wall time and the event order differ.
     """
     if baseline_provider is None:
         raise ValueError("a Gate 0 run needs a baseline provider: the approved "
@@ -120,6 +138,9 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         packs[case_id] = pack
         pack_hashes[case_id] = canonical_hash(pack)
 
+    _emit(on_event, {"event": "run_started", "run_id": run_id,
+                     "case_ids": list(case_ids)})
+
     # Baseline first (run protocol step 3).
     baseline_predictions = {}
     baseline_dossiers = {}
@@ -129,16 +150,39 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         dossier = baseline_provider.research(copy.deepcopy(frame))
         baseline_dossiers[case_id] = dossier
         baseline_predictions[case_id] = baseline_prediction(dossier, resolver=resolver)
+        _emit(on_event, {"event": "baseline_case_done", "case_id": case_id,
+                         "prediction": baseline_predictions[case_id]})
 
     # Debate per case, sharing the run budget tracker.
-    case_records = {}
-    predictions = {}
-    for case_id in case_ids:
+    def debate_one(case_id):
+        _emit(on_event, {"event": "debate_case_started", "case_id": case_id})
         frame = frame_for_case(case_id, packs[case_id])
         record = run_debate(frame, providers, judge_provider=judge_provider,
                             budget_tracker=tracker, resolver=resolver)
-        case_records[case_id] = record
-        predictions[case_id] = "advance" if record["outcome"] == "locked" else "kill"
+        prediction = "advance" if record["outcome"] == "locked" else "kill"
+        _emit(on_event, {"event": "debate_case_done", "case_id": case_id,
+                         "prediction": prediction,
+                         "outcome": record["outcome"],
+                         "strikes": len(record["strike_list"])})
+        return case_id, record, prediction
+
+    case_records = {}
+    predictions = {}
+    if max_workers and int(max_workers) > 1:
+        with ThreadPoolExecutor(max_workers=int(max_workers)) as pool:
+            futures = [pool.submit(debate_one, cid) for cid in case_ids]
+            for future in as_completed(futures):
+                cid, record, prediction = future.result()
+                case_records[cid] = record
+                predictions[cid] = prediction
+    else:
+        for case_id in case_ids:
+            cid, record, prediction = debate_one(case_id)
+            case_records[cid] = record
+            predictions[cid] = prediction
+    # Assemble in case order regardless of completion order.
+    case_records = {cid: case_records[cid] for cid in case_ids}
+    predictions = {cid: predictions[cid] for cid in case_ids}
 
     debate_score = score_run(predictions, gate0_dir)
     baseline_score = score_run(baseline_predictions, gate0_dir)
@@ -175,22 +219,37 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         "judge_swap_flips": flips,
         "thresholds": thresholds,
         "budget": tracker.to_dict() if tracker is not None else None,
+        "provider_retries": {getattr(p, "name", str(i)): len(getattr(p, "retry_log", []))
+                             for i, p in enumerate(
+                                 list(providers)
+                                 + ([judge_provider] if judge_provider else [])
+                                 + [baseline_provider])},
         "outcome": "pass" if thresholds["passed"] else "fail",
     }
+    _emit(on_event, {"event": "run_finished", "run_id": run_id,
+                     "outcome": bundle["outcome"],
+                     "debate_correct": debate_score["correct_calls"],
+                     "baseline_correct": baseline_score["correct_calls"]})
     bundle["frozen_bundle"] = freeze_artifact(
         {k: v for k, v in bundle.items() if k != "frozen_bundle"})
     return bundle
 
 
 def run_frame(frame, providers, judge_provider=None, budget=None,
-              resolver=None, run_id=None) -> dict:
+              resolver=None, run_id=None, on_event=None) -> dict:
     """Run the debate once on a prospective frame (not a Gate 0 case).
 
     Returns a frame run bundle whose record is the debate record: a
     locked specification or a no_go, with the full audit trail.
     """
+    _emit(on_event, {"event": "debate_case_started",
+                     "case_id": frame.get("frame_id")})
     record = run_debate(frame, providers, judge_provider=judge_provider,
                         budget=budget, resolver=resolver)
+    _emit(on_event, {"event": "debate_case_done",
+                     "case_id": frame.get("frame_id"),
+                     "outcome": record["outcome"],
+                     "strikes": len(record["strike_list"])})
     bundle = {
         "artifact_type": "frame_run_bundle",
         "schema_version": "0.1.0",

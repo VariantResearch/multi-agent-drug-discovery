@@ -113,6 +113,34 @@ class TestRunGate0(unittest.TestCase):
                       budget={"max_cost_usd": 10.0}, gate0_dir=GATE0)
 
 
+    def test_progress_events_fire_in_order(self):
+        a, b, judge = providers_for(set(DRUGS.values()))
+        baseline = CaseStub("base", set())
+        events = []
+        run_gate0([a, b], judge_provider=judge, baseline_provider=baseline,
+                  gate0_dir=GATE0, on_event=events.append, run_id="test-events")
+        names = [e["event"] for e in events]
+        self.assertEqual(names[0], "run_started")
+        self.assertEqual(names[-1], "run_finished")
+        self.assertEqual(names.count("baseline_case_done"), 8)
+        self.assertEqual(names.count("debate_case_done"), 8)
+        self.assertEqual(events[-1]["debate_correct"], 4)
+
+    def test_parallel_matches_sequential(self):
+        advance = {DRUGS[c] for c in CASE_IDS[:5]}
+        a1, b1, j1 = providers_for(advance)
+        seq = run_gate0([a1, b1], judge_provider=j1,
+                        baseline_provider=CaseStub("base", set()),
+                        gate0_dir=GATE0, run_id="test-seq")
+        a2, b2, j2 = providers_for(advance)
+        par = run_gate0([a2, b2], judge_provider=j2,
+                        baseline_provider=CaseStub("base", set()),
+                        gate0_dir=GATE0, run_id="test-par", max_workers=4)
+        self.assertEqual(seq["predictions"], par["predictions"])
+        self.assertEqual(list(par["case_records"].keys()), CASE_IDS)
+        self.assertEqual(seq["debate_score"], par["debate_score"])
+
+
 class TestRunFrame(unittest.TestCase):
     def test_frame_run_with_mocks_is_no_go_and_frozen(self):
         from madd.providers import MockProvider

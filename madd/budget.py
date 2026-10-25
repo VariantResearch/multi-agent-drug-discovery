@@ -14,6 +14,8 @@ by the caller; this module does no pricing lookups and invents no rates.
 """
 from __future__ import annotations
 
+import threading
+
 
 class BudgetExceeded(Exception):
     """Raised when recording a call would cross a budget cap."""
@@ -59,15 +61,19 @@ class BudgetTracker:
         self.spent_usd = 0.0
         self.calls_made = 0
         self.entries = []
+        # One tracker is shared across a whole run, and parallel case
+        # execution charges it from several threads at once.
+        self._lock = threading.RLock()
 
     def would_exceed(self, cost_usd: float = 0.0, calls: int = 1) -> bool:
         """True when recording this call would cross a cap."""
-        cost = _non_negative_number(cost_usd, "cost_usd")
-        if self.max_cost_usd is not None and self.spent_usd + cost > self.max_cost_usd:
-            return True
-        if self.max_calls is not None and self.calls_made + calls > self.max_calls:
-            return True
-        return False
+        with self._lock:
+            cost = _non_negative_number(cost_usd, "cost_usd")
+            if self.max_cost_usd is not None and self.spent_usd + cost > self.max_cost_usd:
+                return True
+            if self.max_calls is not None and self.calls_made + calls > self.max_calls:
+                return True
+            return False
 
     def record(self, cost_usd: float = 0.0, calls: int = 1, note: str = "") -> dict:
         """Record a call's actual cost. Raises BudgetExceeded over a cap.
@@ -75,22 +81,23 @@ class BudgetTracker:
         On a raise nothing is recorded: the spend figures stay at the
         last in-budget state, so a stopped run reports honest numbers.
         """
-        cost = _non_negative_number(cost_usd, "cost_usd")
-        if isinstance(calls, bool) or not isinstance(calls, int) or calls < 0:
-            raise ValueError("calls must be a non-negative integer")
-        if self.would_exceed(cost, calls):
-            raise BudgetExceeded(
-                "budget cap reached: spent " + format(self.spent_usd, ".4f")
-                + " USD in " + str(self.calls_made) + " calls; recording "
-                + format(cost, ".4f") + " USD / " + str(calls)
-                + " calls would exceed the cap (max_cost_usd="
-                + str(self.max_cost_usd) + ", max_calls=" + str(self.max_calls) + ")")
-        self.spent_usd += cost
-        self.calls_made += calls
-        entry = {"cost_usd": cost, "calls": calls, "note": note,
-                 "spent_after_usd": self.spent_usd, "calls_after": self.calls_made}
-        self.entries.append(entry)
-        return entry
+        with self._lock:
+            cost = _non_negative_number(cost_usd, "cost_usd")
+            if isinstance(calls, bool) or not isinstance(calls, int) or calls < 0:
+                raise ValueError("calls must be a non-negative integer")
+            if self.would_exceed(cost, calls):
+                raise BudgetExceeded(
+                    "budget cap reached: spent " + format(self.spent_usd, ".4f")
+                    + " USD in " + str(self.calls_made) + " calls; recording "
+                    + format(cost, ".4f") + " USD / " + str(calls)
+                    + " calls would exceed the cap (max_cost_usd="
+                    + str(self.max_cost_usd) + ", max_calls=" + str(self.max_calls) + ")")
+            self.spent_usd += cost
+            self.calls_made += calls
+            entry = {"cost_usd": cost, "calls": calls, "note": note,
+                     "spent_after_usd": self.spent_usd, "calls_after": self.calls_made}
+            self.entries.append(entry)
+            return entry
 
     def remaining(self) -> dict:
         """Headroom under each cap; None for a dimension that has no cap."""
