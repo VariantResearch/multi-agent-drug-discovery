@@ -57,7 +57,7 @@ from .resolve import check_quote_against_source, resolve_identifier
 from .providers_http import AnthropicProvider, OpenAICompatibleProvider
 
 KINDS = {"mock", "openai-compatible", "anthropic"}
-MODES = ("simple", "dual", "dual_judge")
+MODES = ("simple", "simple_judge", "dual", "dual_judge")
 DEFAULT_BASE_URLS = {"openai-compatible": "https://api.openai.com/v1",
                      "anthropic": "https://api.anthropic.com/v1"}
 
@@ -140,6 +140,14 @@ def validate_config(config) -> list:
                 if judge is not None:
                     errors.append("mode dual has no judge; a judge belongs "
                                   "to dual_judge mode")
+            elif mode == "simple_judge":
+                if len(models) != 1:
+                    errors.append("mode simple_judge uses one model plus "
+                                  "a judge: the research panel must span "
+                                  "exactly one distinct model, but it spans "
+                                  + str(len(models)))
+                if judge is None:
+                    errors.append("mode simple_judge requires a judge entry")
             else:
                 if len(models) != 2:
                     errors.append("mode dual_judge uses two models plus a "

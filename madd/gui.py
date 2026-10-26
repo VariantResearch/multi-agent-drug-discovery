@@ -2,8 +2,23 @@
 
 A local web GUI over the same machinery the CLI drives, served by
 the standard library's HTTP server - no new dependencies, nothing
-leaves the machine. One page, four panels:
+leaves the machine. One page, six panels:
 
+- SETUP: the model slots the console runs on - Primary, Secondary,
+  and Judge - each a provider entry (kind, model, family, endpoint,
+  and the NAME of the environment variable holding its API key;
+  key values never enter the page or the saved file). The page
+  loads to this panel until at least the Primary slot is assigned,
+  each slot shows whether its key variable is present in the
+  server's environment, and a per-slot Test button makes one small
+  smoke call. The saved setup is a run config at
+  runs/console-config.json, in the same format the CLI reads.
+- TARGET RUN: the target-first form. Name the thing to aim at,
+  pick its kind (disease, receptor, genetic disorder, molecular
+  target), add the disease context, design constraints, and
+  whether to retrieve Europe PMC evidence first; the run executes
+  on the setup's models under the setup's protocol mode and lands
+  in the run library like any other bundle.
 - RUN CONTROL: a config path, with Check, Dry run, and Run Gate 0
   buttons, and a live console that renders the runner's progress
   events as a run happens.
@@ -42,6 +57,7 @@ the CLI would. Do not expose it to a network you do not trust;
 from __future__ import annotations
 
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -51,12 +67,15 @@ from .budget import BudgetExceeded
 from .config import (ConfigError, build_providers,
                      entailment_checker_from_config, load_config,
                      quote_checker_from_config, resolver_from_config,
-                     run_budget_tracker)
+                     run_budget_tracker, validate_config)
 from .design import ModelDesigner, run_design
 from .gate0 import list_case_ids, load_input_pack, validate_dataset
 from .html_report import bundle_to_html
+from .retrieval import retrieve_evidence
 from .runner import estimate_gate0_run, run_gate0
+from .smoke import smoke_provider
 from .storage import list_runs, load_bundle, write_bundle
+from .target_run import build_target_frame, run_target
 from .transcript import record_to_markdown
 from .production import build_production_sheets
 from .structure3d import candidate_model3d, candidate_structure3d
@@ -75,6 +94,7 @@ class RunManager:
         """runs_dir receives finished bundles; gate0_dir locates the dataset."""
         self.runs_dir = runs_dir
         self.gate0_dir = gate0_dir
+        self.setup_path = Path(runs_dir) / "console-config.json"
         self.lock = threading.Lock()
         self.running = False
         self.events = []
@@ -136,6 +156,249 @@ class RunManager:
         """Append one runner progress event (called from the run thread)."""
         with self.lock:
             self.events.append(event)
+
+    def _load_setup_config(self):
+        """The saved console setup as a config dict, or None.
+
+        A missing or unreadable setup file is simply "not set up":
+        the page's setup panel is where that gets repaired.
+        """
+        try:
+            data = json.loads(self.setup_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        return data if isinstance(data, dict) else None
+
+    def setup_status(self) -> dict:
+        """What the setup panel shows: slots, key presence, readiness.
+
+        Key presence is read from the server process's environment
+        by variable NAME; key values are never read out or returned.
+        Ready means the Primary slot is assigned and usable (a mock,
+        or an HTTP entry whose key variable is present), which is
+        the gate for the target form.
+        """
+        config = self._load_setup_config()
+        slots = {"primary": None, "secondary": None, "judge": None}
+        swap = None
+        if config:
+            providers = config.get("providers") or []
+            if len(providers) > 0:
+                slots["primary"] = _slot_view(providers[0])
+            if len(providers) > 1:
+                slots["secondary"] = _slot_view(providers[1])
+            if config.get("judge"):
+                slots["judge"] = _slot_view(config["judge"])
+            if config.get("judge_swap"):
+                swap = _slot_view(config["judge_swap"])
+        primary = slots["primary"]
+        ready = bool(primary and (primary["kind"] == "mock"
+                                  or primary["key_present"]))
+        return {"configured": config is not None, "ready": ready,
+                "slots": slots, "judge_swap": swap,
+                "mode": (config or {}).get("mode"),
+                "budget": (config or {}).get("budget") or {},
+                "switches": {
+                    key: bool((config or {}).get(key))
+                    for key in ("live_resolution", "live_quote_check",
+                                "entailment_check", "retrieval_first")}}
+
+    def save_setup(self, payload) -> dict:
+        """Validate and save the setup panel's slots as a run config.
+
+        Slot entries are built from the form's fields (empty strings
+        dropped); a judge_swap or baseline entry already in the file
+        is preserved untouched, because the panel does not manage
+        those slots. A config that fails validation is not saved.
+        """
+        providers = []
+        for slot in ("primary", "secondary"):
+            entry = _entry_from_form(payload.get(slot), slot)
+            if entry is not None:
+                providers.append(entry)
+        if len(providers) == 1:
+            # One assigned model still fields the protocol's two
+            # agents: the saved config carries the second agent as a
+            # clone entry on the same model, exactly as a hand
+            # written config for a one-model mode would.
+            clone = dict(providers[0])
+            clone["name"] = str(providers[0]["name"]) + "-b"
+            clone["label"] = clone["name"]
+            providers.append(clone)
+        judge = _entry_from_form(payload.get("judge"), "judge")
+        config = {"providers": providers}
+        if judge is not None:
+            config["judge"] = judge
+        old = self._load_setup_config() or {}
+        for kept in ("judge_swap", "baseline"):
+            if old.get(kept):
+                config[kept] = old[kept]
+        if payload.get("mode"):
+            config["mode"] = payload["mode"]
+        budget = {}
+        given = payload.get("budget") or {}
+        if given.get("max_calls"):
+            budget["max_calls"] = int(given["max_calls"])
+        if given.get("max_cost_usd"):
+            budget["max_cost_usd"] = float(given["max_cost_usd"])
+        if budget:
+            config["budget"] = budget
+        for key in ("live_resolution", "live_quote_check",
+                    "entailment_check", "retrieval_first"):
+            if (payload.get("switches") or {}).get(key):
+                config[key] = True
+        errors = validate_config(config)
+        if errors:
+            return {"ok": False, "errors": errors}
+        self.setup_path.parent.mkdir(parents=True, exist_ok=True)
+        self.setup_path.write_text(json.dumps(config, indent=2),
+                                   encoding="utf-8")
+        return {"ok": True, "status": self.setup_status()}
+
+    def test_slot(self, slot) -> dict:
+        """Smoke-test one assigned slot with a single research call.
+
+        The call is the same one the CLI's smoke command makes (one
+        small dossier request, retries disabled). Building the slot
+        through build_providers means a missing key variable reports
+        as a config error before any call is attempted.
+        """
+        config = self._load_setup_config()
+        if not config:
+            return {"ok": False, "error": "no setup saved yet"}
+        providers = config.get("providers") or []
+        # Build through the saved panel (a valid config by
+        # construction) with the mode stripped: the slot is what is
+        # being tested, not the saved mode's shape rules.
+        temp = {"providers": providers}
+        index = None
+        if slot in ("primary", "secondary"):
+            index = 0 if slot == "primary" else 1
+            if len(providers) <= index:
+                return {"ok": False,
+                        "error": "slot not assigned: " + str(slot)}
+        elif slot == "judge":
+            if not config.get("judge"):
+                return {"ok": False, "error": "slot not assigned: judge"}
+            temp["judge"] = config["judge"]
+        else:
+            return {"ok": False, "error": "unknown slot: " + str(slot)}
+        try:
+            built = build_providers(temp)
+        except ConfigError as exc:
+            return {"ok": False, "error": str(exc)}
+        provider = (built["judge"] if slot == "judge"
+                    else built["providers"][index])
+        return smoke_provider(provider)
+
+    def start_target(self, payload) -> dict:
+        """Begin a target run on a background thread, refusing overlaps."""
+        with self.lock:
+            if self.running:
+                return {"started": False,
+                        "error": "a run is already in progress"}
+            if self._load_setup_config() is None:
+                return {"started": False,
+                        "error": "no setup saved yet: assign the model "
+                                 "slots first"}
+            self.running = True
+            self.events = []
+            self.result = None
+            self.error = None
+        threading.Thread(target=self._run_target, args=(payload,),
+                         daemon=True).start()
+        return {"started": True}
+
+    def _run_target(self, payload):
+        """The target run thread body: frame, retrieve, run, write.
+
+        The panel comes from the saved setup. A setup with a single
+        provider entry fields two agents on that one model (the
+        protocol's simple shapes), by cloning the entry under a
+        second agent name - the same arrangement a config file
+        expresses with two identical entries.
+        """
+        try:
+            config = self._load_setup_config()
+            entries = list(config.get("providers") or [])
+            if len(entries) == 1:
+                clone = dict(entries[0])
+                clone["name"] = str(entries[0].get("name")) + "-b"
+                clone["label"] = clone["name"]
+                entries.append(clone)
+            built = build_providers({**config, "providers": entries})
+            frame = build_target_frame(
+                str(payload.get("name") or ""), str(payload.get("kind") or ""),
+                target=payload.get("target") or None,
+                disease=payload.get("disease") or None,
+                focus_id=payload.get("focus_id") or None)
+            retrieval_first = bool(built.get("retrieval_first"))
+            if payload.get("retrieve", True):
+                frame["evidence"] = retrieve_evidence(frame)
+                retrieval_first = True
+            tracker = run_budget_tracker(built)
+            constraints = tuple(
+                line.strip() for line in str(
+                    payload.get("constraints") or "").splitlines()
+                if line.strip())
+            bundle = run_target(
+                frame, built["providers"], judge_provider=built["judge"],
+                swap_judge_provider=built.get("judge_swap"),
+                mode=built.get("mode"), budget_tracker=tracker,
+                resolver=resolver_from_config(built),
+                quote_checker=quote_checker_from_config(built),
+                entailment_checker=entailment_checker_from_config(
+                    built, tracker),
+                retrieval_first=retrieval_first,
+                design_constraints=constraints,
+                on_event=self._on_event)
+            run_dir = write_bundle(bundle, self.runs_dir)
+            design = bundle.get("design") or {}
+            with self.lock:
+                self.result = {
+                    "run_id": bundle["run_id"], "kind": "target_run",
+                    "outcome": bundle["outcome"],
+                    "focus": (bundle["frame_run"]["record"]["spec"]
+                              .get("focus_id")),
+                    "design_gate": (design.get("gate_report") or {})
+                    .get("result"),
+                    "run_dir": str(run_dir)}
+        except Exception as exc:
+            with self.lock:
+                self.error = type(exc).__name__ + ": " + str(exc)
+        finally:
+            with self.lock:
+                self.running = False
+
+
+def _slot_view(entry) -> dict:
+    """One setup slot as the page shows it: the entry's public shape
+    plus whether its API key variable is present in this process's
+    environment. Mock entries need no key. Values are never read."""
+    env = entry.get("api_key_env")
+    return {"name": entry.get("name"), "kind": entry.get("kind"),
+            "model": entry.get("model"), "family": entry.get("family"),
+            "base_url": entry.get("base_url"), "api_key_env": env,
+            "key_present": True if entry.get("kind") == "mock"
+            else bool(env and os.environ.get(env))}
+
+
+def _entry_from_form(form, slot):
+    """Build a config provider entry from one setup form slot.
+
+    Returns None when the slot is unassigned (no kind). Empty fields
+    are dropped so optional values stay absent from the config; the
+    entry's name and label are the slot's, which keeps names unique
+    across the panel and the judge by construction.
+    """
+    if not isinstance(form, dict) or not form.get("kind"):
+        return None
+    entry = {"name": slot, "kind": form["kind"], "label": slot}
+    for key in ("model", "family", "base_url", "api_key_env"):
+        value = form.get(key)
+        if isinstance(value, str) and value.strip():
+            entry[key] = value.strip()
+    return entry
 
 
 def build_guide_payload(bundle: dict) -> dict:
@@ -201,6 +464,8 @@ def make_handler(manager: RunManager):
                 return _json(self, {"ok": report["ok"],
                                     "error_count": report["error_count"],
                                     "cases": cases})
+            if path == "/api/setup":
+                return _json(self, manager.setup_status())
             if path == "/api/runs":
                 return _json(self, {"runs": list_runs(manager.runs_dir)})
             if path == "/api/progress":
@@ -254,13 +519,29 @@ def make_handler(manager: RunManager):
             return _json(self, {"error": "not found"}, 404)
 
         def do_POST(self):
-            """Route POST actions: run start, config check, dry run."""
+            """Route POST actions: setup save and slot tests, target
+            run start, Gate 0 run start, design runs, config check,
+            and dry run."""
             path = urlparse(self.path).path
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 payload = json.loads(self.rfile.read(length) or b"{}")
             except Exception:
                 return _json(self, {"error": "body must be JSON"}, 400)
+            if path == "/api/setup":
+                try:
+                    return _json(self, manager.save_setup(payload))
+                except (TypeError, ValueError) as exc:
+                    return _json(self, {"ok": False,
+                                        "errors": [str(exc)]})
+            if path == "/api/setup/test":
+                return _json(self, manager.test_slot(
+                    str(payload.get("slot") or "")))
+            if path == "/api/target-run":
+                if not payload.get("name") or not payload.get("kind"):
+                    return _json(self, {"started": False, "error":
+                                        "a target name and kind are required"})
+                return _json(self, manager.start_target(payload))
             config_path = payload.get("config")
             if path == "/api/run-gate0":
                 if not config_path:
@@ -382,10 +663,49 @@ PAGE = """<!DOCTYPE html>
           padding:5px 11px; text-align:left; } th { color:#b967ff; }
   .pass { color:#3dff8f; } .fail { color:#ff5470; } .mut { color:#9a9ab5; }
   a { color:#01cdfe; } .runlink { cursor:pointer; color:#01cdfe; }
+  select, textarea { background:#0a0a16; color:#e8e8f2; border:1px solid #b967ff;
+                     padding:8px; border-radius:4px; }
+  textarea { display:block; margin-top:6px; }
+  input[type=checkbox] { width:auto; }
 </style></head><body>
 <h1>MADD // CONSOLE</h1>
 <div class="sub">MULTI-AGENT DRUG DISCOVERY - EVIDENCE AUDIT DIVISION</div>
 <div class="scan"></div><hr class="laser">
+<div class="panel"><h2>SETUP // MODEL SLOTS</h2>
+  <div id="setup-status" class="mut">checking setup...</div>
+  <div id="slot-primary"></div><div id="slot-secondary"></div><div id="slot-judge"></div>
+  <div style="margin-top:10px">protocol mode <select id="s-mode"></select>
+    <span style="margin-left:14px">budget max calls <input id="s-budget-calls" style="width:90px"></span>
+    <span style="margin-left:10px">max cost USD <input id="s-budget-cost" style="width:90px"></span></div>
+  <div style="margin-top:8px">evidence switches:
+    <label><input type="checkbox" id="s-sw-live_resolution"> live resolution</label>
+    <label><input type="checkbox" id="s-sw-live_quote_check"> quote check</label>
+    <label><input type="checkbox" id="s-sw-entailment_check"> entailment check</label>
+    <label><input type="checkbox" id="s-sw-retrieval_first"> retrieval first</label></div>
+  <p><button class="run" onclick="saveSetup()">SAVE SETUP</button>
+  <span id="setup-msg" class="mut"></span></p>
+  <div class="mut">Keys are never typed here: each slot names the environment variable that
+  holds its API key on the machine running the console. Test buttons make one small
+  research call against the SAVED setup, so save first after changing a slot.</div>
+</div>
+<div class="panel"><h2>TARGET RUN</h2>
+  <div id="target-gate" class="mut"></div>
+  <div id="target-chips" style="margin:8px 0"></div>
+  <div>name <input id="t-name" style="width:300px">
+    kind <select id="t-kind">
+      <option value="target">molecular target</option>
+      <option value="receptor">receptor</option>
+      <option value="disease">disease</option>
+      <option value="genetic_disorder">genetic disorder</option></select></div>
+  <div style="margin-top:8px">molecular target <input id="t-target" style="width:280px">
+    disease context <input id="t-disease" style="width:280px"></div>
+  <div style="margin-top:8px">focus id (optional) <input id="t-focus" style="width:280px">
+    <label><input type="checkbox" id="t-retrieve" checked> retrieve Europe PMC evidence first</label></div>
+  <div style="margin-top:8px">design constraints, one per line
+    <textarea id="t-constraints" rows="3" style="width:660px"></textarea></div>
+  <p><button class="run" onclick="runTarget()">RUN TARGET</button>
+  <span id="target-msg" class="mut"></span></p>
+</div>
 <div class="panel"><h2>RUN CONTROL</h2>
   <input id="config" value="examples/run-config.example.json">
   <button onclick="check()">CHECK CONFIG</button>
@@ -500,6 +820,19 @@ async function show(runId) {
     if (b.tool_runs.length) {
       h += "<div class='mut'>tool runs:</div>";
       for (const t of b.tool_runs) h += "<div>" + esc(t.tool) + ": " + esc(t.status) + "</div>";
+    }
+    h += "<p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a></p>";
+  } else if (b.kind === 'target_run') {
+    const rec = b.frame_run.record; const tg = b.target || {};
+    h += "<div>target <b>" + esc(tg.name) + "</b> (" + esc(tg.kind) + ")" +
+      (tg.disease ? " in " + esc(tg.disease) : "") + " | mode " + esc(b.mode || "none") +
+      " | debate outcome <b>" + esc(rec.outcome) + "</b> | focus " +
+      esc(rec.spec.focus_id || "") + " | strikes " + rec.strike_list.length + "</div>";
+    if (b.design) {
+      h += "<div>design gate <b>" + esc(b.design.gate_report.result) + "</b> | ranked " +
+        b.design.ranking.ranked.length + " | excluded " + b.design.ranking.excluded.length + "</div>";
+    } else {
+      h += "<div class='mut'>no design stage (the specification did not lock)</div>";
     }
     h += "<p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a></p>";
   } else {
@@ -779,6 +1112,181 @@ async function initBuildGuide(runId, bundle) {
   div.innerHTML = h;
   $('detail').appendChild(div);
 }
-loadScoreboard(); loadLibrary();
+let setupState = null;
+const SLOT_LABELS = {primary: 'PRIMARY MODEL', secondary: 'SECONDARY MODEL', judge: 'JUDGE MODEL'};
+function slotHtml(slot, view) {
+  const v = view || {};
+  const kinds = ['', 'mock', 'openai-compatible', 'anthropic'];
+  let h = "<div style='border:1px solid #2a2a4a;padding:10px;margin:10px 0'>";
+  h += "<div><b>" + SLOT_LABELS[slot] + "</b> ";
+  if (view) {
+    h += "<span class='mut'>" + esc(view.kind || '') + (view.model ? ' | ' + esc(view.model) : '') + "</span> ";
+    h += view.key_present ? "<span class='pass'>key variable present</span>"
+                          : "<span class='fail'>key variable missing</span>";
+  } else {
+    h += "<span class='mut'>not assigned</span>";
+  }
+  h += "</div><div style='margin-top:6px'>kind <select id='s-" + slot + "-kind'>";
+  for (const k of kinds) {
+    h += "<option value='" + k + "'" + (v.kind === k ? ' selected' : '') + '>' +
+      (k || '(unassigned)') + "</option>";
+  }
+  h += "</select> model <input id='s-" + slot + "-model' style='width:220px' value='" + esc(v.model || '') + "'>";
+  h += " family <input id='s-" + slot + "-family' style='width:150px' value='" + esc(v.family || '') + "'></div>";
+  h += "<div style='margin-top:6px'>base url <input id='s-" + slot + "-base_url' style='width:250px' value='" + esc(v.base_url || '') + "'>";
+  h += " api key env var <input id='s-" + slot + "-api_key_env' style='width:170px' value='" + esc(v.api_key_env || '') + "'>";
+  h += " <button class='slottest' data-slot='" + slot + "'>TEST SAVED SLOT</button>" +
+    " <span id='s-" + slot + "-test' class='mut'></span></div></div>";
+  return h;
+}
+function refreshModes() {
+  const pk = $('s-primary-kind').value, sk = $('s-secondary-kind').value;
+  const jud = $('s-judge-kind').value;
+  // Two mock slots are one model (every mock is the same fixed
+  // model), and two slots naming the same model id are one model;
+  // anything else with a secondary assigned spans two.
+  const twoModels = !!sk && !(pk === 'mock' && sk === 'mock') &&
+    !($('s-primary-model').value &&
+      $('s-primary-model').value === $('s-secondary-model').value);
+  const opts = [['', '(no mode declared)']];
+  if (!twoModels && !jud) opts.push(['simple', 'simple - 1 model, no judge']);
+  if (!twoModels && jud) opts.push(['simple_judge', 'simple_judge - 1 model + judge']);
+  if (twoModels && !jud) opts.push(['dual', 'dual - 2 models, no judge']);
+  if (twoModels && jud) opts.push(['dual_judge', 'dual_judge - 2 models + judge']);
+  const sel = $('s-mode');
+  const keep = setupState && setupState.mode;
+  if (keep && !opts.some(function (o) { return o[0] === keep; })) {
+    opts.push([keep, keep + ' (saved)']);
+  }
+  sel.innerHTML = opts.map(function (o) {
+    return "<option value='" + o[0] + "'>" + o[1] + "</option>"; }).join('');
+  sel.value = keep ? keep : opts[opts.length - 1][0];
+}
+function renderSetup(st) {
+  setupState = st;
+  for (const slot of ['primary', 'secondary', 'judge']) {
+    $('slot-' + slot).innerHTML = slotHtml(slot, st.slots[slot]);
+  }
+  document.querySelectorAll('.slottest').forEach(function (el) {
+    el.addEventListener('click', function () { testSlot(el.dataset.slot); });
+  });
+  for (const slot of ['primary', 'secondary', 'judge']) {
+    $('s-' + slot + '-kind').addEventListener('change', refreshModes);
+  }
+  $('s-budget-calls').value = st.budget.max_calls || '';
+  $('s-budget-cost').value = st.budget.max_cost_usd || '';
+  for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'retrieval_first']) {
+    $('s-sw-' + key).checked = !!st.switches[key];
+  }
+  refreshModes();
+  $('setup-status').innerHTML = !st.configured
+    ? "<span class='fail'>NO SETUP SAVED</span> - assign at least the Primary model below, then save. The target form unlocks once the Primary slot is usable."
+    : (st.ready
+      ? "<span class='pass'>READY</span> - the target form runs on this setup." +
+        (st.judge_swap ? " A judge_swap entry is also on file (managed by config file, not this panel)." : '')
+      : "<span class='fail'>SETUP SAVED BUT PRIMARY NOT USABLE</span> - assign the Primary slot, or set its key variable in the console's environment.");
+  $('target-gate').textContent = st.ready
+    ? '' : 'Target runs need a saved setup with a usable Primary model (setup panel above).';
+}
+async function loadSetup() {
+  renderSetup(await (await fetch('/api/setup')).json());
+  fillChips();
+}
+function collectSlot(slot) {
+  return {kind: $('s-' + slot + '-kind').value,
+          model: $('s-' + slot + '-model').value,
+          family: $('s-' + slot + '-family').value,
+          base_url: $('s-' + slot + '-base_url').value,
+          api_key_env: $('s-' + slot + '-api_key_env').value};
+}
+async function saveSetup() {
+  const body = {primary: collectSlot('primary'), secondary: collectSlot('secondary'),
+    judge: collectSlot('judge'), mode: $('s-mode').value || null,
+    budget: {max_calls: $('s-budget-calls').value, max_cost_usd: $('s-budget-cost').value},
+    switches: {}};
+  for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'retrieval_first']) {
+    body.switches[key] = $('s-sw-' + key).checked;
+  }
+  const out = await post('/api/setup', body);
+  if (!out.ok) {
+    $('setup-msg').textContent = 'not saved: ' + (out.errors || []).join('; ');
+    return;
+  }
+  $('setup-msg').textContent = 'setup saved.';
+  renderSetup(out.status);
+}
+async function testSlot(slot) {
+  const el = $('s-' + slot + '-test');
+  el.textContent = 'calling...';
+  const out = await post('/api/setup/test', {slot: slot});
+  el.textContent = out.ok
+    ? ('OK | model ' + (out.model_returned || out.model_configured || '?') +
+       ' | ' + out.latency_ms + ' ms')
+    : ('failed: ' + (out.error || 'unknown'));
+}
+const PRESETS = [
+  {label: 'MTCH2 - fat mass', name: 'MTCH2', kind: 'target', target: 'MTCH2', disease: 'obesity'},
+  {label: 'KRAS G12C - lung cancer', name: 'KRAS G12C', kind: 'target', target: 'KRAS G12C', disease: 'non-small cell lung cancer'},
+  {label: 'PCSK9 - cholesterol', name: 'PCSK9', kind: 'target', target: 'PCSK9', disease: 'hypercholesterolemia'},
+  {label: 'CFTR - cystic fibrosis', name: 'cystic fibrosis', kind: 'genetic_disorder', target: 'CFTR', disease: 'cystic fibrosis'},
+  {label: 'GLP-1 receptor - diabetes', name: 'GLP-1 receptor', kind: 'receptor', target: 'GLP-1R', disease: 'type 2 diabetes'},
+  {label: 'CGRP receptor - migraine', name: 'CGRP receptor', kind: 'receptor', target: 'CGRP receptor', disease: 'migraine'},
+  {label: 'BACE1 - Alzheimer disease', name: 'BACE1', kind: 'target', target: 'BACE1', disease: 'Alzheimer disease'},
+  {label: 'Nav1.7 - pain', name: 'Nav1.7', kind: 'target', target: 'SCN9A', disease: 'chronic pain'}
+];
+function fillChips() {
+  const box = $('target-chips');
+  if (box.dataset.done) return;
+  box.dataset.done = '1';
+  PRESETS.forEach(function (pr, i) {
+    const btn = document.createElement('button');
+    btn.textContent = pr.label;
+    btn.style.marginRight = '6px';
+    btn.addEventListener('click', function () {
+      $('t-name').value = pr.name; $('t-kind').value = pr.kind;
+      $('t-target').value = pr.target; $('t-disease').value = pr.disease;
+    });
+    box.appendChild(btn);
+  });
+}
+let targetPolling = null;
+async function runTarget() {
+  const body = {name: $('t-name').value, kind: $('t-kind').value,
+    target: $('t-target').value, disease: $('t-disease').value,
+    focus_id: $('t-focus').value, constraints: $('t-constraints').value,
+    retrieve: $('t-retrieve').checked};
+  const out = await post('/api/target-run', body);
+  if (!out.started) {
+    $('target-msg').textContent = 'not started: ' + out.error;
+    return;
+  }
+  log('target run started: ' + body.name);
+  let seen = 0;
+  clearInterval(targetPolling);
+  targetPolling = setInterval(async () => {
+    const p = await (await fetch('/api/progress')).json();
+    for (; seen < p.events.length; seen++) {
+      const e = p.events[seen];
+      log(e.event + (e.case_id ? ' | ' + e.case_id : '') +
+          (e.prediction ? ' -> ' + e.prediction : '') +
+          (e.outcome ? ' | ' + e.outcome : ''));
+    }
+    if (!p.running) {
+      clearInterval(targetPolling);
+      if (p.error) {
+        log('RUN STOPPED: ' + p.error);
+        $('target-msg').textContent = 'stopped: ' + p.error;
+      }
+      if (p.result) {
+        log('finished: ' + p.result.run_id + ' | outcome ' + p.result.outcome +
+            ' | focus ' + p.result.focus +
+            (p.result.design_gate ? ' | design gate ' + p.result.design_gate : ''));
+        loadLibrary();
+        show(p.result.run_id);
+      }
+    }
+  }, 700);
+}
+loadScoreboard(); loadLibrary(); loadSetup();
 </script></body></html>
 """

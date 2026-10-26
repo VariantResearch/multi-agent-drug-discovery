@@ -4,6 +4,36 @@
 
 ### Added
 
+- A fourth protocol mode, simple_judge (owner's decision,
+  2026-10-26): the research panel on one model, plus a judge. It
+  completes the ablation square - one model or two, judge or
+  none - so the contribution of the second model and of the
+  judge can each be measured on Gate 0 before anything is
+  claimed for them; the scored Phase 1 mode remains dual_judge.
+  Enforced in config validation and in the runner like the other
+  modes; spec, runbook, and README updated.
+- The console's setup-first flow and target form (the external
+  audit's suggested first feature, owner's design). On load the
+  console checks its saved setup: a SETUP panel assigns the
+  Primary, Secondary, and Judge model slots - each a provider
+  entry naming the environment variable that holds its API key,
+  key values never entering the page or the file - plus the
+  protocol mode the assignments support, a budget, and the
+  evidence switches; saving writes a normal run config to
+  runs/console-config.json (a one-model setup materializes its
+  second agent as a clone entry, as a hand-written config would;
+  an existing judge_swap or baseline entry is preserved). Each
+  slot shows whether its key variable is present in the server's
+  environment, and a per-slot Test button runs the smoke call
+  against the saved setup. Below it, a TARGET RUN form: quick
+  pick chips for the project's known targets, a kind selector
+  (molecular target, receptor, disease, genetic disorder), the
+  molecular target and disease context fields, design
+  constraints, and the Europe PMC retrieval toggle; runs execute
+  in the background on the setup's models under its mode, land
+  in the run library, and open in a target detail view (debate
+  outcome, focus, strikes, design gate). Regression tests in
+  tests/test_gui_setup_target.py.
 - README screenshots of the console (screenshots/): the run
   control and Gate 0 scoreboard, a completed target run with its
   rendered molecule and receptor, and the build guide panel -

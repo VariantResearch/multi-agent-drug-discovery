@@ -30,6 +30,12 @@ protocol and evidence call.
 - simple: every agent on one and the same model, no judge. The
   cheapest live configuration. The judge-swap stability test is
   recorded as not applied.
+- simple_judge: every agent on one model, plus a judge. The
+  ablation cell that isolates what a judge adds on its own,
+  without a second model in the panel (owner's decision,
+  2026-10-26; together with simple, dual, and dual_judge it
+  completes the one-model/two-model by judge/no-judge square for
+  measuring each contribution on Gate 0).
 - dual: agents across two models, no judge. Stability likewise
   not applied.
 - dual_judge: agents across two models plus a judge model. The

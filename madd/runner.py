@@ -26,13 +26,15 @@ plain dict; madd/storage.py writes it to disk and madd/report.py
 renders it. Nothing here knows or cares whether the providers are
 mocks, stubs, or live models.
 
-Protocol modes. A run may declare one of three protocols (MODES),
+Protocol modes. A run may declare one of four protocols (MODES),
 which count distinct models, not agents: every mode fields a panel
 of at least two agents. Simple runs the debate with every agent on
-one and the same model; dual runs it with agents across two models;
-dual_judge runs two models plus a judge model, the full protocol
-including the judge-swap stability test. Simple and dual have no
-judge, so stability is recorded as not applied in those modes. A
+one and the same model; simple_judge runs one model plus a judge
+(the ablation cell that isolates what a judge adds); dual runs it
+with agents across two models; dual_judge runs two models plus a
+judge model, the full protocol including the judge-swap stability
+test. Simple and dual have no judge, so stability is recorded as
+not applied in those modes. A
 run that declares no mode keeps the original behaviour exactly: a
 debate panel of two or more providers, with a judge when one is
 supplied.
@@ -60,9 +62,10 @@ def _validate_mode(mode, providers, judge_provider):
     its model_version. mode=None declares nothing and imposes
     nothing (the original behaviour). A declared mode fixes the
     shape exactly: simple puts every agent on one and the same model
-    and has no judge; dual spreads the agents across two models and
-    has no judge; dual_judge spreads them across two models and
-    requires the judge provider. Anything else raises ValueError
+    and has no judge; simple_judge puts them on one model and
+    requires the judge provider; dual spreads the agents across two
+    models and has no judge; dual_judge spreads them across two
+    models and requires the judge provider. Anything else raises ValueError
     naming the mismatch, before any provider is called.
     """
     if mode is None:
@@ -83,6 +86,14 @@ def _validate_mode(mode, providers, judge_provider):
         if judge_provider is not None:
             raise ValueError("simple mode has no judge; remove the judge "
                              "provider or choose dual_judge")
+    elif mode == "simple_judge":
+        if len(models) != 1:
+            raise ValueError("simple_judge mode uses one model: every "
+                             "research agent must run the same model, but "
+                             "the panel spans " + str(len(models))
+                             + " distinct models")
+        if judge_provider is None:
+            raise ValueError("simple_judge mode requires a judge provider")
     elif mode == "dual":
         if len(models) != 2:
             raise ValueError("dual mode uses two models: the research panel "
@@ -219,9 +230,10 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
     baseline_provider is required: the approved thresholds include a
     baseline margin, and a run without a baseline cannot be judged.
     mode selects the protocol the system side runs under (see MODES
-    and _validate_mode): simple (agents all on one model), dual
-    (agents across two models, no judge), or dual_judge (two models
-    plus the judge model). No mode
+    and _validate_mode): simple (agents all on one model),
+    simple_judge (one model plus a judge), dual (agents across two
+    models, no judge), or dual_judge (two models plus the judge
+    model). No mode
     keeps the original debate behaviour. on_event, when given,
     receives progress events (see _emit). max_workers runs case
     debates concurrently; the bundle is assembled in case order
@@ -282,7 +294,7 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                 entailment_checker=entailment_checker,
                                 retrieval_first=retrieval_first,
                                 require_stability=False)
-        elif mode == "dual_judge":
+        elif mode in ("dual_judge", "simple_judge"):
             record = run_debate(frame, providers,
                                 judge_provider=judge_provider,
                                 swap_judge_provider=swap_judge_provider,
@@ -438,9 +450,10 @@ def run_frame(frame, providers, judge_provider=None,
               entailment_checker=None, retrieval_first: bool = False,
               mode=None) -> dict:
     """Run one prospective frame (not a Gate 0 case) under a protocol
-    mode: simple (agents all on one model), dual (agents across two
-    models, no judge), dual_judge (two models plus the judge model),
-    or no mode for the original debate behaviour.
+    mode: simple (agents all on one model), simple_judge (one model
+    plus a judge), dual (agents across two models, no judge),
+    dual_judge (two models plus the judge model), or no mode for
+    the original debate behaviour.
 
     Returns a frame run bundle whose record is the run record: a
     locked specification or a no_go, with the full audit trail.
@@ -457,7 +470,7 @@ def run_frame(frame, providers, judge_provider=None,
                             entailment_checker=entailment_checker,
                             retrieval_first=retrieval_first,
                             require_stability=False)
-    elif mode == "dual_judge":
+    elif mode in ("dual_judge", "simple_judge"):
         record = run_debate(frame, providers, judge_provider=judge_provider,
                             swap_judge_provider=swap_judge_provider,
                             budget_tracker=tracker, resolver=resolver,

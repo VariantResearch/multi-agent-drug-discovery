@@ -206,7 +206,13 @@ which is evaluable only when the run config also names a
 judge_swap provider from a different model family than the
 judge (the swap experiment compares two independently produced
 judging results; without the second result the threshold records
-not_evaluable). The
+not_evaluable). A fourth mode, simple_judge (the panel on one
+model, plus a judge), was added by the owner's decision of
+2026-10-26 to complete the ablation square - one model or two,
+judge or none - so the contribution of the second model and of
+the judge can each be measured on Gate 0 before anything is
+claimed for them; it is an exploratory mode like simple and
+dual, and the scored mode remains dual_judge. The
 simple and dual modes exist for cheaper exploratory and validation
 runs; a validation run in any mode may be judged against the
 approved thresholds and recorded, without becoming the scored
