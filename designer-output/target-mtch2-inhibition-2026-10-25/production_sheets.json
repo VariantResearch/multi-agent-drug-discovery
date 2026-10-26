@@ -1,0 +1,142 @@
+{
+  "generated_from": "target-mtch2-inhibition-2026-10-25",
+  "note": "Post-hoc production sheets built mechanically from the frozen design bundle; the frozen bundle itself is unchanged.",
+  "production_sheets": [
+    {
+      "artifact_type": "production_sheet",
+      "schema_version": "0.1.0",
+      "candidate_id": "panel-b-cand-1",
+      "rank": 1,
+      "modality": "small_molecule",
+      "design_tool": "model:panel-b",
+      "targeted_process": {
+        "target": "MTCH2 (inhibition)",
+        "disease": "obesity",
+        "question": "Design candidates against MTCH2 (inhibition) consistent with the surviving evidence.",
+        "design_constraints": [
+          "Candidates must inhibit MTCH2: reduce its expression, protein abundance, or functional activity, for fat reduction in obesity. Activating or upregulating MTCH2 is the opposite of the goal and is out of scope."
+        ]
+      },
+      "identity": {
+        "format": "smiles",
+        "value_as_proposed": "O=C(Nc1ccc(C(F)(F)F)cc1)c2csc(n2)c3ccccc3",
+        "canonical_smiles": "O=C(Nc1ccc(C(F)(F)F)cc1)c1csc(-c2ccccc2)n1",
+        "structure_valid": true,
+        "inchikey": "UWKQXUMWIHAVOQ-UHFFFAOYSA-N",
+        "molecular_formula": "C17H11F3N2OS",
+        "unspecified_stereocenters": 0,
+        "molecular_weight": 348.349
+      },
+      "production_route": "chemical synthesis",
+      "production_notes": {},
+      "not_specified": [
+        "the confirmation assay that would verify the targeted process for this candidate"
+      ],
+      "production_ready": true
+    },
+    {
+      "artifact_type": "production_sheet",
+      "schema_version": "0.1.0",
+      "candidate_id": "panel-b-cand-2",
+      "rank": 2,
+      "modality": "biologic",
+      "design_tool": "model:panel-b",
+      "targeted_process": {
+        "target": "MTCH2 (inhibition)",
+        "disease": "obesity",
+        "question": "Design candidates against MTCH2 (inhibition) consistent with the surviving evidence.",
+        "design_constraints": [
+          "Candidates must inhibit MTCH2: reduce its expression, protein abundance, or functional activity, for fat reduction in obesity. Activating or upregulating MTCH2 is the opposite of the goal and is out of scope."
+        ]
+      },
+      "identity": {
+        "format": "sequence",
+        "value_as_proposed": "TGCATGACCTCATGGACT",
+        "length": 18,
+        "composition": {
+          "T": 5,
+          "G": 4,
+          "C": 5,
+          "A": 4
+        },
+        "alphabet_check": "pass",
+        "off_alphabet_characters": []
+      },
+      "production_route": "biologic production (oligonucleotide synthesis for antisense or siRNA constructs, recombinant expression for protein constructs)",
+      "production_notes": {},
+      "not_specified": [
+        "the modification pattern (backbone and sugar or terminal modifications, conjugation) a synthesized sequence candidate is made with",
+        "the confirmation assay that would verify the targeted process for this candidate"
+      ],
+      "production_ready": false
+    },
+    {
+      "artifact_type": "production_sheet",
+      "schema_version": "0.1.0",
+      "candidate_id": "panel-a-cand-1",
+      "rank": 3,
+      "modality": "small_molecule",
+      "design_tool": "model:panel-a",
+      "targeted_process": {
+        "target": "MTCH2 (inhibition)",
+        "disease": "obesity",
+        "question": "Design candidates against MTCH2 (inhibition) consistent with the surviving evidence.",
+        "design_constraints": [
+          "Candidates must inhibit MTCH2: reduce its expression, protein abundance, or functional activity, for fat reduction in obesity. Activating or upregulating MTCH2 is the opposite of the goal and is out of scope."
+        ]
+      },
+      "identity": {
+        "format": "smiles",
+        "value_as_proposed": "Cc1nc(c2ccccc2)c(C(=O)Nc2ccc(OC(F)(F)F)cc2)s1",
+        "canonical_smiles": "Cc1nc(-c2ccccc2)c(C(=O)Nc2ccc(OC(F)(F)F)cc2)s1",
+        "structure_valid": true,
+        "inchikey": "VPDLRLBLHTYWKA-UHFFFAOYSA-N",
+        "molecular_formula": "C18H13F3N2O2S",
+        "unspecified_stereocenters": 0,
+        "molecular_weight": 378.375
+      },
+      "production_route": "chemical synthesis",
+      "production_notes": {},
+      "not_specified": [
+        "the confirmation assay that would verify the targeted process for this candidate"
+      ],
+      "production_ready": true
+    },
+    {
+      "artifact_type": "production_sheet",
+      "schema_version": "0.1.0",
+      "candidate_id": "panel-a-cand-2",
+      "rank": 4,
+      "modality": "biologic",
+      "design_tool": "model:panel-a",
+      "targeted_process": {
+        "target": "MTCH2 (inhibition)",
+        "disease": "obesity",
+        "question": "Design candidates against MTCH2 (inhibition) consistent with the surviving evidence.",
+        "design_constraints": [
+          "Candidates must inhibit MTCH2: reduce its expression, protein abundance, or functional activity, for fat reduction in obesity. Activating or upregulating MTCH2 is the opposite of the goal and is out of scope."
+        ]
+      },
+      "identity": {
+        "format": "sequence",
+        "value_as_proposed": "TCCAGGTCATCAGTGACTGC",
+        "length": 20,
+        "composition": {
+          "T": 5,
+          "C": 6,
+          "A": 4,
+          "G": 5
+        },
+        "alphabet_check": "pass",
+        "off_alphabet_characters": []
+      },
+      "production_route": "biologic production (oligonucleotide synthesis for antisense or siRNA constructs, recombinant expression for protein constructs)",
+      "production_notes": {},
+      "not_specified": [
+        "the modification pattern (backbone and sugar or terminal modifications, conjugation) a synthesized sequence candidate is made with",
+        "the confirmation assay that would verify the targeted process for this candidate"
+      ],
+      "production_ready": false
+    }
+  ]
+}
