@@ -105,6 +105,17 @@ class TestRunGate0(unittest.TestCase):
         self.assertEqual(report["result"], "pass")
         self.assertEqual(report["subject_id"], "test-run-2")
 
+    def test_no_judge_run_records_swap_not_evaluable(self):
+        """No judge means no swap ran: flips unknown, never a 0-flip pass."""
+        a, b, _judge = providers_for(set())
+        baseline = CaseStub("base", set())
+        bundle = run_gate0([a, b], baseline_provider=baseline,
+                           gate0_dir=GATE0, run_id="test-run-no-judge")
+        self.assertIsNone(bundle["judge_swap_flips"])
+        statuses = {c["threshold"]: c["status"]
+                    for c in bundle["thresholds"]["checks"]}
+        self.assertEqual(statuses["judge_swap_stability"], "not_evaluable")
+
     def test_baseline_is_required(self):
         """Baseline is required."""
         a, b, _judge = providers_for(set())

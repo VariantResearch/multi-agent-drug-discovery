@@ -320,10 +320,17 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
     # have unmade; a no_go record's call is kill under either focus,
     # so a differing judge focus there changes no call and is not
     # counted (the earlier count included those, overstating flips).
-    flips = sum(1 for rec in case_records.values()
-                if rec["spec"].get("outcome") == "locked"
-                and rec.get("judge_swap")
-                and rec["judge_swap"]["proposed_focus_id"] != rec["spec"]["focus_id"])
+    # When no case record carries a judge_swap entry the swap was
+    # never run (simple and dual modes, or a judgeless legacy run),
+    # so the flip count is unknown, not zero: pass None and let
+    # evaluate_thresholds record not_evaluable. A test that never
+    # ran must not read as a pass on 0 flips.
+    swaps_run = any(rec.get("judge_swap") for rec in case_records.values())
+    flips = (sum(1 for rec in case_records.values()
+                 if rec["spec"].get("outcome") == "locked"
+                 and rec.get("judge_swap")
+                 and rec["judge_swap"]["proposed_focus_id"] != rec["spec"]["focus_id"])
+             if swaps_run else None)
     thresholds = evaluate_thresholds(debate_score, baseline_score=baseline_score,
                                    audit_violations=violations,
                                    judge_swap_flips=flips)
