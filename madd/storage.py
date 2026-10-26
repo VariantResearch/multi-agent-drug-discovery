@@ -34,9 +34,35 @@ INDEX_FILE = "index.json"
 
 
 def write_bundle(bundle: dict, out_dir) -> Path:
-    """Write a run bundle and update the index. Returns the run folder."""
+    """Write a run bundle and update the index. Returns the run folder.
+
+    A run folder is one execution's frozen record: when a bundle
+    already exists under the same run id with different content,
+    this refuses with ValueError rather than overwriting it.
+    Rewriting the identical bundle (same frozen hash) is a no-op
+    success, so deliberate re-saves of the same record still work.
+    """
     base = Path(out_dir)
     run_dir = base / str(bundle["run_id"])
+    existing_path = run_dir / BUNDLE_FILE
+    if existing_path.exists():
+        try:
+            existing = json.loads(existing_path.read_text(encoding="utf-8"))
+        except Exception:
+            existing = None
+        if existing is not None:
+            new_hash = bundle.get("frozen_bundle", {}).get("hash")
+            old_hash = existing.get("frozen_bundle", {}).get("hash")
+            if new_hash is not None and old_hash is not None:
+                same = new_hash == old_hash
+            else:
+                same = (json.dumps(existing, sort_keys=True)
+                        == json.dumps(bundle, sort_keys=True))
+            if not same:
+                raise ValueError(
+                    "refusing to overwrite the existing run bundle at "
+                    + str(run_dir) + ": a different frozen record already "
+                    "exists under run id " + str(bundle["run_id"]))
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / BUNDLE_FILE).write_text(
         json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")

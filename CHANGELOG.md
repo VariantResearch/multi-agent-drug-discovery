@@ -84,6 +84,44 @@
 
 ### Fixed
 
+- All seven findings of an external code audit (CodeRabbit,
+  2026-10-26, run by the owner against revision aa6dad86) were
+  reproduced with the audit's own probes and repaired; nine
+  regression tests in tests/test_coderabbit_audit_2026_10_26.py
+  pin them. A1: the console's Gate 0 runner silently dropped the
+  config's resolver, quote checker, entailment checker, and
+  retrieval_first switches; the evidence-callback factories now
+  live in madd/config.py, shared by the CLI and the console, and
+  a console run wires all four as the CLI does. A2: design and
+  entailment provider calls bypassed the run budget; one budget
+  tracker is now built per run and shared by the research stage,
+  the entailment checker (which reserves per judging call and
+  stops the run at the cap), and the model designer (which
+  reserves per completion), across the CLI run commands, target
+  runs, and the console. A3: the judge-swap flip count could
+  never see a flip, because a differing judge focus fails
+  stability and unlocks the spec before the count; the debate now
+  records the original and swapped case calls per case
+  (judge_swap original_outcome and swapped_outcome) and the
+  runner counts calls the swap changed, still reporting
+  not_evaluable when no swap ran. A4: a production sheet called
+  a structure ready when its validity was unknown (RDKit
+  unavailable) or its stereochemistry unassigned; readiness now
+  requires positive validation and assigned stereocenters. A5: a
+  unanimous explicit kill direction paired with a focus could
+  lock and be scored as an advance; the agreement test now reads
+  that combination as the panel's stated kill decision, and the
+  baseline rule reads a kill dossier the same way. A6:
+  schema-invalid model evidence could lock a spec; the response
+  parser now returns a failure dossier for schema-failing output
+  (its documented contract), and the evidence call and the
+  candidate audit strike claims that fail the claim schema with
+  reason schema_invalid. A7: repeated designs of one spec shared
+  a run id and silently overwrote the earlier saved bundle;
+  design run ids are now unique per execution, and write_bundle
+  refuses to overwrite an existing bundle whose content differs.
+  The README's test instructions now state the suite's actual
+  requirements (pytest, plus RDKit for the structure tests).
 - Full validation of the written record against the code and the
   run artifacts (2026-10-26, at the owner's direction): the test
   suite (288 passing), the Gate 0 validation and mock-debate

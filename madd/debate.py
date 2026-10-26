@@ -52,6 +52,7 @@ from .budget import BudgetExceeded, BudgetTracker
 from .citation_auditor import audit_citations
 from .claims import validate_claim
 from .consensus import run_consensus_tests
+from .schemas import load_schema, validate as validate_against_schema
 from .focus import focus_score
 
 _FOCUS_TOKEN = re.compile(r"[a-z0-9]+")
@@ -126,7 +127,9 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None,
     """Evidence call for one dossier: split claims into surviving/struck.
 
     A claim is struck when the claim ledger rules fail it (no source,
-    model-opinion source, tier 0 load-bearing, already struck) or when
+    model-opinion source, tier 0 load-bearing, already struck), when
+    it fails the claim schema (reason schema_invalid: a required
+    field missing or of the wrong type), or when
     its citation fails the offline auditor (bad identifier format, or a
     quote_checked claim carrying no quote). Struck claims are returned
     with their reason codes and take no further part in the debate.
@@ -165,6 +168,7 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None,
     claims = dossier.get("claims") if isinstance(dossier, dict) else None
     if not isinstance(claims, list):
         claims = []
+    claim_schema = load_schema("claim")
     citation_entries = {}
     for entry in audit_citations({"claims": claims})["entries"]:
         citation_entries[entry["claim_id"]] = entry
@@ -179,6 +183,14 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None,
             struck.append({"claim_id": "<not an object>", "reasons": ["claim_not_object"]})
             continue
         reasons = [e["code"] for e in validate_claim(claim)]
+        if validate_against_schema(claim, claim_schema):
+            # A claim that fails the claim schema (a required field
+            # missing, a field of the wrong type) is not usable
+            # evidence, whatever the ledger rules say: schema-invalid
+            # claims are struck here so malformed model output can
+            # never reach the spec, even in a dossier that bypassed
+            # the response parser.
+            reasons.append("schema_invalid")
         if id_counts.get(claim.get("claim_id"), 0) > 1:
             # A duplicated claim_id makes the citation entry ambiguous:
             # the dict above can only hold one entry per id, so a clean
@@ -523,6 +535,27 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                                     stability_required=require_stability)
     outcome = "locked" if consensus["all_passed"] else "no_go"
     spec["outcome"] = outcome
+    if judge_info is not None:
+        # The two case calls the judge-swap threshold compares: the
+        # call under the original judging (every consensus test except
+        # stability: the panel result as it stands) and the call with
+        # the swapped judge's stability verdict applied (which is this
+        # record's own outcome). A flip is the swap changing the call.
+        # Recording both calls here is what lets the runner count
+        # flips honestly: counting only locked records could never
+        # see one, because a stability failure is exactly what unlocks
+        # the spec.
+        non_stability_passed = all(
+            r["passed"] for r in consensus["results"]
+            if r["test"] != "stability")
+        stability_passed = next(
+            r["passed"] for r in consensus["results"]
+            if r["test"] == "stability")
+        judge_info["original_outcome"] = (
+            "locked" if non_stability_passed else "no_go")
+        judge_info["swapped_outcome"] = (
+            "locked" if (non_stability_passed and stability_passed)
+            else "no_go")
 
     # Step 7: frozen record.
     frame_prompt_hash = prompt_hash(canonical_json(frame))

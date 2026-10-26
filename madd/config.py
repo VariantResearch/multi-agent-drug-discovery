@@ -48,7 +48,9 @@ import os
 from pathlib import Path
 
 from .budget import BudgetTracker
+from .entailment import check_entailment
 from .providers import MockProvider
+from .resolve import check_quote_against_source, resolve_identifier
 from .providers_http import AnthropicProvider, OpenAICompatibleProvider
 
 KINDS = {"mock", "openai-compatible", "anthropic"}
@@ -225,3 +227,76 @@ def build_providers(config, environ=None) -> dict:
         "retrieval_first": bool(config.get("retrieval_first", False)),
         "max_workers": int(config.get("parallel_cases", 1)),
     }
+
+
+def run_budget_tracker(built: dict):
+    """The one budget tracker for a run, built from the config's
+    budget dict, or None when the config sets no budget. Every stage
+    of a run (research, entailment judging, design) charges this
+    same tracker, so the configured caps bound the run's total
+    provider spend rather than one stage of it."""
+    budget = built.get("budget")
+    return BudgetTracker(budget) if budget is not None else None
+
+
+def resolver_from_config(built: dict):
+    """Return the evidence-call resolver when the config enables live
+    resolution, else None (audits stay offline)."""
+    if not built["live_resolution"]:
+        return None
+
+    def resolver(identifier, identifier_type):
+        """Resolve one identifier live and return just its status string,
+        the shape debate.audit_dossier expects from a resolver. A
+        resolved-but-retracted record reports as retracted so the
+        evidence call strikes it."""
+        result = resolve_identifier(identifier, identifier_type)
+        if result["status"] == "resolved" and result.get("retracted"):
+            return "retracted"
+        return result["status"]
+
+    return resolver
+
+
+def quote_checker_from_config(built: dict):
+    """Return the evidence-call quote checker when the config enables
+    live quote checking, else None (quotes stay unchecked live)."""
+    if not built.get("live_quote_check"):
+        return None
+
+    def quote_checker(claim):
+        """Check one claim's quote against its source's open full text
+        and return the status string debate.audit_dossier expects."""
+        return check_quote_against_source(
+            claim.get("source_identifier"), claim.get("identifier_type"),
+            claim.get("supporting_quote"))["status"]
+
+    return quote_checker
+
+
+def entailment_checker_from_config(built: dict, budget_tracker=None):
+    """Return the evidence-call entailment checker when the config
+    enables entailment checking, else None. The checker judges with
+    the config's judge provider; enabling the check without one is a
+    configuration error, raised as ValueError. When a budget tracker
+    is given, every judging call reserves against it first, so
+    entailment completions count toward the run budget like every
+    other provider call; an exhausted budget raises BudgetExceeded
+    out of the checker and stops the run."""
+    if not built.get("entailment_check"):
+        return None
+    judge = built.get("judge")
+    if judge is None:
+        raise ValueError("entailment_check is on but the config names no "
+                         "judge provider to judge entailment with")
+
+    def entailment_checker(claim):
+        """Judge one claim against its cited passage and return the
+        verdict string debate.audit_dossier expects."""
+        if budget_tracker is not None:
+            budget_tracker.reserve(
+                float(getattr(judge, "cost_per_call_usd", 0.0) or 0.0),
+                note="entailment:" + str(getattr(judge, "name", "?")))
+        return check_entailment(claim, judge)
+
+    return entailment_checker

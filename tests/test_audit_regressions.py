@@ -362,10 +362,16 @@ def test_h4_design_run_exit_codes_and_tool_gate(tmp_path, capsys):
                "--tool", "AlphaFold 3", "--use", "commercial"])
     assert rc == 1
     assert "gate: fail" in capsys.readouterr().out
+    first_ids = {e["run_id"] for e in storage.list_runs(out)}
     # Cleared but absent tool: requested_tools_produced fails the gate.
     rc = main(["design-run", str(spec_path), "--out", str(out),
                "--tool", "Boltz-2", "--tool-input", "in.yaml"])
     assert rc == 1
-    bundle = storage.load_bundle(out, "design-spec-t-1")
+    # Each execution keeps its own bundle: the second run must not
+    # have overwritten the first (the pre-fix behavior this test
+    # silently depended on).
+    second_ids = {e["run_id"] for e in storage.list_runs(out)} - first_ids
+    assert len(second_ids) == 1
+    bundle = storage.load_bundle(out, second_ids.pop())
     checks = {c["name"]: c["status"] for c in bundle["gate_report"]["checks"]}
     assert checks["requested_tools_produced"] == "fail"

@@ -29,6 +29,7 @@ import re
 import uuid
 
 from .artifacts import freeze_artifact
+from .budget import BudgetTracker
 from .design import ModelDesigner, run_design
 from .runner import run_frame
 
@@ -84,7 +85,8 @@ def build_target_frame(name: str, kind: str, target: str = None,
 
 
 def run_target(frame: dict, providers, judge_provider=None, mode=None,
-               designer=None, budget=None, run_id=None, on_event=None,
+               designer=None, budget=None, budget_tracker=None,
+               run_id=None, on_event=None,
                resolver=None, quote_checker=None, entailment_checker=None,
                retrieval_first: bool = False, design_constraints: tuple = (),
                target_label: str = None, disease: str = None,
@@ -101,8 +103,13 @@ def run_target(frame: dict, providers, judge_provider=None, mode=None,
     "no_go" when the debate would not lock the target.
     """
     run_id = run_id or ("target-" + uuid.uuid4().hex[:12])
+    # One tracker for the whole run: the research stage and the
+    # design stage charge the same budget, so the configured caps
+    # bound the run's total provider spend.
+    tracker = budget_tracker if budget_tracker is not None else (
+        BudgetTracker(budget) if budget is not None else None)
     frame_bundle = run_frame(frame, providers, judge_provider=judge_provider,
-                             budget=budget, run_id=run_id + "-frame",
+                             budget_tracker=tracker, run_id=run_id + "-frame",
                              on_event=on_event, resolver=resolver,
                              quote_checker=quote_checker,
                              entailment_checker=entailment_checker,
@@ -125,9 +132,11 @@ def run_target(frame: dict, providers, judge_provider=None, mode=None,
         "outcome": "no_go",
     }
     if record["outcome"] == "locked":
-        designer = designer if designer is not None else ModelDesigner(providers)
+        designer = designer if designer is not None else ModelDesigner(
+            providers, budget_tracker=tracker)
         design_bundle = run_design(
             spec, "target run " + run_id, designer=designer,
+            budget_tracker=tracker,
             design_constraints=tuple(design_constraints),
             target=target_label or frame.get("target") or frame.get("target_name"),
             disease=disease if disease is not None else frame.get("disease"),

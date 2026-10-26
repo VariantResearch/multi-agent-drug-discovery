@@ -47,7 +47,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from .config import ConfigError, build_providers, load_config
+from .config import (ConfigError, build_providers,
+                     entailment_checker_from_config, load_config,
+                     quote_checker_from_config, resolver_from_config,
+                     run_budget_tracker)
 from .design import ModelDesigner, run_design
 from .gate0 import list_case_ids, load_input_pack, validate_dataset
 from .html_report import bundle_to_html
@@ -102,11 +105,16 @@ class RunManager:
         try:
             config = load_config(config_path)
             built = build_providers(config)
+            tracker = run_budget_tracker(built)
             bundle = run_gate0(
                 built["providers"], judge_provider=built["judge"],
                 baseline_provider=built["baseline"], mode=built.get("mode"),
-                budget=built["budget"],
+                budget_tracker=tracker,
                 gate0_dir=self.gate0_dir,
+                resolver=resolver_from_config(built),
+                quote_checker=quote_checker_from_config(built),
+                entailment_checker=entailment_checker_from_config(built, tracker),
+                retrieval_first=bool(built.get("retrieval_first")),
                 on_event=self._on_event, max_workers=built["max_workers"])
             run_dir = write_bundle(bundle, self.runs_dir)
             with self.lock:
@@ -276,10 +284,14 @@ def make_handler(manager: RunManager):
                         return _json(self, {"ok": False, "error":
                                             "that run has no consensus spec to design from"})
                     designer = None
+                    tracker = None
                     if payload.get("config"):
                         built = build_providers(load_config(payload["config"]))
-                        designer = ModelDesigner(built["providers"])
+                        tracker = run_budget_tracker(built)
+                        designer = ModelDesigner(built["providers"],
+                                                 budget_tracker=tracker)
                     bundle = run_design(spec, source, designer=designer,
+                                        budget_tracker=tracker,
                                         target=payload.get("target") or None,
                                         disease=payload.get("disease") or None)
                 except ValueError as exc:

@@ -100,9 +100,13 @@ def parse_dossier_response(text, agent_id: str, model_family: str,
     """Turn a model's text answer into a dossier dict.
 
     Identity fields (agent, model family, frame) are set from the
-    caller, never trusted from the response. Schema problems are
-    recorded in unverified_notes; an unparseable response becomes a
-    failure dossier with no claims and no focus.
+    caller, never trusted from the response. An unparseable response
+    becomes a failure dossier with no claims and no focus, and so
+    does a parseable response that fails the dossier schema: the
+    failure contract is that unusable output contributes nothing,
+    rather than being noted and then used anyway. The evidence
+    call additionally strikes any individual claim that fails the
+    claim schema, for dossiers that never passed through here.
     """
     parsed, error = _extract_json(text)
     if error is not None:
@@ -127,7 +131,8 @@ def parse_dossier_response(text, agent_id: str, model_family: str,
         dossier["direction"] = parsed["direction"]
     errors = validate_artifact("dossier", dossier)
     if errors:
-        dossier["unverified_notes"] = list(dossier["unverified_notes"]) + [
+        return _failure_dossier(
+            agent_id, model_family, frame_id,
             "schema problems in the model output: "
-            + "; ".join(e["path"] + " " + e["code"] for e in errors[:5])]
+            + "; ".join(e["path"] + " " + e["code"] for e in errors[:5]))
     return dossier

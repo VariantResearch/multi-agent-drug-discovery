@@ -3,7 +3,7 @@ retrieval-first rule. All offline with stub registries and judges."""
 import copy
 import json
 
-from madd import cli, entailment, resolve, retrieval
+from madd import cli, config, entailment, resolve, retrieval
 from madd.debate import audit_dossier, frame_identifier_set, run_debate
 from tests.test_debate import FRAME, StubProvider, dossier, good_claim
 
@@ -39,11 +39,11 @@ def test_crossref_retraction_is_flagged_on_resolution():
     assert result["retracted"] is True
 
 
-def test_cli_resolver_maps_retracted_for_the_evidence_call(monkeypatch):
-    """Cli resolver maps retracted for the evidence call."""
-    monkeypatch.setattr(cli, "resolve_identifier",
+def test_config_resolver_maps_retracted_for_the_evidence_call(monkeypatch):
+    """Config resolver maps retracted for the evidence call."""
+    monkeypatch.setattr(config, "resolve_identifier",
                         lambda i, t: {"status": "resolved", "retracted": True})
-    resolver = cli._resolver_from_config({"live_resolution": True})
+    resolver = config.resolver_from_config({"live_resolution": True})
     assert resolver("10.1000/xyz", "doi") == "retracted"
 
 

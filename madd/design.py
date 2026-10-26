@@ -21,6 +21,7 @@ or an honest gate failure explaining why not.
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -222,10 +223,17 @@ class ModelDesigner:
 
     name = "model-panel"
 
-    def __init__(self, providers):
+    def __init__(self, providers, budget_tracker=None):
         """providers: provider objects with a complete(system, user)
-        method and a name, as built by madd.config.build_providers."""
+        method and a name, as built by madd.config.build_providers.
+
+        budget_tracker, when given, is the run's shared budget
+        tracker: every completion reserves against it before it is
+        made, so design calls count toward the run budget like
+        research calls. An exhausted budget surfaces through the
+        usual per-provider failure note, never as silent spend."""
         self.providers = list(providers)
+        self.budget_tracker = budget_tracker
         self.notes = []
 
     def design(self, brief: dict) -> list[dict]:
@@ -244,6 +252,11 @@ class ModelDesigner:
             scope = label if seen_labels[label] == 1 else (
                 label + "-" + str(seen_labels[label]))
             try:
+                if self.budget_tracker is not None:
+                    self.budget_tracker.reserve(
+                        float(getattr(provider, "cost_per_call_usd", 0.0)
+                              or 0.0),
+                        note="design:" + label)
                 text = provider.complete(DESIGN_SYSTEM_PROMPT, user)
             except Exception as exc:
                 self.notes.append("provider " + label + ": design call failed: "
@@ -321,6 +334,13 @@ def audit_candidate(candidate: dict) -> dict:
     codes_by_id = {}
     for err in claims_mod.audit_claims(candidate)["errors"]:
         codes_by_id.setdefault(err["claim_id"], set()).add(err["code"])
+    claim_schema = schemas.load_schema("claim")
+    for claim in claims_list:
+        if schemas.validate(claim, claim_schema):
+            # Same rule as the research evidence call: a claim that
+            # fails the claim schema is not usable evidence.
+            codes_by_id.setdefault(claim.get("claim_id"), set()).add(
+                "schema_invalid")
     entries = citation_auditor.audit_citations(candidate)["entries"]
     for claim, entry in zip(claims_list, entries):
         codes = codes_by_id.setdefault(claim.get("claim_id"), set())
@@ -398,6 +418,7 @@ def rank_candidates(candidates: list[dict], audits: list[dict]) -> dict:
 
 
 def run_design(spec: dict, source: str, designer=None,
+               budget_tracker=None,
                design_constraints: tuple = (), tool_runs: tuple = (),
                extra_candidates: tuple = (),
                target: str = None, disease: str = None,
@@ -501,7 +522,12 @@ def run_design(spec: dict, source: str, designer=None,
                                 + ", ".join(str(t.get("tool")) + "=" + str(t.get("status"))
                                             for t in requested_runs))})
     result = "pass" if all(c["status"] == "pass" for c in checks) else "fail"
-    run_id = "design-" + _slug(spec.get("spec_id", "spec"))
+    # One execution, one id: the spec slug names the relationship,
+    # the suffix makes the execution unique, so a repeated design of
+    # the same spec can never land on (and silently replace) the
+    # earlier run's saved bundle.
+    run_id = ("design-" + _slug(spec.get("spec_id", "spec"))
+              + "-" + uuid.uuid4().hex[:8])
     bundle = {
         "kind": "design_run",
         "run_id": run_id,
@@ -524,6 +550,8 @@ def run_design(spec: dict, source: str, designer=None,
             "checks": checks,
         },
     }
+    if budget_tracker is not None:
+        bundle["budget"] = budget_tracker.to_dict()
     # The end goal of the stage: production targets. One sheet per
     # ranked candidate, built mechanically (madd/production.py),
     # naming exactly what would be made for the targeted process

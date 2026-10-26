@@ -140,10 +140,15 @@ def baseline_prediction(dossier: dict, resolver=None, quote_checker=None,
                         entailment_checker=None, allowed_identifiers=None) -> str:
     """The baseline rule, fixed in advance: advance when the lone
     dossier proposes a focus backed by at least one audited surviving
-    claim; kill otherwise."""
+    claim; kill otherwise. An explicit kill direction is the model's
+    stated decision and reads as kill even when a focus is named,
+    the same interpretation the consensus agreement test applies
+    to a panel."""
     audited = audit_dossier(dossier, resolver=resolver, quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
                             allowed_identifiers=allowed_identifiers)
+    if audited.get("direction") == "kill":
+        return "kill"
     if not audited["proposed_focus_id"]:
         return "kill"
     if any(is_audited(c) for c in audited["surviving_claims"]):
@@ -203,7 +208,8 @@ def _emit(on_event, event: dict):
 
 
 def run_gate0(providers, judge_provider=None, baseline_provider=None,
-              budget=None, gate0_dir=None, resolver=None, run_id=None,
+              budget=None, budget_tracker=None, gate0_dir=None,
+              resolver=None, run_id=None,
               on_event=None, max_workers=1, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
               mode=None) -> dict:
@@ -226,7 +232,8 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         raise ValueError("a Gate 0 run needs a baseline provider: the approved "
                          "thresholds judge the debate against a single-model "
                          "baseline, and without one the run is not evaluable")
-    tracker = BudgetTracker(budget) if budget is not None else None
+    tracker = budget_tracker if budget_tracker is not None else (
+        BudgetTracker(budget) if budget is not None else None)
     run_id = run_id or ("gate0-" + uuid.uuid4().hex[:12])
     case_ids = list_case_ids(gate0_dir)
     packs = {}
@@ -315,22 +322,28 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
     debate_score = score_run(predictions, gate0_dir)
     baseline_score = score_run(baseline_predictions, gate0_dir)
     violations = sum(spec_audit_violations(rec["spec"]) for rec in case_records.values())
-    # A judge-swap flip is a case call that changed. Only a locked
-    # record made an advance call that a different judge focus would
-    # have unmade; a no_go record's call is kill under either focus,
-    # so a differing judge focus there changes no call and is not
-    # counted (the earlier count included those, overstating flips).
+    # A judge-swap flip is a case call the swap changed: the debate
+    # records, per case, the call under the original judging
+    # (original_outcome: every consensus test except stability) and
+    # the call with the swapped judge's stability verdict applied
+    # (swapped_outcome). Counting only locked records whose judge
+    # focus differed could never see a flip, because a differing
+    # judge focus fails stability and unlocks the spec before the
+    # count; the two recorded calls are the honest comparison.
     # When no case record carries a judge_swap entry the swap was
     # never run (simple and dual modes, or a judgeless legacy run),
-    # so the flip count is unknown, not zero: pass None and let
+    # and when a swap record predates the two-call recording the
+    # count is likewise unknown, not zero: pass None and let
     # evaluate_thresholds record not_evaluable. A test that never
     # ran must not read as a pass on 0 flips.
-    swaps_run = any(rec.get("judge_swap") for rec in case_records.values())
-    flips = (sum(1 for rec in case_records.values()
-                 if rec["spec"].get("outcome") == "locked"
-                 and rec.get("judge_swap")
-                 and rec["judge_swap"]["proposed_focus_id"] != rec["spec"]["focus_id"])
-             if swaps_run else None)
+    swaps = [rec.get("judge_swap") for rec in case_records.values()
+             if rec.get("judge_swap")]
+    if swaps and all("original_outcome" in s and "swapped_outcome" in s
+                     for s in swaps):
+        flips = sum(1 for s in swaps
+                    if s["original_outcome"] != s["swapped_outcome"])
+    else:
+        flips = None
     thresholds = evaluate_thresholds(debate_score, baseline_score=baseline_score,
                                    audit_violations=violations,
                                    judge_swap_flips=flips)
@@ -415,6 +428,7 @@ def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
 
 
 def run_frame(frame, providers, judge_provider=None, budget=None,
+              budget_tracker=None,
               resolver=None, run_id=None, on_event=None, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
               mode=None) -> dict:
@@ -429,7 +443,8 @@ def run_frame(frame, providers, judge_provider=None, budget=None,
     _validate_mode(mode, providers, judge_provider)
     _emit(on_event, {"event": "debate_case_started",
                      "case_id": frame.get("frame_id")})
-    tracker = BudgetTracker(budget) if budget is not None else None
+    tracker = budget_tracker if budget_tracker is not None else (
+        BudgetTracker(budget) if budget is not None else None)
     if mode in ("simple", "dual"):
         record = run_debate(frame, providers, judge_provider=None,
                             budget_tracker=tracker, resolver=resolver,

@@ -125,10 +125,21 @@ def build_production_sheet(candidate: dict, brief: dict,
             not_specified.append("a valid structure (RDKit rejected "
                                  "the proposed SMILES)")
             blockers.append("structure")
+        elif identity.get("structure_valid") is None:
+            # Readiness requires positive validation: with RDKit
+            # unavailable the structure's validity is unknown, and a
+            # sheet must not call an unvalidated structure ready.
+            not_specified.append("structure validation (RDKit was not "
+                                 "available to validate the proposed "
+                                 "structure)")
+            blockers.append("structure")
         if identity.get("unspecified_stereocenters"):
             not_specified.append(
                 "stereochemistry (" + str(identity["unspecified_stereocenters"])
                 + " stereocenter(s) unassigned in the proposed structure)")
+            # An unassigned stereocenter means the exact product is
+            # not determined: two different compounds share the sheet.
+            blockers.append("stereochemistry")
         computed = _computed(candidate)
         if computed.get("molecular_weight") is not None:
             identity["molecular_weight"] = computed["molecular_weight"]

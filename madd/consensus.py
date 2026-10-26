@@ -19,7 +19,14 @@ def test_agreement(dossiers: list) -> dict:
     advance: two dossiers pointing at the same focus in opposite
     directions (one advance, one kill) are not agreement, and before
     this rule the panel could lock a spec whose direction said kill
-    and have it scored as advance.
+    and have it scored as advance. The same logic closes the
+    unanimous case: when every dossier states the direction and the
+    one stated direction is kill, the panel has agreed to kill, not
+    to advance, so there is no specification to lock even though a
+    focus is named. (The research contract asks a non-advancing
+    agent to omit the focus; a focus paired with an explicit kill
+    is contradictory input, and the mechanical reading of the
+    panel's stated decision is kill.)
     """
     focuses = []
     directions = []
@@ -32,16 +39,22 @@ def test_agreement(dossiers: list) -> dict:
     stated = [x for x in directions if x]
     distinct_directions = sorted(set(stated))
     direction_ok = len(distinct_directions) <= 1 and len(stated) in (0, len(dossiers))
+    unanimous_kill = (len(stated) == len(dossiers) and len(dossiers) > 0
+                      and distinct_directions == ["kill"])
     # Every dossier must actually propose a focus: agreement among the
     # dossiers that named one, while another named none, is not agreement.
     passed = (len(dossiers) >= 2 and len(focuses) == len(dossiers)
-              and all(focuses) and len(distinct) == 1 and direction_ok)
+              and all(focuses) and len(distinct) == 1 and direction_ok
+              and not unanimous_kill)
     detail = "focus identifiers seen: " + ", ".join(str(f) for f in distinct)
     if missing:
         detail += "; dossiers without a focus: " + str(missing)
     if not direction_ok:
         detail += ("; directions disagree or are only partly stated: "
                    + ", ".join(str(x) for x in distinct_directions))
+    if unanimous_kill:
+        detail += ("; every dossier directs kill: the panel's stated "
+                   "decision is to kill, so no specification can lock")
     return {"test": "agreement", "passed": passed,
             "status": "passed" if passed else "failed", "detail": detail}
 

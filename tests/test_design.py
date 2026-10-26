@@ -215,7 +215,9 @@ def test_cli_design_flow(tmp_path, capsys):
                  "--constraint", "no covalent binders"]) == 1
     text = capsys.readouterr().out
     assert "gate: fail" in text
-    run_dir = out / "design-spec-t-1"
+    run_dirs = list(out.glob("design-spec-t-1-*"))
+    assert len(run_dirs) == 1
+    run_dir = run_dirs[0]
     assert (run_dir / "bundle.json").exists()
     report = (run_dir / "report.md").read_text()
     assert "Ranked candidates" in report
@@ -274,12 +276,14 @@ def test_gui_design_from_locked_frame_run(gui_server, tmp_path):
     assert out["ok"] is True
     # Mock designer only: the run is written, the gate honestly fails.
     assert out["gate"] == "fail"
-    assert out["run_id"] == "design-spec-t-1"
-    bundle = storage.load_bundle(tmp_path / "runs", "design-spec-t-1")
+    # Design run ids name the spec and carry a unique execution
+    # suffix, so a repeat design can never overwrite this one.
+    assert out["run_id"].startswith("design-spec-t-1-")
+    bundle = storage.load_bundle(tmp_path / "runs", out["run_id"])
     assert bundle["brief"]["disease"] == "Disease D"
     with urllib.request.urlopen(gui_server + "/api/runs", timeout=5) as resp:
         runs = json.loads(resp.read().decode())["runs"]
     kinds = {r["run_id"]: r["kind"] for r in runs}
-    assert kinds["design-spec-t-1"] == "design_run"
+    assert kinds[out["run_id"]] == "design_run"
     page = urllib.request.urlopen(gui_server + "/", timeout=5).read().decode()
     assert "designFrom" in page
