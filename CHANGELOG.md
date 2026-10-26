@@ -65,6 +65,13 @@
 
 ### Fixed
 
+- The Gate 0 runner counted judge-swap flips as 0 whenever no
+  case carried a swap record, so a run in simple or dual mode (or
+  a judgeless legacy run) recorded judge-swap stability as a pass
+  on a test that never ran. The runner now passes the flip count
+  as unknown when no swap ran, and the threshold evaluation
+  records not_evaluable. The validation run 4 record is corrected
+  to match: four thresholds passed, stability not evaluable.
 - Consensus agreement compared proposed focus labels as exact
   strings, so cases were decided by spelling: a unanimous panel
   could fail agreement for writing the same target two ways, and a
@@ -92,8 +99,9 @@
   (simple: three panel agents per case on one model, no judge),
   recorded in docs/VALIDATION_RUN_2026-10-25.md and the spec's
   validation record: debate 7 of 8, baseline 8 of 8, zero audit
-  strikes, five of six thresholds passed, baseline margin failed
-  at -1, run outcome fail.
+  strikes, four thresholds passed, baseline margin failed
+  at -1, judge-swap stability not evaluable (not applied in
+  simple mode), run outcome fail.
 - Gate 0 validation is now optional for the production program
   (owner's decision, 2026-10-25, recorded in docs/PHASE1_SPEC.md):
   live frame runs and Phase 2 design no longer wait on a scored or

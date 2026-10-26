@@ -6,10 +6,12 @@ target-mtch2-inhibition-2026-10-25, protocol mode simple, outcome
 
 ## What is here
 
-- `bundle.json` - the frozen run bundle: retrieved evidence set,
-  three research dossiers, the audit and strike record, the debate
-  record, the locked specification, the design brief, the four
-  designer candidates, their audits and ranking.
+- `bundle.json` - the frozen run bundle: the debate record, the
+  strike list, the locked specification, the design brief, the four
+  designer candidates, their audits and ranking. The research
+  dossiers, the retrieved evidence set, and the entailment
+  judgments are not in the bundle; they stay in the operator's
+  harness workspace.
 - `production_sheets.json` - production target sheets for the four
   ranked candidates, generated mechanically from the frozen bundle
   by madd/production.py after the run (the run predates sheets
@@ -55,6 +57,9 @@ Four candidates ranked, two modalities:
 
 ## Provenance and caveats (part of this output)
 
+- Status: a sample run, published to show the progress of the
+  app. No target is locked in or selected by it; MTCH2 was the
+  demonstration subject.
 - Staffing: the provider panel and the designers were independent
   subagents of a single model family, standing in for a commercial
   roster that has not been recorded yet. Costs are recorded as 0.0

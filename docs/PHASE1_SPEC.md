@@ -182,8 +182,8 @@ under a declared protocol mode, simple: three panel agents per
 case on one model, no judge, mode enforced by the shipped runner):
 debate 7 of 8, baseline 8 of 8, zero audit strikes; kill rate
 passed (4 of 4), advance rate passed (3 of 4; erenumab lost to a
-split panel), audit integrity passed, judge-swap stability passed
-vacuously (no judge in simple mode; the test is recorded
+split panel), audit integrity passed, judge-swap stability not
+evaluable (no judge in simple mode; the test is recorded
 not_applied in every case record), and the baseline margin failed
 (-1), run outcome fail. The lone baseline called every case
 correctly, including both cases the panel split on.

@@ -331,9 +331,10 @@ all 8 correctly, including both divided cases.
 
 Thresholds: run completeness pass; failure kill rate pass (4 of
 4); positive advance rate pass (3 of 4); audit integrity pass (0
-violations); judge-swap stability pass on 0 flips, vacuously,
-because simple mode has no judge to swap (each case record shows
-the stability test as not_applied, as the mode specifies);
+violations); judge-swap stability not evaluable (not applied in
+simple mode: no judge to swap, and each case record shows the
+stability test as not_applied, as the mode specifies; the gate
+report's 0 flips records that no swap was run, not a pass);
 baseline margin FAIL, at -1 (debate 7, baseline 8; at least +1
 required). Run outcome: fail, on the margin alone.
 

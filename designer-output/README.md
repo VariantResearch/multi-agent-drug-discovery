@@ -2,8 +2,11 @@
 
 Published output from MADD target runs: the designer stage's ranked
 candidates and their production target sheets, kept with the frozen
-run bundle that produced them so every claim in the output can be
-traced back to its audited record.
+run bundle that produced them. The bundle holds the debate record,
+the strike list, the locked specification, and the candidate
+audits; the wider audit record (the research dossiers, the
+retrieved evidence set, and the entailment judgments) stays in the
+operator's harness workspace.
 
 Each run folder contains:
 
@@ -23,8 +26,11 @@ Each run folder contains:
 - `README.md` - provenance for the run and the caveats that travel
   with its output.
 
+Publication here does not select or lock in a target. These are
+sample runs that show the pipeline's progress; a run's target is
+its demonstration subject, not a chosen production target.
+
 Designer output is untested model proposal work. A production sheet
 describes a candidate precisely enough to be made; it is not
-evidence that the candidate works, binds, or is safe. The audit
-record in the bundle, including every strike, is part of the output
-and stays attached to it.
+evidence that the candidate works, binds, or is safe. The strike
+list in the bundle is part of the output and stays attached to it.
