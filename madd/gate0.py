@@ -6,8 +6,9 @@ The dataset lives in the repository-level gate0/ directory:
   receive: real drug, target, disease, sponsor, an evidence_as_of cutoff
   date, and claims that rest only on sources published before the pivotal
   outcome was public.
-- gate0/sealed/<case_id>.outcome.json holds the outcome. It is read only
-  at scoring time, never when an agent pack is built.
+- gate0/sealed/<case_id>.outcome.json holds the outcome. It is read by
+  dataset validation and at scoring time, never when an agent pack is
+  built.
 
 build_agent_pack refuses to return a pack when validation fails, when a
 sealed-only field is present in the input, or when any per-case forbidden

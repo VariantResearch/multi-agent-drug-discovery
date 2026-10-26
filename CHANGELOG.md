@@ -315,7 +315,8 @@ tests/test_audit_regressions.py):
   on primary sources fetched and read on 2026-10-22. Blinded input packs
   (gate0/input/) carry pre-outcome claims only, each with an identifier,
   a supporting quote of at most 25 words, and a per-case forbidden_terms
-  list; sealed outcomes (gate0/sealed/) are read only at scoring time.
+  list; sealed outcomes (gate0/sealed/) are read by dataset validation
+  and at scoring time, and are never given to agents.
   Verification ledger and leakage limitation statement in
   gate0/VERIFICATION_LEDGER.md; construction corrections in
   gate0/REJECTED.md (no case was dropped).

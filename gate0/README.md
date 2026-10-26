@@ -28,8 +28,9 @@ synthetic, never as research content.
   outcome class, the pivotal result stated narrowly with the numbers as
   the primary source states them, the outcome source identifier, the
   date the result became public, and a one-line reason class. Sealed
-  files are read only at scoring time (madd.gate0.score_run). Agents
-  never receive them.
+  files are never given to agents and are never read by
+  build_agent_pack. They are read by dataset validation
+  (gate0-validate) and by madd.gate0.score_run at scoring time.
 - VERIFICATION_LEDGER.md: one row per claim and per outcome, with the
   identifier, source title, fetch date, and verdict, plus the leakage
   limitation statement.

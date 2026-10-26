@@ -96,7 +96,7 @@ recommended but left as an owner decision.
 
 ## Model roster (owner decision, still open)
 
-No model is named as approved in this draft. The run needs:
+No model is named as approved in this specification. The run needs:
 
 - Three frontier model families from three different providers.
 - One open-weight model that can be run or hosted independently, as the
