@@ -69,3 +69,36 @@ carries the same leakage question as the TradeMemory
 entry above for blinded Gate 0 and Phase 1 work, so any
 adoption belongs in a later phase spec with that
 question answered first. Not proposed for Phase 1.
+
+## Swarms - multi-agent orchestration framework
+
+Recorded 2026-10-26 at the owner's direction.
+Source: github.com/kyegomez/swarms (Apache-2.0, Python)
+
+Swarms is a general-purpose framework for orchestrating
+many agents: pooling agents across providers, arranging
+them in sequential, parallel, and hierarchical
+topologies, and running the group as one system. The
+pattern that transfers to MADD is at the panel layer.
+The validation runs recorded on 2026-10-25 showed the
+pipeline works but the panel configuration is not
+cleared for production, and the missing ingredient named
+there is roster diversity: in single-model staffing the
+baseline is the same mind working solo. A framework
+whose whole job is composing heterogeneous agent groups
+is a useful comparison shelf when the owner picks the
+commercial roster, and its topology vocabulary (who
+works in parallel, who reviews whom, what a hierarchy
+buys) maps onto the protocol modes the owner designed
+(simple, dual, dual_judge).
+
+Boundary: MADD's debate engine is purpose-built, and
+its guarantees are the product: blinded inputs, sealed
+outcomes, a mechanical citation audit, and a focus score
+computed deterministically from audited evidence tiers
+only. A general orchestration framework enforces none
+of that. Nothing here proposes replacing the engine or
+routing a scored run through Swarms; the entry is a
+reference for panel-composition decisions, and any
+adoption belongs in a phase spec with the audit
+guarantees re-proven against it first.
