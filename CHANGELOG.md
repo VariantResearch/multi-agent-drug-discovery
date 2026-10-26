@@ -4,6 +4,20 @@
 
 ### Added
 
+- A build guide panel in the MADD Console: the run view of a
+  completed design renders each ranked candidate's production
+  sheet as steps (make the structure by its route, confirm
+  identity against the sheet, run the confirmation assay), behind
+  GET /api/runs/<run>/build-guide. Sheets are served as stored,
+  or built mechanically for older bundles that predate stored
+  sheets; anything the sheet records as unspecified is named in
+  the panel, never filled in.
+- Build guides for the two MTCH2 small-molecule candidates in
+  designer-output/target-mtch2-inhibition-2026-10-25/
+  (build-guide-panel-b-cand-1.md, build-guide-panel-a-cand-1.md):
+  proposed Hantzsch routes, release QC against the production
+  sheets, and a proposed confirmation plan, each labelled as
+  proposal work for an untested compound.
 - A 3D structural view in the MADD Console (madd/structure3d.py):
   when a design completes, the run view shows a rotatable
   ball-and-stick model of each ranked small-molecule candidate,

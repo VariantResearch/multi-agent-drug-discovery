@@ -16,6 +16,16 @@ target-mtch2-inhibition-2026-10-25, protocol mode simple, outcome
   being built into design bundles; the frozen bundle itself is
   unchanged).
 - `report.md` - the run report, production targets included.
+- `build-guide-panel-b-cand-1.md` and
+  `build-guide-panel-a-cand-1.md` - full step-by-step build guides
+  for the two small-molecule candidates: proposed synthesis route
+  (Hantzsch thiazole, hydrolysis, amide coupling), release QC
+  against the production sheet, and a proposed confirmation
+  plan. Each guide states its own status up front: a proposed
+  route for an untested compound, not a validated protocol. The
+  two antisense candidates have no build guides; their sheets
+  record the modification pattern as unspecified, so a
+  synthesizable guide cannot be written yet.
 
 ## The output
 
@@ -32,8 +42,9 @@ Four candidates ranked, two modalities:
    production-ready: the modification pattern exists only in that
    prose, not in the structured record the sheet reads.
 3. panel-a-cand-1 (small molecule, chemical synthesis):
-   thiazole-carboxamide chemotype, near-identical scaffold family
-   to candidate 1 from an independent designer. Formula
+   thiazole-carboxamide chemotype from an independent designer;
+   the 2-methyl-4-phenylthiazole-5-carboxamide regioisomer of
+   candidate 1's scaffold family (see its build guide). Formula
    C18H13F3N2O2S, MW 378.375, InChIKey VPDLRLBLHTYWKA-UHFFFAOYSA-N.
    Production-ready per its sheet; confirmation assay not
    specified.

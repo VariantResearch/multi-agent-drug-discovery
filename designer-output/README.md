@@ -16,6 +16,10 @@ Each run folder contains:
   did not specify.
 - `report.md` - the run report rendered from the bundle, with the
   production targets section included.
+- `build-guide-<candidate>.md` - when written, a full step-by-step
+  build guide for a candidate: proposed route, release QC against
+  its production sheet, and a proposed confirmation plan, each
+  labelled as proposal work for an untested compound.
 - `README.md` - provenance for the run and the caveats that travel
   with its output.
 

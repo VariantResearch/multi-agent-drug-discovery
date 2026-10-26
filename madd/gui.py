@@ -15,7 +15,11 @@ leaves the machine. One page, four panels:
   a 3D structural view of its ranked drug candidates: a rotatable
   ball-and-stick model generated from the candidate's SMILES by
   madd/structure3d.py (sequence candidates have no small-molecule
-  3D form and say so).
+  3D form and say so), and a build guide panel that renders each
+  ranked candidate's production sheet as steps (make it by its
+  route, confirm identity against the sheet, run the confirmation
+  assay), naming anything the sheet records as unspecified rather
+  than inventing it.
 
 Theme is the synthwave palette of the owner's other tools (near-black
 #0a0a16, neon pink #ff71ce, purple #b967ff, cyan #01cdfe), laser
@@ -43,6 +47,7 @@ from .html_report import bundle_to_html
 from .runner import estimate_gate0_run, run_gate0
 from .storage import list_runs, load_bundle, write_bundle
 from .transcript import record_to_markdown
+from .production import build_production_sheets
 from .structure3d import candidate_structure3d
 
 
@@ -116,6 +121,20 @@ class RunManager:
             self.events.append(event)
 
 
+def build_guide_payload(bundle: dict) -> dict:
+    """The console build guide for a run bundle: one entry per
+    ranked candidate, taken from the design stage's production
+    sheets when the bundle stores them and built mechanically from
+    the bundle when it does not (older bundles predate sheets being
+    stored). A bundle with no design stage yields no sheets."""
+    design = bundle if bundle.get("kind") == "design_run" \
+        else bundle.get("design") or {}
+    sheets = design.get("production_sheets")
+    if sheets is None:
+        sheets = build_production_sheets(design)
+    return {"sheets": sheets}
+
+
 def _json(handler, payload, status=200):
     """Send a JSON response."""
     body = json.dumps(payload).encode("utf-8")
@@ -184,6 +203,8 @@ def make_handler(manager: RunManager):
             if parts[3] == "report.html":
                 return _text(self, bundle_to_html(bundle),
                              "text/html; charset=utf-8")
+            if parts[3] == "build-guide" and len(parts) == 4:
+                return _json(self, build_guide_payload(bundle))
             if parts[3] == "structure3d" and len(parts) == 5:
                 return _json(self, candidate_structure3d(bundle, parts[4]))
             if parts[3] == "transcript" and len(parts) == 5:
@@ -451,6 +472,7 @@ async function show(runId) {
       ev.preventDefault(); tx(el.dataset.runid, el.dataset.caseid); });
   });
   initViewer3d(runId, b);
+  initBuildGuide(runId, b);
   const db = $('designbtn');
   if (db) db.addEventListener('click', function () { designFrom(runId); });
 }
@@ -581,6 +603,55 @@ function startViewer(data) {
   cv.onmouseup = function () { st3.drag = null; };
   cv.onmouseleave = function () { st3.drag = null; };
   frame();
+}
+async function initBuildGuide(runId, bundle) {
+  const design = bundle.kind === 'design_run' ? bundle : bundle.design;
+  if (!design || !design.ranking || !design.ranking.ranked.length) return;
+  const out = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/build-guide')).json();
+  if (!out.sheets || !out.sheets.length) return;
+  const div = document.createElement('div');
+  let h = '<h3>BUILD GUIDE</h3>';
+  h += '<div class="mut">Step by step from the production sheet of each ranked candidate. ' +
+    'A sheet marked NOT READY names what is still unspecified; no step here invents it.</div>';
+  for (const sh of out.sheets) {
+    const idn = sh.identity || {};
+    const tp = sh.targeted_process || {};
+    const notes = sh.production_notes || {};
+    h += '<div style="border:1px solid #2a2a4a;padding:10px;margin:10px 0">';
+    h += '<div><b>' + sh.rank + '. ' + esc(sh.candidate_id) + '</b> - ' +
+      (sh.production_ready ? '<span class="pass">PRODUCTION READY</span>'
+                           : '<span class="fail">NOT READY</span>') + '</div>';
+    h += '<div class="mut">target: ' + esc(tp.target || '') +
+      (tp.disease ? ' (' + esc(tp.disease) + ')' : '') + ' | route: ' + esc(sh.production_route || '') + '</div>';
+    h += '<ol style="margin:8px 0 4px 18px;padding:0">';
+    if (idn.format === 'smiles') {
+      h += '<li>Make the structure by ' + esc(sh.production_route || 'synthesis') + ': <span class="mut">' +
+        esc(idn.canonical_smiles || idn.value_as_proposed || '') + '</span></li>';
+      h += '<li>Confirm identity against the sheet: formula ' + esc(idn.molecular_formula || '') +
+        ', MW ' + esc(String(idn.molecular_weight || '')) + ', InChIKey ' + esc(idn.inchikey || '') +
+        (idn.unspecified_stereocenters ? ' (note: ' + idn.unspecified_stereocenters + ' unspecified stereocenters)' : '') + '</li>';
+    } else if (idn.format === 'sequence') {
+      h += '<li>Make the sequence by ' + esc(sh.production_route || 'synthesis') + ': <span class="mut">' +
+        esc(idn.value_as_proposed || '') + '</span> (' + esc(String(idn.length || '')) + ' units, alphabet check ' +
+        esc(idn.alphabet_check || '') + ')</li>';
+      h += '<li>Confirm identity against the sheet: length and composition match the sheet exactly.</li>';
+    } else {
+      h += '<li>Make the candidate by ' + esc(sh.production_route || 'the route on its sheet') + '.</li>';
+    }
+    if (notes.confirmation_assay) {
+      h += '<li>Run the confirmation assay from the design record: ' + esc(notes.confirmation_assay) + '</li>';
+    } else {
+      h += '<li>Confirmation assay: <span class="fail">not specified</span> - one must be defined before this candidate can be confirmed.</li>';
+    }
+    h += '</ol>';
+    if (sh.not_specified && sh.not_specified.length) {
+      h += '<div class="mut">still unspecified:</div>';
+      for (const ns of sh.not_specified) h += '<div>- ' + esc(ns) + '</div>';
+    }
+    h += '</div>';
+  }
+  div.innerHTML = h;
+  $('detail').appendChild(div);
 }
 loadScoreboard(); loadLibrary();
 </script></body></html>

@@ -52,7 +52,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (279 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
+Expected results: the test suite passes (282 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -74,7 +74,7 @@ A retro cyberpunk web interface ships with the package, in the synthwave theme (
 python3 -m madd gui
 ```
 
-Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. A locked frame run also offers one-click Phase 2 design, and design runs appear in the library with their ranked candidates. When a design completes, the run view also shows a 3D structural view of the target drug: a rotatable ball-and-stick model of each ranked small-molecule candidate, generated from its SMILES (a generated conformer for visualization, not a measured structure); sequence candidates state that they have no small-molecule 3D form. It binds to localhost by default (a --host option exists for the owner's own LAN decisions) and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
+Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. A locked frame run also offers one-click Phase 2 design, and design runs appear in the library with their ranked candidates. When a design completes, the run view also shows a 3D structural view of the target drug: a rotatable ball-and-stick model of each ranked small-molecule candidate, generated from its SMILES (a generated conformer for visualization, not a measured structure); sequence candidates state that they have no small-molecule 3D form. A build guide panel renders each ranked candidate's production sheet as steps (make it by its route, confirm identity against the sheet, run the confirmation assay), naming anything the sheet records as unspecified rather than inventing it. It binds to localhost by default (a --host option exists for the owner's own LAN decisions) and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
 
 ## Design a drug for a target
 
