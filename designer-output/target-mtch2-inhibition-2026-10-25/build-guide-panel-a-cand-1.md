@@ -1,9 +1,11 @@
 # Build guide: panel-a-cand-1 (MTCH2 inhibitor candidate)
 
-Status: synthesis plan for an untested model proposal. The route
+Status: synthesis plan for a model-proposed candidate. The
+candidate's structure and computed identity were validated in
+its run record (RDKit checks, mechanical audit, design gate);
+the compound itself has never been made or assayed. The route
 below is a proposed route written for this candidate; no
-retrosynthesis tool ran on it, and the compound has never been
-made or assayed. Conditions are standard medicinal-chemistry
+retrosynthesis tool ran on it. Conditions are standard medicinal-chemistry
 starting points, to be optimized at the bench. Research use only,
 in a qualified laboratory; not for human use.
 
@@ -227,7 +229,7 @@ identical protocol so the two chemotypes are comparable.
 3. Update the candidate's status from designed to synthesized
    only after Stage 6 passes, and to confirmed only after
    Stage 8's advance criteria are met. Until then it remains
-   what the run record says it is: an untested model proposal.
+   what the run record says it is: a computationally validated model proposal, not yet made or assayed.
 
 ## What this guide does not cover
 

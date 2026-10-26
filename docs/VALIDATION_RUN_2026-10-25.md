@@ -383,6 +383,7 @@ Two designer agents then proposed four original covalent-inhibitor
 candidates with valid SMILES structures; RDKit validated all four,
 ADMET-AI completed, all four ranked, and the design gate passed.
 Outcome: designed. This validates the pipeline, not the candidates:
-they are untested model proposals against a target that already has
+they are model proposals, validated computationally in the run and
+not made or assayed, against a target that already has
 approved drugs, offered as chemical starting points, and the record
 says so. Bundle: runs/target-kras-g12c-validation-2026-10-25.

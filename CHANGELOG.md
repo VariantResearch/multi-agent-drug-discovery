@@ -35,7 +35,7 @@
   (build-guide-panel-b-cand-1.md, build-guide-panel-a-cand-1.md):
   proposed Hantzsch routes, release QC against the production
   sheets, and a proposed confirmation plan, each labelled as
-  proposal work for an untested compound.
+  proposal work for a compound not yet made or assayed.
 - A 3D structural view in the MADD Console (madd/structure3d.py):
   when a design completes, the run view shows a rotatable
   ball-and-stick model of each ranked small-molecule candidate,
@@ -79,10 +79,34 @@
   four original designer candidates were ranked, design gate pass
   (bundle target-kras-g12c-validation-2026-10-25; a validation of
   the pipeline, not a scored Gate 0 run and not a claim about the
-  candidates, which are untested model proposals).
+  candidates, which are model proposals, computationally
+  validated in the run and not made or assayed).
 
 ### Fixed
 
+- Full validation of the written record against the code and the
+  run artifacts (2026-10-26, at the owner's direction): the test
+  suite (288 passing), the Gate 0 validation and mock-debate
+  quickstart results, the frozen MTCH2 bundle (byte-identical to
+  the runs/ copy; envelope hashes verify at all three levels; 24
+  panel claims, 15 supported / 9 partially supported entailment
+  verdicts, 12 strikes all quote_not_in_full_text, 6 locked spec
+  claims), the production sheets and build guides (formulas,
+  molecular weights, InChIKeys, and both HRMS values recomputed
+  with RDKit and matching exactly), the receptor file (303
+  residues, 2,335 atoms, mean pLDDT 86.3 per residue), the
+  vendored 3Dmol.js banner (v2.5.5; its LICENSE file byte-identical
+  to the npm package's), and the validation run numbers in
+  docs/PHASE1_SPEC.md and docs/VALIDATION_RUN_2026-10-25.md against
+  the run reports all check out. Two wording corrections resulted.
+  The designer output was described as simply "untested", which
+  erased the validation the runs did perform; the standing text
+  now credits the computational validation on record (mechanical
+  audits, RDKit structure checks, design gate, hash verification)
+  and states the remaining gap plainly: no candidate has been
+  synthesized or assayed. And docs/PHASE1_SPEC.md no longer says
+  prospective runs wait for Gate 0 to pass, which the owner's
+  2026-10-25 Gate-0-optional decision superseded.
 - The Gate 0 runner counted judge-swap flips as 0 whenever no
   case carried a swap record, so a run in simple or dual mode (or
   a judgeless legacy run) recorded judge-swap stability as a pass

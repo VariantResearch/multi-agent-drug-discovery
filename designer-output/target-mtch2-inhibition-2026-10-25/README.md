@@ -24,7 +24,8 @@ target-mtch2-inhibition-2026-10-25, protocol mode simple, outcome
   (Hantzsch thiazole, hydrolysis, amide coupling), release QC
   against the production sheet, and a proposed confirmation
   plan. Each guide states its own status up front: a proposed
-  route for an untested compound, not a validated protocol. The
+  route for a compound not yet made or assayed, not a validated
+  protocol. The
   two antisense candidates have no build guides; their sheets
   record the modification pattern as unspecified, so a
   synthesizable guide cannot be written yet.
@@ -78,7 +79,11 @@ Four candidates ranked, two modalities:
   preprint, and the BAX/BAK and pleiotropy safety claims). The
   design therefore rests on a thinner, partly direction-neutral
   audited base than the outcome line alone suggests.
-- The candidates are untested model proposals. No MTCH2 inhibitor
+- The candidates are model proposals, computationally validated
+  in this run (mechanical claim and citation audits, RDKit
+  structure checks on both small molecules, the design gate, and
+  the frozen bundle's hash verification), not synthesized or
+  assayed compounds. No MTCH2 inhibitor
   is a known validated ligand, nothing here has been synthesized
   or assayed, and the underlying biology evidence for inhibiting
   MTCH2 for fat reduction is cell and mouse work. The safety

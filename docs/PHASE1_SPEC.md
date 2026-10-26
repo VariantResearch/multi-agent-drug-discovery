@@ -64,7 +64,9 @@ In scope:
 
 Out of scope for Phase 1: candidate design, molecule or peptide
 generation, any external submission, and any prospective (new target)
-run. Prospective runs come after Gate 0 is passed, not before.
+run. Prospective runs are outside this phase's scope; under the
+owner's 2026-10-25 decision recorded below, the production program
+is not gated on Gate 0 being passed.
 
 ## Approved thresholds
 
