@@ -4,6 +4,20 @@
 
 ### Added
 
+- Production targets (madd/production.py): every design bundle now
+  carries one production sheet per ranked candidate, built
+  mechanically - the structure exactly as proposed, its computed
+  identity (canonical SMILES, formula, molecular weight, InChIKey;
+  length and composition for sequences), the production route its
+  modality implies, the targeted process from the brief, and a
+  not_specified list naming what the designer did not supply. A
+  sheet is production_ready only when the thing to make is fully
+  determined. The design contract now asks designers for
+  production_notes (modification pattern, confirmation assay), and
+  both reports render the sheets. This is the stage's end goal per
+  the owner's 2026-10-25 statement: drug, peptide, and
+  oligonucleotide targets specified for production, not just
+  ranked ideas.
 - The target-first pipeline (madd/target_run.py, CLI
   `madd target-run`): the operator names a specific target (a
   disease, a receptor, a genetic disorder, or a molecular target in

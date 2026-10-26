@@ -171,8 +171,17 @@ Answer with a JSON object of exactly this shape, no prose outside it:
   "claims": [claim objects following the ledger rules],
   "predicted_properties": [{{"name": string, "value": any, "basis": "designer_prediction"}}],
   "constraint_results": [{{"constraint": string, "kind": "evidence" | "design",
-                           "status": "pass" | "fail" | "unknown", "basis": string}}]}}]}}
-Propose between one and four candidates."""
+                           "status": "pass" | "fail" | "unknown", "basis": string}}],
+  "production_notes": {{"modifications": string, "confirmation_assay": string,
+                        "notes": string}}}}]}}
+Propose between one and four candidates. The ranked output of this
+stage becomes production targets - the exact compounds, peptides,
+or oligonucleotides to make - so include production_notes whenever
+you can: for a sequence candidate, the modification pattern it
+would be synthesized with (backbone, sugar or terminal
+modifications, conjugation); for any candidate, the assay that
+would confirm the targeted process. Leave a field out rather than
+invent it; the production sheet records what was not specified."""
 
 
 def _parse_design_response(text) -> dict | None:
@@ -274,6 +283,8 @@ class ModelDesigner:
                                              if isinstance(raw.get("predicted_properties"), list) else []),
                     "constraint_results": (raw.get("constraint_results")
                                            if isinstance(raw.get("constraint_results"), list) else []),
+                    "production_notes": (raw.get("production_notes")
+                                         if isinstance(raw.get("production_notes"), dict) else {}),
                 }
                 if synthetic:
                     cand["_synthetic"] = True
@@ -513,6 +524,12 @@ def run_design(spec: dict, source: str, designer=None,
             "checks": checks,
         },
     }
+    # The end goal of the stage: production targets. One sheet per
+    # ranked candidate, built mechanically (madd/production.py),
+    # naming exactly what would be made for the targeted process
+    # and what the designer did not specify.
+    from .production import build_production_sheets
+    bundle["production_sheets"] = build_production_sheets(bundle)
     bundle["frozen_bundle"] = freeze_artifact(
         {k: v for k, v in bundle.items() if k != "frozen_bundle"})
     return bundle

@@ -156,6 +156,19 @@ def _design_html(bundle: dict) -> str:
              + _esc(gate.get("result")) + "</b></p>",
              "<h2>RANKED CANDIDATES</h2><table><tr><th>#</th><th>candidate</th>"
              "<th>audited claims</th><th>unverified predictions</th></tr>"]
+    sheets = bundle.get("production_sheets") or []
+    if sheets:
+        parts.append("<h2>PRODUCTION TARGETS</h2>")
+        for sheet in sheets:
+            identity = sheet.get("identity") or {}
+            parts.append(
+                "<p><b>" + _esc(sheet.get("candidate_id")) + "</b> ("
+                + _esc(sheet.get("modality")) + ")<br>Structure: "
+                + _esc(identity.get("value_as_proposed"))
+                + "<br>Route: " + _esc(sheet.get("production_route"))
+                + " &middot; Ready: "
+                + ("yes" if sheet.get("production_ready") else "no")
+                + "</p>")
     cand_by_id = {c.get("candidate_id"): c for c in bundle.get("candidates", [])}
     for i, cid in enumerate(ranking.get("ranked", []), start=1):
         a = audits.get(cid) or {}

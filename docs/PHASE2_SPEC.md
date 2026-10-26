@@ -116,6 +116,26 @@ target run is how a named target reaches it.
    construction and the exclusions are listed in the bundle instead.
    The gate report validates against the project's gate_report schema,
    and design-run exits non-zero when the gate fails.
+7. **Production targets.** The end goal of the stage (owner's
+   statement, 2026-10-25): the ranked candidates become production
+   targets for the targeted process. madd/production.py builds one
+   production sheet per ranked candidate, mechanically: the
+   structure exactly as proposed, its computed identity (canonical
+   SMILES, molecular formula, molecular weight, and InChIKey for
+   small molecules; length, composition, and an alphabet check for
+   sequences), the production route the modality implies (chemical
+   synthesis; solid-phase peptide synthesis; biologic production),
+   the retrosynthesis result when a route search ran, the targeted
+   process carried from the brief, and a not_specified list naming
+   production-critical details the designer did not supply (a
+   sequence's modification pattern, the confirmation assay,
+   unassigned stereochemistry). A sheet is production_ready only
+   when the thing to make is fully determined: a valid structure, an
+   assigned route, and, for sequences, a specified modification
+   pattern. Designers are asked for production_notes (modifications,
+   confirmation assay) in the design contract; what they omit is
+   recorded as unspecified, never filled in. Sheets ride in the
+   design bundle and render in both reports.
 
 ## What candidates are, and are not
 

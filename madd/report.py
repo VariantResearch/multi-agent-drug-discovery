@@ -158,6 +158,34 @@ def _design_markdown(bundle: dict) -> str:
         lines += ["", "## Designer notes"]
         for note in bundle["designer_notes"]:
             lines.append("- " + str(note))
+    sheets = bundle.get("production_sheets") or []
+    if sheets:
+        lines += ["", "## Production targets"]
+        for sheet in sheets:
+            identity = sheet.get("identity") or {}
+            lines.append("")
+            lines.append("### " + str(sheet.get("candidate_id"))
+                         + " (" + str(sheet.get("modality")) + ")")
+            lines.append("- Structure (" + str(identity.get("format"))
+                         + "): " + str(identity.get("value_as_proposed")))
+            if identity.get("canonical_smiles"):
+                lines.append("- Canonical SMILES: "
+                             + str(identity["canonical_smiles"]))
+            if identity.get("inchikey"):
+                lines.append("- InChIKey: " + str(identity["inchikey"]))
+            if identity.get("molecular_formula"):
+                lines.append("- Formula: " + str(identity["molecular_formula"])
+                             + " | MW: " + str(identity.get("molecular_weight")))
+            if identity.get("length"):
+                lines.append("- Length: " + str(identity["length"])
+                             + " | Alphabet check: "
+                             + str(identity.get("alphabet_check")))
+            lines.append("- Production route: "
+                         + str(sheet.get("production_route")))
+            lines.append("- Production ready: "
+                         + ("yes" if sheet.get("production_ready") else "no"))
+            for item in sheet.get("not_specified") or []:
+                lines.append("- Not specified: " + str(item))
     lines.append("")
     return "\n".join(lines)
 

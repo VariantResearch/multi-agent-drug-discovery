@@ -12,7 +12,7 @@
 
 # Multi-Agent Drug Discovery (MADD)
 
-MADD is a provider-neutral application for designing drugs against a specific target. You name the target - a disease, a receptor, a genetic disorder, or a molecular target in a disease context - and the application works it end to end: AI research agents study the target from evidence retrieved for it, a structured debate decides whether that evidence supports locking a design specification, and only then do designer models propose candidate compounds, which are audited, computed on, and ranked. Mechanical auditors, not the models, decide whose evidence survives. The system's rule is simple: no claim counts unless it rests on a real, checkable primary source, and no model gets to grade its own homework.
+MADD is a provider-neutral application for designing drugs against a specific target. You name the target - a disease, a receptor, a genetic disorder, or a molecular target in a disease context - and the application works it end to end: AI research agents study the target from evidence retrieved for it, a structured debate decides whether that evidence supports locking a design specification, and only then do designer models propose candidate compounds, which are audited, computed on, and ranked. The end goal of the process is a set of production targets: for each ranked candidate, a production sheet stating exactly what would be made for the targeted process - the compound, peptide, or oligonucleotide, its computed identity, its production route, and, named explicitly, whatever the designer did not specify. Mechanical auditors, not the models, decide whose evidence survives. The system's rule is simple: no claim counts unless it rests on a real, checkable primary source, and no model gets to grade its own homework.
 
 This repository contains the complete working application: the target-first pipeline, the research and debate engine, the evidence auditors, the Phase 2 design stage, the Gate 0 retrospective test set of eight real drug programs, the run orchestration, adapters for live models, and a command line interface. The only thing not included is the models themselves: choose a roster, supply API keys, and it runs.
 
@@ -26,7 +26,8 @@ A target run (`madd target-run`) takes one named target through the whole pipeli
 4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, and one evolution round that merges the best material.
 5. Applies the consensus tests (agreement, survival, evidence floor, and stability under a judge swap where the run's protocol mode has a judge). Only when every applied test passes does the run lock a design specification for the target. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away, and no design work starts.
 6. Designs candidates against the locked specification. Designer models propose candidate compounds; a real candidate must carry a structure (a SMILES string or a sequence). RDKit validates structures and computes descriptors, ADMET-AI adds predicted endpoints labelled as predictions, every candidate's claims pass the same audit as the research claims, and the candidates are ranked deterministically. The design gate passes only when at least one real candidate is ranked.
-7. Freezes the whole run - dossiers, strikes, transcripts, candidates, manifest with per-call prompt hashes - into a hashed, verifiable run bundle with a plain-language report.
+7. Issues production targets. Each ranked candidate gets a production sheet: the structure exactly as proposed plus its computed identity (canonical SMILES, formula, molecular weight, InChIKey for small molecules; length and composition for sequences), the production route its modality implies (chemical synthesis, solid-phase peptide synthesis, biologic production), the targeted process it serves, and a not_specified list naming the production-critical details the designer did not supply, such as a sequence candidate's modification pattern or the confirmation assay. A sheet is marked production-ready only when the thing to make is fully determined.
+8. Freezes the whole run - dossiers, strikes, transcripts, candidates, production sheets, manifest with per-call prompt hashes - into a hashed, verifiable run bundle with a plain-language report.
 
 Runs execute under one of three protocol modes, chosen in the run configuration. The modes count distinct models, not agents: every mode fields several research agents working the same steps. In simple mode every agent runs one and the same model and there is no judge; in dual mode the agents span two models, still with no judge; in dual_judge mode the agents span two models and a judge model adds the stability test. See Protocol modes under "Run a full Gate 0 run" below.
 
@@ -51,7 +52,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (271 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
+Expected results: the test suite passes (275 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them.
 
 Try the auditors on the synthetic example dossier:
 
@@ -273,6 +274,9 @@ madd/            the package (standard library only)
   runner.py        full Gate 0 runs and frame runs
   target_run.py    the target-first pipeline: a named target through
                      research and debate into the design stage
+  production.py    production target sheets: exactly what would be
+                     made for each ranked candidate, and what is
+                     still unspecified
   debate.py        the debate engine (protocol steps 1 to 7)
   providers_http.py  live provider adapters (OpenAI-compatible, Anthropic)
   providers.py       the provider interface and the mock provider
