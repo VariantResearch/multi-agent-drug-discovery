@@ -18,4 +18,5 @@ madd = "madd.cli:main"
 include = ["madd*"]
 
 [tool.setuptools.package-data]
-madd = ["schemas/*.json", "data/*.json"]
+madd = ["schemas/*.json", "data/*.json", "assets/*.js",
+        "assets/*.txt", "assets/*.md", "assets/receptors/*.pdb"]

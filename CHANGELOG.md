@@ -4,6 +4,24 @@
 
 ### Added
 
+- README screenshots of the console (screenshots/): the run
+  control and Gate 0 scoreboard, a completed target run with its
+  rendered molecule and receptor, and the build guide panel -
+  captured from the live console against the published MTCH2 run.
+- Fully rendered 3D molecule and receptor views in the MADD
+  Console. The run view of a completed design now renders the
+  target drug as a shaded WebGL model (3Dmol.js v2.5.5, vendored
+  under madd/assets/ so the console works offline) with
+  ball-and-stick, sticks, space-filling, and line styles and spin,
+  beside the receptor structure on file for the target in its own
+  view. The first shipped receptor is the AlphaFold predicted
+  model for human MTCH2 (AF-Q9Y6C9-F1 v6, mean pLDDT 86.3, CC BY
+  4.0), labelled predicted everywhere it appears. Molecule and
+  receptor are separate views: the candidate has not been docked,
+  and no binding pose is shown or claimed. Targets with no
+  receptor on file say so. Behind GET
+  /api/runs/<run>/model3d/<candidate>; the earlier canvas viewer
+  remains as the fallback when the WebGL library cannot load.
 - A build guide panel in the MADD Console: the run view of a
   completed design renders each ranked candidate's production
   sheet as steps (make the structure by its route, confirm

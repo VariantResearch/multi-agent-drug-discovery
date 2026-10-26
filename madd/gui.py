@@ -12,10 +12,17 @@ leaves the machine. One page, four panels:
   scores, threshold checks, and case calls, with links to its styled
   HTML report and per-case debate transcripts. A completed design
   (a design run, or a target run whose design stage ran) also shows
-  a 3D structural view of its ranked drug candidates: a rotatable
-  ball-and-stick model generated from the candidate's SMILES by
-  madd/structure3d.py (sequence candidates have no small-molecule
-  3D form and say so), and a build guide panel that renders each
+  a fully rendered 3D structural view: the ranked drug candidate as
+  a WebGL model (3Dmol.js, vendored under madd/assets/, geometry
+  generated from its SMILES by madd/structure3d.py) beside the
+  receptor structure on file for the target when one is shipped -
+  today the AlphaFold predicted model for MTCH2, labelled
+  predicted, shown in its own view because no run docks the
+  candidate and no binding pose is claimed. If the WebGL library
+  cannot load, the view falls back to a canvas ball-and-stick
+  rendering of the same coordinates. Sequence candidates have no
+  small-molecule 3D form and say so. The run view also gains a
+  build guide panel that renders each
   ranked candidate's production sheet as steps (make it by its
   route, confirm identity against the sheet, run the confirmation
   assay), naming anything the sheet records as unspecified rather
@@ -48,7 +55,7 @@ from .runner import estimate_gate0_run, run_gate0
 from .storage import list_runs, load_bundle, write_bundle
 from .transcript import record_to_markdown
 from .production import build_production_sheets
-from .structure3d import candidate_structure3d
+from .structure3d import candidate_model3d, candidate_structure3d
 
 
 class RunManager:
@@ -168,6 +175,8 @@ def make_handler(manager: RunManager):
         def do_GET(self):
             """Route GET requests: the page, the JSON API, run files."""
             path = urlparse(self.path).path
+            if path.startswith("/assets/"):
+                return self._asset(path)
             if path == "/":
                 return _text(self, PAGE, "text/html; charset=utf-8")
             if path == "/api/gate0":
@@ -190,6 +199,21 @@ def make_handler(manager: RunManager):
                 return self._run_file(path)
             return _json(self, {"error": "not found"}, 404)
 
+        def _asset(self, path):
+            """Serve a vendored console asset (the WebGL viewer
+            library), by whitelist so no other file is reachable."""
+            from pathlib import Path
+            known = {"3Dmol-min.js": "text/javascript",
+                     "3Dmol-min.js.LICENSE.txt": "text/plain"}
+            name = path[len("/assets/"):]
+            if name not in known:
+                return _json(self, {"error": "not found"}, 404)
+            target = Path(__file__).parent / "assets" / name
+            if not target.exists():
+                return _json(self, {"error": "asset missing"}, 404)
+            return _text(self, target.read_text(),
+                         known[name] + "; charset=utf-8")
+
         def _run_file(self, path):
             """Serve one run's bundle, HTML report, or a case transcript."""
             parts = [unquote(p) for p in path.split("/") if p]
@@ -205,6 +229,8 @@ def make_handler(manager: RunManager):
                              "text/html; charset=utf-8")
             if parts[3] == "build-guide" and len(parts) == 4:
                 return _json(self, build_guide_payload(bundle))
+            if parts[3] == "model3d" and len(parts) == 5:
+                return _json(self, candidate_model3d(bundle, parts[4]))
             if parts[3] == "structure3d" and len(parts) == 5:
                 return _json(self, candidate_structure3d(bundle, parts[4]))
             if parts[3] == "transcript" and len(parts) == 5:
@@ -352,6 +378,7 @@ PAGE = """<!DOCTYPE html>
 <div class="panel"><h2>GATE 0 SCOREBOARD</h2><div id="scoreboard">loading...</div></div>
 <div class="panel"><h2>RUN LIBRARY</h2><div id="library">loading...</div>
   <div id="detail"></div></div>
+<script src="/assets/3Dmol-min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 function esc(s) {
@@ -512,22 +539,103 @@ function viewer3dHtml(design) {
       (ok ? '' : ' disabled title="sequence candidate: no small-molecule 3D form"') +
       '>' + (i + 1) + '. ' + esc(cid) + '</button> ';
   });
-  h += '</div><canvas id="v3d" width="520" height="360" style="max-width:100%;background:#07071a;border:1px solid #2a2a4a"></canvas>' +
-    '<div id="v3d-status" class="mut">loading 3D structure...</div>';
+  h += '</div><div id="glwrap" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">' +
+    '<div><div class="mut">MOLECULE</div>' +
+    '<div id="glmol" style="width:400px;height:340px;position:relative;background:#07071a;border:1px solid #2a2a4a"></div>' +
+    '<div>style <select id="glmol-style"><option value="ballandstick">ball and stick</option>' +
+    '<option value="stick">sticks</option><option value="sphere">space filling</option>' +
+    '<option value="line">lines</option></select> ' +
+    '<button id="glmol-spin">spin: off</button></div><div id="glmol-cap" class="mut"></div></div>' +
+    '<div id="glrec-pane"><div class="mut">RECEPTOR</div>' +
+    '<div id="glrec" style="width:400px;height:340px;position:relative;background:#07071a;border:1px solid #2a2a4a"></div>' +
+    '<div>style <select id="glrec-style"><option value="cartoon">cartoon</option>' +
+    '<option value="stick">sticks</option><option value="sphere">space filling</option></select> ' +
+    '<button id="glrec-spin">spin: off</button></div><div id="glrec-cap" class="mut"></div></div>' +
+    '</div>' +
+    '<canvas id="v3d" width="520" height="360" style="display:none;max-width:100%;background:#07071a;border:1px solid #2a2a4a"></canvas>' +
+    '<div id="v3d-status" class="mut">loading 3D model...</div>';
   return h;
 }
 function initViewer3d(runId, bundle) {
   stopViewer();
+  glViewers = {};
   const design = bundle.kind === 'design_run' ? bundle : bundle.design;
   if (!design || !design.ranking || !design.ranking.ranked.length) return;
   const div = document.createElement('div');
   div.innerHTML = viewer3dHtml(design);
   $('detail').appendChild(div);
   div.querySelectorAll('.v3dbtn').forEach(function (el) {
-    el.addEventListener('click', function () { loadStructure(runId, el.dataset.cid); });
+    el.addEventListener('click', function () { loadModel3d(runId, el.dataset.cid); });
   });
   const first = div.querySelector('.v3dbtn:not([disabled])');
-  if (first) loadStructure(runId, first.dataset.cid);
+  if (first) loadModel3d(runId, first.dataset.cid);
+}
+let glViewers = {};
+function glMolStyle(name) {
+  if (name === 'stick') return {stick: {radius: 0.22}};
+  if (name === 'sphere') return {sphere: {scale: 1.0}};
+  if (name === 'line') return {line: {}};
+  return {stick: {radius: 0.18}, sphere: {scale: 0.32}};
+}
+function glRecStyle(name) {
+  if (name === 'stick') return {stick: {radius: 0.15}};
+  if (name === 'sphere') return {sphere: {scale: 0.9}};
+  return {cartoon: {color: 'spectrum'}};
+}
+function glSpinWire(btnId, viewer) {
+  const b = document.getElementById(btnId);
+  if (!b) return;
+  b.onclick = function () {
+    const on = b.textContent.indexOf('off') >= 0;
+    viewer.spin(on);
+    b.textContent = on ? 'spin: on' : 'spin: off';
+  };
+}
+async function loadModel3d(runId, cid) {
+  const st = $('v3d-status');
+  if (typeof $3Dmol === 'undefined') {
+    const w = $('glwrap'); if (w) w.style.display = 'none';
+    const cv = $('v3d'); if (cv) cv.style.display = '';
+    return loadStructure(runId, cid);
+  }
+  if (st) st.textContent = 'loading 3D model...';
+  const out = await (await fetch('/api/runs/' + encodeURIComponent(runId) +
+    '/model3d/' + encodeURIComponent(cid))).json();
+  if (!out || out.status !== 'ok') {
+    if (st) st.textContent = '3D model unavailable: ' + ((out && out.reason) || 'unknown');
+    return;
+  }
+  if (st) st.textContent = out.note;
+  const cap = $('glmol-cap');
+  if (cap) cap.textContent = out.candidate_id + ' - ' + out.smiles;
+  let mv = glViewers.mol;
+  if (!mv) { mv = $3Dmol.createViewer(document.getElementById('glmol'), {backgroundColor: '#07071a'}); glViewers.mol = mv; }
+  mv.removeAllModels();
+  mv.addModel(out.mol, 'sdf');
+  const msel = $('glmol-style');
+  mv.setStyle({}, glMolStyle(msel ? msel.value : 'ballandstick'));
+  mv.zoomTo(); mv.render();
+  if (msel) msel.onchange = function () { mv.setStyle({}, glMolStyle(msel.value)); mv.render(); };
+  glSpinWire('glmol-spin', mv);
+  const pane = $('glrec-pane');
+  if (out.receptor) {
+    if (pane) pane.style.display = '';
+    const rcap = $('glrec-cap');
+    if (rcap) rcap.textContent = out.receptor.label + ' - ' + out.receptor.detail + ' (' + out.receptor.source +
+      '). Shown in its own view: the candidate has not been docked into it.';
+    let rv = glViewers.rec;
+    if (!rv) { rv = $3Dmol.createViewer(document.getElementById('glrec'), {backgroundColor: '#07071a'}); glViewers.rec = rv; }
+    rv.removeAllModels();
+    rv.addModel(out.receptor.data, 'pdb');
+    const rsel = $('glrec-style');
+    rv.setStyle({}, glRecStyle(rsel ? rsel.value : 'cartoon'));
+    rv.zoomTo(); rv.render();
+    if (rsel) rsel.onchange = function () { rv.setStyle({}, glRecStyle(rsel.value)); rv.render(); };
+    glSpinWire('glrec-spin', rv);
+  } else {
+    if (pane) pane.style.display = 'none';
+    if (st) st.textContent = out.note + ' No receptor structure is on file for this target.';
+  }
 }
 async function loadStructure(runId, cid) {
   const st = $('v3d-status');
