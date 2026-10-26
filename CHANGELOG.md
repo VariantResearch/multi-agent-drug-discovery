@@ -4,6 +4,19 @@
 
 ### Added
 
+- A 3D structural view in the MADD Console (madd/structure3d.py):
+  when a design completes, the run view shows a rotatable
+  ball-and-stick model of each ranked small-molecule candidate,
+  generated from its SMILES by RDKit (ETKDG conformer, fixed seed,
+  MMFF-relaxed) behind GET /api/runs/<run>/structure3d/<candidate>.
+  The view states what it is: a generated conformer for
+  visualization, not a measured structure or a docked pose.
+  Sequence candidates return an honest not_applicable; the buttons
+  for them are disabled with the reason shown.
+- The first published designer output (designer-output/): the
+  MTCH2 inhibition target run's frozen bundle, production sheets,
+  rendered report, and a provenance README carrying the run's
+  audit caveats with the output.
 - Production targets (madd/production.py): every design bundle now
   carries one production sheet per ranked candidate, built
   mechanically - the structure exactly as proposed, its computed

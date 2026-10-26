@@ -10,7 +10,12 @@ leaves the machine. One page, four panels:
 - GATE 0 SCOREBOARD: dataset validation state and the case list.
 - RUN LIBRARY: every bundle in the runs directory; click one for its
   scores, threshold checks, and case calls, with links to its styled
-  HTML report and per-case debate transcripts.
+  HTML report and per-case debate transcripts. A completed design
+  (a design run, or a target run whose design stage ran) also shows
+  a 3D structural view of its ranked drug candidates: a rotatable
+  ball-and-stick model generated from the candidate's SMILES by
+  madd/structure3d.py (sequence candidates have no small-molecule
+  3D form and say so).
 
 Theme is the synthwave palette of the owner's other tools (near-black
 #0a0a16, neon pink #ff71ce, purple #b967ff, cyan #01cdfe), laser
@@ -38,6 +43,7 @@ from .html_report import bundle_to_html
 from .runner import estimate_gate0_run, run_gate0
 from .storage import list_runs, load_bundle, write_bundle
 from .transcript import record_to_markdown
+from .structure3d import candidate_structure3d
 
 
 class RunManager:
@@ -178,6 +184,8 @@ def make_handler(manager: RunManager):
             if parts[3] == "report.html":
                 return _text(self, bundle_to_html(bundle),
                              "text/html; charset=utf-8")
+            if parts[3] == "structure3d" and len(parts) == 5:
+                return _json(self, candidate_structure3d(bundle, parts[4]))
             if parts[3] == "transcript" and len(parts) == 5:
                 record = (bundle.get("case_records") or {}).get(parts[4])
                 if record is None and bundle.get("kind") == "frame_run":
@@ -442,6 +450,7 @@ async function show(runId) {
     el.addEventListener('click', function (ev) {
       ev.preventDefault(); tx(el.dataset.runid, el.dataset.caseid); });
   });
+  initViewer3d(runId, b);
   const db = $('designbtn');
   if (db) db.addEventListener('click', function () { designFrom(runId); });
 }
@@ -464,6 +473,114 @@ async function tx(runId, caseId) {
     '/transcript/' + encodeURIComponent(caseId))).text();
   $('detail').innerHTML = "<h2>TRANSCRIPT " + esc(caseId) + "</h2><pre>" +
     t.replace(/</g, '&lt;') + "</pre>";
+}
+let viewerState = null;
+function stopViewer() {
+  if (viewerState && viewerState.raf) cancelAnimationFrame(viewerState.raf);
+  viewerState = null;
+}
+function viewer3dHtml(design) {
+  const candById = {};
+  for (const c of design.candidates) candById[c.candidate_id] = c;
+  let h = '<h3>3D STRUCTURE</h3><div>';
+  design.ranking.ranked.forEach(function (cid, i) {
+    const c = candById[cid] || {}; const st = c.structure || {};
+    const ok = (st.format === 'smiles');
+    h += '<button class="v3dbtn" data-cid="' + esc(cid) + '"' +
+      (ok ? '' : ' disabled title="sequence candidate: no small-molecule 3D form"') +
+      '>' + (i + 1) + '. ' + esc(cid) + '</button> ';
+  });
+  h += '</div><canvas id="v3d" width="520" height="360" style="max-width:100%;background:#07071a;border:1px solid #2a2a4a"></canvas>' +
+    '<div id="v3d-status" class="mut">loading 3D structure...</div>';
+  return h;
+}
+function initViewer3d(runId, bundle) {
+  stopViewer();
+  const design = bundle.kind === 'design_run' ? bundle : bundle.design;
+  if (!design || !design.ranking || !design.ranking.ranked.length) return;
+  const div = document.createElement('div');
+  div.innerHTML = viewer3dHtml(design);
+  $('detail').appendChild(div);
+  div.querySelectorAll('.v3dbtn').forEach(function (el) {
+    el.addEventListener('click', function () { loadStructure(runId, el.dataset.cid); });
+  });
+  const first = div.querySelector('.v3dbtn:not([disabled])');
+  if (first) loadStructure(runId, first.dataset.cid);
+}
+async function loadStructure(runId, cid) {
+  const st = $('v3d-status');
+  if (!document.getElementById('v3d')) return;
+  if (st) st.textContent = 'loading 3D structure...';
+  const out = await (await fetch('/api/runs/' + encodeURIComponent(runId) +
+    '/structure3d/' + encodeURIComponent(cid))).json();
+  if (!out || out.status !== 'ok') {
+    stopViewer();
+    if (st) st.textContent = '3D structure unavailable: ' + ((out && out.reason) || 'unknown');
+    return;
+  }
+  if (st) st.textContent = out.note + ' | ' + out.smiles;
+  startViewer(out);
+}
+function startViewer(data) {
+  stopViewer();
+  const cv = document.getElementById('v3d');
+  if (!cv) return;
+  const g = cv.getContext('2d');
+  let cx = 0, cy = 0, cz = 0;
+  data.atoms.forEach(function (a) { cx += a.x; cy += a.y; cz += a.z; });
+  const n = data.atoms.length; cx /= n; cy /= n; cz /= n;
+  let maxr = 0.001;
+  data.atoms.forEach(function (a) {
+    const d = Math.hypot(a.x - cx, a.y - cy, a.z - cz); if (d > maxr) maxr = d;
+  });
+  const scale = Math.min(cv.width, cv.height) * 0.36 / maxr;
+  const st3 = {angle: 0.4, tilt: 0.5, drag: null, raf: 0};
+  viewerState = st3;
+  function project(a) {
+    const x = a.x - cx, y = a.y - cy, z = a.z - cz;
+    const ca = Math.cos(st3.angle), sa = Math.sin(st3.angle);
+    const ct = Math.cos(st3.tilt), sn = Math.sin(st3.tilt);
+    const X = x * ca - z * sa, Z = x * sa + z * ca;
+    const Y = y * ct - Z * sn, D = y * sn + Z * ct;
+    return {sx: cv.width / 2 + X * scale, sy: cv.height / 2 + Y * scale, d: D};
+  }
+  function draw() {
+    const P = data.atoms.map(project);
+    g.clearRect(0, 0, cv.width, cv.height);
+    const items = [];
+    data.bonds.forEach(function (bd) { items.push({d: (P[bd.a].d + P[bd.b].d) / 2, t: 'b', bd: bd}); });
+    data.atoms.forEach(function (a, i) { items.push({d: P[i].d, t: 'a', i: i}); });
+    items.sort(function (p, q) { return p.d - q.d; });
+    for (const it of items) {
+      if (it.t === 'b') {
+        const p = P[it.bd.a], q = P[it.bd.b];
+        g.strokeStyle = '#8a8ab0'; g.lineWidth = it.bd.order >= 2 ? 3.4 : 2.2;
+        g.beginPath(); g.moveTo(p.sx, p.sy); g.lineTo(q.sx, q.sy); g.stroke();
+      } else {
+        const a = data.atoms[it.i], p = P[it.i];
+        const r = Math.max(5, 9.5 - p.d * 0.5);
+        g.fillStyle = a.color;
+        g.beginPath(); g.arc(p.sx, p.sy, r, 0, 6.2832); g.fill();
+        g.fillStyle = '#0a0a16';
+        g.font = 'bold ' + Math.max(8, Math.round(r)) + 'px monospace';
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(a.element, p.sx, p.sy + 0.5);
+      }
+    }
+  }
+  function frame() { st3.angle += 0.012; draw(); st3.raf = requestAnimationFrame(frame); }
+  cv.onmousedown = function (e) { st3.drag = {x: e.offsetX, y: e.offsetY}; };
+  cv.onmousemove = function (e) {
+    if (st3.drag) {
+      st3.angle += (e.offsetX - st3.drag.x) * 0.01;
+      st3.tilt += (e.offsetY - st3.drag.y) * 0.01;
+      st3.drag = {x: e.offsetX, y: e.offsetY};
+      draw();
+    }
+  };
+  cv.onmouseup = function () { st3.drag = null; };
+  cv.onmouseleave = function () { st3.drag = null; };
+  frame();
 }
 loadScoreboard(); loadLibrary();
 </script></body></html>
