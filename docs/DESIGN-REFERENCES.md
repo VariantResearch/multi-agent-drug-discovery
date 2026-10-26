@@ -13,8 +13,8 @@ Source: github.com/mnemox-ai/tradememory-protocol
 
 The project gives trading agents a persistent memory
 of their past trades, weighted by outcome, plus a
-pre-trade brake that refuses orders its policy cannot
-evaluate.
+pre-trade brake that refuses orders that fail its
+policy checks or that its policy cannot evaluate.
 The pattern that transfers to MADD: research agents that
 can see the project's own killed hypotheses and failed
 arguments before re-arguing a similar case, with the

@@ -21,7 +21,7 @@ This repository contains the complete working application: the target-first pipe
 A target run (`madd target-run`) takes one named target through the whole pipeline:
 
 1. Frames the target. Evidence is retrieved for it from Europe PMC, and the frame carries those sources as the evidence set the panel may cite.
-2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a PubMed, DOI, or ClinicalTrials.gov identifier), its evidence tier, and a supporting quote.
+2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a registry identifier: PubMed, DOI, ClinicalTrials.gov, Europe PMC, GWAS Catalog, ChEMBL, PubChem, or UniProt), its evidence tier, and a supporting quote.
 3. Runs an evidence call. A claim ledger audit and a citation audit strike any claim that is unsourced, sourced to model opinion, malformed, or - when live resolution is switched on - pointing at a registry record that does not exist. Struck claims take no further part.
 4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, and one evolution round that merges the best material.
 5. Applies the consensus tests (agreement, survival, evidence floor, and stability under a judge swap where the run's protocol mode has a judge). Only when every applied test passes does the run lock a design specification for the target. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away, and no design work starts.
@@ -73,7 +73,7 @@ A retro cyberpunk web interface ships with the package, in the synthwave theme (
 python3 -m madd gui
 ```
 
-Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. A locked frame run also offers one-click Phase 2 design, and design runs appear in the library with their ranked candidates. It binds to localhost only and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
+Open http://127.0.0.1:8765. The console has run control (check a config, dry-run it, run Gate 0 and watch the per-case progress live), the Gate 0 scoreboard, and a run library with per-run scores, threshold checks, styled HTML reports, and debate transcripts. A locked frame run also offers one-click Phase 2 design, and design runs appear in the library with their ranked candidates. It binds to localhost by default (a --host option exists for the owner's own LAN decisions) and has no authentication - it is a local tool, and running a config from it executes that config exactly as the CLI would. Options: --port, --host, --runs-dir, --gate0-dir.
 
 ## Design a drug for a target
 
