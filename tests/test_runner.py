@@ -39,13 +39,14 @@ def good_claim(cid):
 class CaseStub:
     """Provider stub: endorses the cases whose drug is in advance_for."""
 
-    def __init__(self, label, advance_for=(), cost=0.0):
+    def __init__(self, label, advance_for=(), cost=0.0, family="stub"):
         """Initialize the test double."""
         self.name = "case-stub-" + label
         self.model_version = "stub-v1"
         self.label = label
         self.advance_for = set(advance_for)
         self.cost_per_call_usd = cost
+        self.family = family
 
     def research(self, frame):
         """Return the double's fixed research result."""
@@ -54,13 +55,13 @@ class CaseStub:
         if drug in self.advance_for:
             return {"artifact_type": "dossier", "schema_version": "0.1.0",
                     "dossier_id": dossier_id, "frame_id": frame.get("frame_id"),
-                    "agent_id": "agent-" + self.label, "model_family": "stub",
+                    "agent_id": "agent-" + self.label, "model_family": self.family,
                     "proposed_focus_id": frame.get("target"),
                     "direction": "invented", "unverified_notes": [],
                     "claims": [good_claim("C-" + self.label + "-" + str(drug))]}
         return {"artifact_type": "dossier", "schema_version": "0.1.0",
                 "dossier_id": dossier_id, "frame_id": frame.get("frame_id"),
-                "agent_id": "agent-" + self.label, "model_family": "stub",
+                "agent_id": "agent-" + self.label, "model_family": self.family,
                 "proposed_focus_id": None, "direction": "invented",
                 "unverified_notes": ["stub declines to endorse"],
                 "claims": []}
@@ -95,8 +96,14 @@ class TestRunGate0(unittest.TestCase):
         """Perfect stub passes and report validates."""
         advance = {DRUGS[c] for c in CASE_IDS if OUTCOMES[c] == "positive"}
         a, b, judge = providers_for(advance)
+        # A scored run's stability threshold needs the swap
+        # experiment: a second judge from a different family whose
+        # calls agree with the operative judge's.
+        swap = CaseStub("swap", advance, family="stub-other")
         baseline = CaseStub("base", set())  # baseline kills everything: 4 correct
-        bundle = run_gate0([a, b], judge_provider=judge, baseline_provider=baseline,
+        bundle = run_gate0([a, b], judge_provider=judge,
+                           swap_judge_provider=swap,
+                           baseline_provider=baseline,
                            gate0_dir=GATE0, run_id="test-run-2")
         self.assertEqual(bundle["debate_score"]["correct_calls"], 8)
         self.assertEqual(bundle["outcome"], "pass")

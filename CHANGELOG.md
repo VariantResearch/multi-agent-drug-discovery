@@ -84,6 +84,35 @@
 
 ### Fixed
 
+- All four findings of the follow-up external audit (CodeRabbit,
+  2026-10-26, against c73930d2, the A1-A7 repair revision),
+  reproduced with the audit's probes and repaired; regression
+  tests in tests/test_coderabbit_audit_2026_10_26.py pin them.
+  F1: the new design and entailment budget paths reserved one
+  logical call but never settled the HTTP transport's retry
+  attempts (the research path settles them); both now settle via
+  budget.settle_transport_retries, so attempts are recorded and a
+  settlement that crosses the cap stops the run. F2: the repaired
+  judge-swap metric still compared a panel outcome against itself
+  plus one judge, with no second judging result; a run config can
+  now name a judge_swap provider, the debate records a
+  judge_swap_experiment per case (each case call computed under
+  each judge, both model families as provenance), and the runner
+  counts flips only when every case has an experiment whose two
+  families differ - otherwise the stability threshold records
+  not_evaluable, so a scored dual_judge run now requires the swap
+  configuration (docs and runbook updated). F3: a claim whose id
+  was a JSON array or object crashed both auditors with a
+  TypeError before the schema check could strike it; audit
+  structures now index claims by claims.claim_key (the string id
+  or a fixed placeholder), and such claims are struck
+  schema_invalid / hard-fail the candidate audit as intended.
+  F4: budget exhaustion inside the model designer was converted
+  into a per-provider note, so a truncated panel could still
+  report a design pass; BudgetExceeded now escapes the designer,
+  and the design entry points (CLI design-run, console) report a
+  stopped run. The A2 regression expectation changed accordingly:
+  a target run whose budget runs out stops, openly.
 - All seven findings of an external code audit (CodeRabbit,
   2026-10-26, run by the owner against revision aa6dad86) were
   reproduced with the audit's own probes and repaired; nine

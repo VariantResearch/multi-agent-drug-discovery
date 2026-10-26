@@ -11,6 +11,9 @@ A run is described by a JSON config (see examples/run-config.example.json):
   the original rule stands: at least two providers, judge optional.
 - providers: the research panel, at least two entries for a debate.
 - judge and baseline: one provider entry each, or null.
+- judge_swap: optional second judge entry, from a different model
+  family than the judge; its dossier is the judge-swap stability
+  experiment's second judging result. Requires a judge entry.
 - budget: a budget dict for madd/budget.py, or null.
 - live_resolution: when true, the evidence call also strikes claims
   whose identifiers the live registries report as not found.
@@ -47,7 +50,7 @@ import json
 import os
 from pathlib import Path
 
-from .budget import BudgetTracker
+from .budget import BudgetTracker, settle_transport_retries
 from .entailment import check_entailment
 from .providers import MockProvider
 from .resolve import check_quote_against_source, resolve_identifier
@@ -145,7 +148,10 @@ def validate_config(config) -> list:
                                   + str(len(models)))
                 if judge is None:
                     errors.append("mode dual_judge requires a judge entry")
-    for role in ("judge", "baseline"):
+    if config.get("judge_swap") is not None and config.get("judge") is None:
+        errors.append("judge_swap: a swap judge swaps the ranking judge, "
+                      "so a judge entry is required alongside it")
+    for role in ("judge", "judge_swap", "baseline"):
         entry = config.get(role)
         if entry is not None:
             _check_entry(entry, role, errors)
@@ -154,7 +160,7 @@ def validate_config(config) -> list:
     dupes = sorted({n for n in names if names.count(n) > 1})
     if dupes:
         errors.append("provider names must be unique across providers, judge, "
-                      "and baseline; duplicated: " + ", ".join(dupes))
+                      "judge_swap, and baseline; duplicated: " + ", ".join(dupes))
     budget = config.get("budget")
     if budget is not None:
         try:
@@ -205,8 +211,9 @@ def _build_one(entry, environ):
 def build_providers(config, environ=None) -> dict:
     """Construct provider objects from a validated config.
 
-    Returns {providers, judge, baseline, budget, live_resolution,
-    live_quote_check, entailment_check, retrieval_first, mode}.
+    Returns {providers, judge, judge_swap, baseline, budget,
+    live_resolution, live_quote_check, entailment_check,
+    retrieval_first, mode}.
     Raises ConfigError on any problem, including a missing key
     variable (named, never valued).
     """
@@ -218,6 +225,8 @@ def build_providers(config, environ=None) -> dict:
         "mode": config.get("mode"),
         "providers": [_build_one(e, env) for e in config["providers"]],
         "judge": _build_one(config["judge"], env) if config.get("judge") else None,
+        "judge_swap": _build_one(config["judge_swap"], env)
+        if config.get("judge_swap") else None,
         "baseline": _build_one(config["baseline"], env)
         if config.get("baseline") else None,
         "budget": config.get("budget"),
@@ -281,8 +290,9 @@ def entailment_checker_from_config(built: dict, budget_tracker=None):
     configuration error, raised as ValueError. When a budget tracker
     is given, every judging call reserves against it first, so
     entailment completions count toward the run budget like every
-    other provider call; an exhausted budget raises BudgetExceeded
-    out of the checker and stops the run."""
+    other provider call, and the judging call's transport retries
+    are settled against it afterwards; an exhausted budget raises
+    BudgetExceeded out of the checker and stops the run."""
     if not built.get("entailment_check"):
         return None
     judge = built.get("judge")
@@ -293,10 +303,15 @@ def entailment_checker_from_config(built: dict, budget_tracker=None):
     def entailment_checker(claim):
         """Judge one claim against its cited passage and return the
         verdict string debate.audit_dossier expects."""
+        cost = float(getattr(judge, "cost_per_call_usd", 0.0) or 0.0)
         if budget_tracker is not None:
             budget_tracker.reserve(
-                float(getattr(judge, "cost_per_call_usd", 0.0) or 0.0),
-                note="entailment:" + str(getattr(judge, "name", "?")))
-        return check_entailment(claim, judge)
+                cost, note="entailment:" + str(getattr(judge, "name", "?")))
+        verdict = check_entailment(claim, judge)
+        settle_transport_retries(
+            budget_tracker, judge, cost,
+            "transport retries:entailment:"
+            + str(getattr(judge, "name", "?")))
+        return verdict
 
     return entailment_checker

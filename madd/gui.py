@@ -47,6 +47,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from .budget import BudgetExceeded
 from .config import (ConfigError, build_providers,
                      entailment_checker_from_config, load_config,
                      quote_checker_from_config, resolver_from_config,
@@ -108,6 +109,7 @@ class RunManager:
             tracker = run_budget_tracker(built)
             bundle = run_gate0(
                 built["providers"], judge_provider=built["judge"],
+                swap_judge_provider=built.get("judge_swap"),
                 baseline_provider=built["baseline"], mode=built.get("mode"),
                 budget_tracker=tracker,
                 gate0_dir=self.gate0_dir,
@@ -294,6 +296,9 @@ def make_handler(manager: RunManager):
                                         budget_tracker=tracker,
                                         target=payload.get("target") or None,
                                         disease=payload.get("disease") or None)
+                except BudgetExceeded as exc:
+                    return _json(self, {"ok": False, "error":
+                                        "run stopped: " + str(exc)})
                 except ValueError as exc:
                     return _json(self, {"ok": False, "error": str(exc)})
                 except Exception:
@@ -315,7 +320,8 @@ def make_handler(manager: RunManager):
                                         "baseline": built["baseline"] is not None})
                 estimate = estimate_gate0_run(built["providers"], built["judge"],
                                               built["baseline"],
-                                              manager.gate0_dir)
+                                              manager.gate0_dir,
+                                              swap_judge_provider=built.get("judge_swap"))
                 return _json(self, {"ok": True, "estimate": estimate})
             return _json(self, {"error": "not found"}, 404)
 

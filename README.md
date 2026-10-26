@@ -52,7 +52,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (297 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (301 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -181,6 +181,7 @@ Top-level fields:
 - mode (optional): the protocol mode, one of simple, dual, dual_judge. Modes count distinct models, not agents: every mode fields at least two research agents. simple puts every agent on one and the same model and allows no judge; dual spreads the panel across two models and allows no judge; dual_judge spreads it across two models and requires a judge. In simple and dual the judge-swap stability test is recorded as not applied, so a specification can lock without one. With no mode, the original behaviour stands.
 - providers (required): at least two research agents.
 - judge (optional): a third provider whose dossier supplies the judge-swap stability comparison. Without one, stability cannot be established and debates end in no-go. Required in dual_judge mode; not allowed in simple or dual.
+- judge_swap (optional): a second judge provider, from a different model family than the judge. Its dossier is an independent second judging result: the runner computes every case call under each judge and counts the calls the swap changed. The judge-swap stability threshold is evaluable only when a swap judge is configured and the two judges' recorded families differ; without one, judged runs record that threshold as not_evaluable rather than passing it. Requires a judge; a scored Gate 0 run needs one.
 - baseline (required for Gate 0 runs): the single model the debate system must beat.
 - budget (optional): {"max_cost_usd": number, "max_calls": integer}. At least one cap is required when a budget is given; uncapped budgets are rejected. The cap is shared across the whole run, baseline included, and the run stops when it is reached.
 - live_resolution (optional, default false): when true, the evidence call also strikes claims whose identifiers the live registries report as not found. A registry that cannot be reached never strikes anything.
@@ -192,7 +193,7 @@ Top-level fields:
 
 Each provider entry:
 
-- name: unique across providers, judge, and baseline.
+- name: unique across providers, judge, judge_swap, and baseline.
 - kind: "mock", "openai-compatible", or "anthropic".
 - model: the provider's exact model identifier (not needed for mock).
 - family: the model family label recorded in dossiers and manifests.

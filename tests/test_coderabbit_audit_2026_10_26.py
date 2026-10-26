@@ -1,7 +1,8 @@
-"""Regression tests for the 2026-10-26 external audit (CodeRabbit).
+"""Regression tests for the 2026-10-26 external audits (CodeRabbit).
 
-Each test names the finding it pins (A1-A7 in the audit report).
-The audit's probes demonstrated every defect against the pre-fix
+Each test names the finding it pins: A1-A7 from the first audit
+report, F1-F4 from the same-day follow-up audit of the repairs.
+The audits' probes demonstrated every defect against the pre-fix
 tree with synthetic providers only; these tests keep them fixed.
 """
 import json
@@ -38,10 +39,11 @@ class _Provider:
     cost_per_call_usd = 1
 
     def __init__(self, name, focus="SYNTHETIC-TARGET",
-                 direction="advance", bad=False):
+                 direction="advance", bad=False, family="synthetic"):
         """Initialize the test double."""
         self.name, self.focus, self.direction, self.bad = (
             name, focus, direction, bad)
+        self.family = family
         self.research_calls = self.complete_calls = 0
 
     def research(self, frame):
@@ -55,7 +57,7 @@ class _Provider:
             "proposed_focus_id": self.focus, "direction": self.direction,
             "claims": [claim] if self.focus else [],
             "unverified_notes": []}),
-            self.name, "synthetic", frame["frame_id"])
+            self.name, self.family, frame["frame_id"])
 
     def complete(self, system, user):
         """Answer entailment prompts and design prompts minimally."""
@@ -103,18 +105,15 @@ def test_a1_console_passes_all_four_evidence_switches(tmp_path):
 
 
 def test_a2_design_calls_charge_the_run_budget():
-    """A2: design completions reserve against the same tracker as
-    research, so a cap the research stage consumes leaves nothing
-    for design to spend silently."""
+    """A2/F4: design completions reserve against the same tracker
+    as research; a cap the research stage consumes stops the run
+    with BudgetExceeded rather than designing on silently."""
     panel = [_Provider("a"), _Provider("b")]
-    bundle = run_target(_frame(), panel, mode="simple",
-                        budget={"max_calls": 2})
+    with pytest.raises(BudgetExceeded):
+        run_target(_frame(), panel, mode="simple",
+                   budget={"max_calls": 2})
     actual = sum(p.research_calls + p.complete_calls for p in panel)
-    recorded = bundle["frame_run"]["record"]["budget"]["calls_made"]
-    assert actual == 2 and recorded == 2
-    assert bundle["outcome"] == "design_gate_failed"
-    assert any("BudgetExceeded" in n
-               for n in bundle["design"]["designer_notes"])
+    assert actual == 2
 
 
 def test_a2_entailment_calls_charge_the_run_budget():
@@ -134,17 +133,53 @@ def test_a2_entailment_calls_charge_the_run_budget():
     assert actual == 3 and tracker.calls_made == 3
 
 
-def test_a3_judge_swap_flips_count_changed_calls():
-    """A3: a swapped judge disagreeing on every case reports 8
-    flips and fails the stability threshold, not 0 and pass."""
+def _stability_check(bundle):
+    """The judge_swap_stability threshold check of a Gate 0 bundle."""
+    return next(c for c in bundle["thresholds"]["checks"]
+                if c["threshold"] == "judge_swap_stability")
+
+
+def test_f2_swap_needs_two_judges_from_different_families():
+    """A3/F2: the stability threshold compares two independently
+    produced judging results from different model families. With
+    no swap judge, or a same-family swap judge, there is no swap
+    experiment to score: the threshold is not_evaluable, never a
+    pass on 0 flips."""
     bundle = run_gate0(
         [_Provider("a"), _Provider("b")],
-        judge_provider=_Provider("judge", "SYNTHETIC-OTHER"),
+        judge_provider=_Provider("judge"),
         baseline_provider=_Provider("baseline", None))
-    check = next(c for c in bundle["thresholds"]["checks"]
-                 if c["threshold"] == "judge_swap_stability")
+    assert bundle["judge_swap_flips"] is None
+    assert _stability_check(bundle)["status"] == "not_evaluable"
+    bundle = run_gate0(
+        [_Provider("a"), _Provider("b")],
+        judge_provider=_Provider("judge", family="family-a"),
+        swap_judge_provider=_Provider("swap", family="family-a"),
+        baseline_provider=_Provider("baseline", None))
+    assert bundle["judge_swap_flips"] is None
+    assert _stability_check(bundle)["status"] == "not_evaluable"
+
+
+def test_f2_cross_family_swap_counts_changed_calls():
+    """A3/F2: with an operative judge and a different-family swap
+    judge, flips are the case calls the swap changed: a swap judge
+    disagreeing on focus in all 8 cases flips 8 calls and fails
+    the threshold; one agreeing flips none and passes."""
+    bundle = run_gate0(
+        [_Provider("a"), _Provider("b")],
+        judge_provider=_Provider("judge", family="family-a"),
+        swap_judge_provider=_Provider("swap", "SYNTHETIC-OTHER",
+                                      family="family-b"),
+        baseline_provider=_Provider("baseline", None))
     assert bundle["judge_swap_flips"] == 8
-    assert check["status"] == "fail"
+    assert _stability_check(bundle)["status"] == "fail"
+    bundle = run_gate0(
+        [_Provider("a"), _Provider("b")],
+        judge_provider=_Provider("judge", family="family-a"),
+        swap_judge_provider=_Provider("swap", family="family-b"),
+        baseline_provider=_Provider("baseline", None))
+    assert bundle["judge_swap_flips"] == 0
+    assert _stability_check(bundle)["status"] == "pass"
 
 
 def test_a5_unanimous_kill_cannot_lock():
@@ -229,3 +264,118 @@ def test_a7_design_ids_unique_and_overwrite_refused(tmp_path):
         {k: v for k, v in altered.items() if k != "frozen_bundle"})
     with pytest.raises(ValueError, match="refusing to overwrite"):
         storage.write_bundle(altered, out)
+
+
+def _retry_provider(name, answer):
+    """An HTTP provider whose transport 429s twice before answering:
+    3 attempts per logical call, reported on last_attempts."""
+    import json as _json
+
+    from madd.providers_http import OpenAICompatibleProvider
+    attempts = []
+
+    def transport(method, url, headers, body, timeout=None):
+        """Synthetic transport: two rate limits, then a 200."""
+        attempts.append(1)
+        if len(attempts) < 3:
+            return 429, {}
+        return 200, {"model": "synthetic-model", "choices": [
+            {"message": {"content": _json.dumps(answer)}}]}
+
+    provider = OpenAICompatibleProvider(
+        name, "synthetic-model", "synthetic-local-key",
+        "https://example.org/synthetic-api", cost_per_call_usd=1,
+        transport=transport, sleeper=lambda _: None)
+    return provider, attempts
+
+
+def test_f1_design_and_entailment_settle_transport_retries():
+    """F1: the design and entailment budget paths settle transport
+    retries against the shared tracker, like the research path: 3
+    attempts are 3 recorded calls when the cap has headroom, and
+    settling over the cap raises BudgetExceeded."""
+    from madd.design import ModelDesigner
+    provider, attempts = _retry_provider("synthetic-design",
+                                         {"candidates": []})
+    tracker = BudgetTracker({"max_calls": 5, "max_cost_usd": 5})
+    ModelDesigner([provider], budget_tracker=tracker).design(
+        {"spec_id": "SPEC-SYNTHETIC"})
+    assert len(attempts) == 3 and tracker.calls_made == 3
+
+    provider, attempts = _retry_provider("synthetic-entailment",
+                                         {"verdict": "supported"})
+    tracker = BudgetTracker({"max_calls": 5, "max_cost_usd": 5})
+    checker = entailment_checker_from_config(
+        {"entailment_check": True, "judge": provider}, tracker)
+    assert checker(_claim("C-SYNTHETIC")) == "supported"
+    assert len(attempts) == 3 and tracker.calls_made == 3
+
+    provider, attempts = _retry_provider("synthetic-design",
+                                         {"candidates": []})
+    tracker = BudgetTracker({"max_calls": 1, "max_cost_usd": 1})
+    with pytest.raises(BudgetExceeded):
+        ModelDesigner([provider], budget_tracker=tracker).design(
+            {"spec_id": "SPEC-SYNTHETIC"})
+
+
+def test_f3_malformed_claim_ids_are_rejected_not_crashes():
+    """F3: a claim whose id is a JSON array is struck schema_invalid
+    by the research evidence call and hard-fails the candidate
+    audit; neither auditor raises on the unhashable id."""
+    from madd.design import audit_candidate
+    claim = _claim("placeholder")
+    claim["claim_id"] = ["invented-invalid-id"]
+    audited = audit_dossier({"dossier_id": "D-SYNTHETIC",
+                             "agent_id": "synthetic", "claims": [claim]})
+    assert audited["struck"]
+    assert "schema_invalid" in audited["struck"][0]["reasons"]
+    result = audit_candidate({
+        "_synthetic": True, "candidate_id": "C-SYNTHETIC",
+        "spec_id": "SPEC-SYNTHETIC", "modality": "peptide",
+        "claims": [claim], "predicted_properties": [],
+        "constraint_results": []})
+    assert result["hard_fail"] is True
+    assert result["claim_errors"]
+
+
+def test_f4_budget_exhaustion_stops_a_design():
+    """F4: when the budget runs out mid-panel, BudgetExceeded
+    escapes the designer and the design run: a truncated panel is
+    a stopped run, never a reported pass."""
+    from madd.design import ModelDesigner, run_design
+
+    class CandidateProvider:
+        """Designer double returning one rankable candidate."""
+
+        model_version = "synthetic-model"
+        cost_per_call_usd = 1
+
+        def __init__(self, name):
+            """Initialize the test double."""
+            self.name = name
+            self.calls = 0
+
+        def complete(self, system, user):
+            """Return one synthetic rankable candidate."""
+            self.calls += 1
+            return json.dumps({"candidates": [{
+                "_synthetic": True,
+                "description": "Invented for code tests only.",
+                "modality": "peptide",
+                "structure": {"format": "sequence",
+                              "value": "ACDEFGHIK"},
+                "claims": [], "constraint_results": [],
+                "predicted_properties": [],
+                "production_notes": {"modifications": "unmodified"}}]})
+
+    spec = {"_synthetic": True, "artifact_type": "consensus_spec",
+            "spec_id": "SPEC-SYNTHETIC", "focus_id": "SYNTHETIC-TARGET",
+            "outcome": "locked", "claims": []}
+    panel = [CandidateProvider("synthetic-a"),
+             CandidateProvider("synthetic-b")]
+    tracker = BudgetTracker({"max_calls": 1})
+    with pytest.raises(BudgetExceeded):
+        run_design(spec, "synthetic",
+                   designer=ModelDesigner(panel, budget_tracker=tracker),
+                   budget_tracker=tracker, rdkit=False, admet=False)
+    assert panel[0].calls == 1 and panel[1].calls == 0

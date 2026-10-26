@@ -34,7 +34,11 @@ protocol and evidence call.
   not applied.
 - dual_judge: agents across two models plus a judge model. The
   full protocol, stability included, and the mode of the scored
-  Gate 0 run.
+  Gate 0 run. For the stability threshold to be evaluable, the
+  config also needs a judge_swap entry: a second judge from a
+  different model family than the judge. Without one the run
+  still executes, but stability records not_evaluable and a
+  scored run cannot pass that threshold.
 
 ## The start sequence
 

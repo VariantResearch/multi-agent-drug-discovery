@@ -15,6 +15,19 @@ NON_EVIDENCE_SOURCE_KINDS = {"agent", "model_opinion"}
 AUDITED_STATUSES = {"resolved", "quote_checked"}
 
 
+def claim_key(claim) -> str:
+    """The key a claim is indexed under in audit structures: its
+    claim_id when that is a string, else a fixed placeholder.
+
+    Claim ids come from untrusted model output. A non-string id (a
+    JSON array or object where an id belongs) is invalid, and it
+    must be reported as invalid, never fed into a dict key or a
+    set, where an unhashable value would raise TypeError and abort
+    the audit instead of completing it."""
+    cid = claim.get("claim_id") if isinstance(claim, dict) else None
+    return cid if isinstance(cid, str) else "<invalid claim_id>"
+
+
 def extract_claims(document) -> list:
     """Accept a claim dict, a list of claims, or a dossier/spec dict."""
     if isinstance(document, list):
@@ -64,9 +77,8 @@ def audit_claims(document) -> dict:
         errors.extend(validate_claim(claim))
     seen = {}
     for claim in claims:
-        cid = claim.get("claim_id")
-        if cid is not None:
-            seen[cid] = seen.get(cid, 0) + 1
+        cid = claim_key(claim)
+        seen[cid] = seen.get(cid, 0) + 1
     for cid, count in seen.items():
         if count > 1:
             errors.append({"claim_id": cid, "code": "duplicate_claim_id",

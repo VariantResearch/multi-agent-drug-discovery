@@ -207,7 +207,8 @@ def _emit(on_event, event: dict):
         on_event(event)
 
 
-def run_gate0(providers, judge_provider=None, baseline_provider=None,
+def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
+              baseline_provider=None,
               budget=None, budget_tracker=None, gate0_dir=None,
               resolver=None, run_id=None,
               on_event=None, max_workers=1, quote_checker=None,
@@ -284,12 +285,14 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
         elif mode == "dual_judge":
             record = run_debate(frame, providers,
                                 judge_provider=judge_provider,
+                                swap_judge_provider=swap_judge_provider,
                                 budget_tracker=tracker, resolver=resolver,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
                                 retrieval_first=retrieval_first)
         else:
             record = run_debate(frame, providers, judge_provider=judge_provider,
+                                swap_judge_provider=swap_judge_provider,
                                 budget_tracker=tracker, resolver=resolver,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
@@ -322,26 +325,25 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
     debate_score = score_run(predictions, gate0_dir)
     baseline_score = score_run(baseline_predictions, gate0_dir)
     violations = sum(spec_audit_violations(rec["spec"]) for rec in case_records.values())
-    # A judge-swap flip is a case call the swap changed: the debate
-    # records, per case, the call under the original judging
-    # (original_outcome: every consensus test except stability) and
-    # the call with the swapped judge's stability verdict applied
-    # (swapped_outcome). Counting only locked records whose judge
-    # focus differed could never see a flip, because a differing
-    # judge focus fails stability and unlocks the spec before the
-    # count; the two recorded calls are the honest comparison.
-    # When no case record carries a judge_swap entry the swap was
-    # never run (simple and dual modes, or a judgeless legacy run),
-    # and when a swap record predates the two-call recording the
-    # count is likewise unknown, not zero: pass None and let
-    # evaluate_thresholds record not_evaluable. A test that never
-    # ran must not read as a pass on 0 flips.
-    swaps = [rec.get("judge_swap") for rec in case_records.values()
-             if rec.get("judge_swap")]
-    if swaps and all("original_outcome" in s and "swapped_outcome" in s
-                     for s in swaps):
-        flips = sum(1 for s in swaps
-                    if s["original_outcome"] != s["swapped_outcome"])
+    # A judge-swap flip is a case call the swap changed. The debate
+    # records a judge_swap_experiment per case only when a swap
+    # judge was configured alongside the operative judge: two
+    # independently produced judging dossiers, each case call
+    # computed under each judge, with both model families recorded
+    # as provenance. The count is evaluable only when every case
+    # has an experiment and every experiment's two families
+    # actually differ (the threshold's contract is a swap to a
+    # different family). Anything less - no swap judge configured,
+    # a same-family swap, missing family provenance - means the
+    # swap experiment the threshold measures did not happen: pass
+    # None and let evaluate_thresholds record not_evaluable. A
+    # test that never ran must not read as a pass on 0 flips.
+    experiments = [rec.get("judge_swap_experiment")
+                   for rec in case_records.values()
+                   if rec.get("judge_swap_experiment")]
+    if experiments and all(e.get("evaluable") for e in experiments):
+        flips = sum(1 for e in experiments
+                    if e["original_outcome"] != e["swapped_outcome"])
     else:
         flips = None
     thresholds = evaluate_thresholds(debate_score, baseline_score=baseline_score,
@@ -391,12 +393,13 @@ def run_gate0(providers, judge_provider=None, baseline_provider=None,
 
 
 def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
-                       gate0_dir=None) -> dict:
+                       gate0_dir=None, swap_judge_provider=None) -> dict:
     """Count what a Gate 0 run will call and what it will cost, from
     the configured per-call costs, without making any call.
 
     Per case: one baseline call, one research call per panel
-    provider, one judge call when a judge is configured. Retries and
+    provider, one judge call when a judge is configured, and one
+    swap-judge call when a swap judge is configured. Retries and
     live-resolution lookups are not counted; they are bounded by
     their own settings and reported in the finished bundle.
     """
@@ -410,9 +413,10 @@ def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
 
     per_case_calls = {"baseline": 1 if baseline_provider is not None else 0,
                       "debate_panel": len(panel),
-                      "judge": 1 if judge_provider is not None else 0}
+                      "judge": 1 if judge_provider is not None else 0,
+                      "judge_swap": 1 if swap_judge_provider is not None else 0}
     per_case_cost = (cost(baseline_provider) + sum(cost(p) for p in panel)
-                     + cost(judge_provider))
+                     + cost(judge_provider) + cost(swap_judge_provider))
     return {
         "case_count": len(cases),
         "case_ids": cases,
@@ -427,7 +431,8 @@ def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
     }
 
 
-def run_frame(frame, providers, judge_provider=None, budget=None,
+def run_frame(frame, providers, judge_provider=None,
+              swap_judge_provider=None, budget=None,
               budget_tracker=None,
               resolver=None, run_id=None, on_event=None, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
@@ -454,12 +459,14 @@ def run_frame(frame, providers, judge_provider=None, budget=None,
                             require_stability=False)
     elif mode == "dual_judge":
         record = run_debate(frame, providers, judge_provider=judge_provider,
+                            swap_judge_provider=swap_judge_provider,
                             budget_tracker=tracker, resolver=resolver,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
                             retrieval_first=retrieval_first)
     else:
         record = run_debate(frame, providers, judge_provider=judge_provider,
+                            swap_judge_provider=swap_judge_provider,
                             budget_tracker=tracker, resolver=resolver,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,

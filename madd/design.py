@@ -34,6 +34,7 @@ from . import design_rdkit
 from . import design_sources
 from . import schemas
 from .artifacts import freeze_artifact
+from .budget import BudgetExceeded, settle_transport_retries
 from .providers import MockProvider
 
 
@@ -230,8 +231,10 @@ class ModelDesigner:
         budget_tracker, when given, is the run's shared budget
         tracker: every completion reserves against it before it is
         made, so design calls count toward the run budget like
-        research calls. An exhausted budget surfaces through the
-        usual per-provider failure note, never as silent spend."""
+        research calls, and the completion's transport retries are
+        settled against it afterwards. Budget exhaustion raises
+        BudgetExceeded out of design(): it is the run's hard stop,
+        never an ordinary per-provider failure note."""
         self.providers = list(providers)
         self.budget_tracker = budget_tracker
         self.notes = []
@@ -252,12 +255,20 @@ class ModelDesigner:
             scope = label if seen_labels[label] == 1 else (
                 label + "-" + str(seen_labels[label]))
             try:
+                cost = float(getattr(provider, "cost_per_call_usd", 0.0)
+                             or 0.0)
                 if self.budget_tracker is not None:
-                    self.budget_tracker.reserve(
-                        float(getattr(provider, "cost_per_call_usd", 0.0)
-                              or 0.0),
-                        note="design:" + label)
+                    self.budget_tracker.reserve(cost, note="design:" + label)
                 text = provider.complete(DESIGN_SYSTEM_PROMPT, user)
+                settle_transport_retries(
+                    self.budget_tracker, provider, cost,
+                    "transport retries:design:" + label)
+            except BudgetExceeded:
+                # A budget stop is not a provider failure: the run's
+                # configured cap is a hard stop, and converting it
+                # into a per-provider note would let a truncated
+                # panel report an ordinary pass.
+                raise
             except Exception as exc:
                 self.notes.append("provider " + label + ": design call failed: "
                                   + type(exc).__name__ + ": " + str(exc))
@@ -333,17 +344,22 @@ def audit_candidate(candidate: dict) -> dict:
         reasons.append("candidate carries a claim entry that is not an object")
     codes_by_id = {}
     for err in claims_mod.audit_claims(candidate)["errors"]:
-        codes_by_id.setdefault(err["claim_id"], set()).add(err["code"])
+        key = err["claim_id"] if isinstance(err.get("claim_id"), str) \
+            else "<invalid claim_id>"
+        codes_by_id.setdefault(key, set()).add(err["code"])
     claim_schema = schemas.load_schema("claim")
     for claim in claims_list:
         if schemas.validate(claim, claim_schema):
             # Same rule as the research evidence call: a claim that
-            # fails the claim schema is not usable evidence.
-            codes_by_id.setdefault(claim.get("claim_id"), set()).add(
+            # fails the claim schema is not usable evidence. Claims
+            # are indexed by claim_key throughout this audit: a
+            # malformed (non-string) id must be reported, never fed
+            # into a dict key or set, where it would raise.
+            codes_by_id.setdefault(claims_mod.claim_key(claim), set()).add(
                 "schema_invalid")
     entries = citation_auditor.audit_citations(candidate)["entries"]
     for claim, entry in zip(claims_list, entries):
-        codes = codes_by_id.setdefault(claim.get("claim_id"), set())
+        codes = codes_by_id.setdefault(claims_mod.claim_key(claim), set())
         if not entry["format"]["ok"]:
             codes.add("citation_" + entry["format"]["code"])
         for problem in entry["problems"]:
@@ -352,7 +368,7 @@ def audit_candidate(candidate: dict) -> dict:
     unaudited_load_bearing = 0
     for claim in claims_list:
         cid = claim.get("claim_id")
-        codes = codes_by_id.get(cid, set())
+        codes = codes_by_id.get(claims_mod.claim_key(claim), set())
         if codes:
             claim_errors.append({"claim_id": cid, "errors": sorted(codes)})
             if claim.get("load_bearing"):
@@ -360,7 +376,7 @@ def audit_candidate(candidate: dict) -> dict:
                                + " failed audit: " + ", ".join(sorted(codes)))
         elif claim.get("load_bearing"):
             if claims_mod.is_audited(claim):
-                audited_ids.add(cid)
+                audited_ids.add(claims_mod.claim_key(claim))
             else:
                 unaudited_load_bearing += 1
     unverified = 0

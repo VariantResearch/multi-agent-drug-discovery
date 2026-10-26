@@ -147,6 +147,9 @@ def _cmd_design_run(args) -> int:
                             retro_work_dir=(Path(args.out) / "retro-work"
                                             if getattr(args, "retro_config", None)
                                             else None))
+    except BudgetExceeded as exc:
+        print("run stopped: " + str(exc), file=sys.stderr)
+        return 2
     except (OSError, ValueError) as exc:
         print("design-run failed: " + str(exc), file=sys.stderr)
         return 1
@@ -408,7 +411,8 @@ def _cmd_run_gate0(args) -> int:
         return 2
     if args.dry_run:
         estimate = estimate_gate0_run(built["providers"], built["judge"],
-                                      built["baseline"], args.gate0_dir)
+                                      built["baseline"], args.gate0_dir,
+                                      swap_judge_provider=built.get("judge_swap"))
         print("cases:", estimate["case_count"])
         print("calls per case:", estimate["calls_per_case"])
         print("total calls:", estimate["total_calls"])
@@ -420,6 +424,7 @@ def _cmd_run_gate0(args) -> int:
     try:
         tracker = run_budget_tracker(built)
         bundle = run_gate0(built["providers"], judge_provider=built["judge"],
+                           swap_judge_provider=built.get("judge_swap"),
                            baseline_provider=built["baseline"],
                            mode=built.get("mode"),
                            budget_tracker=tracker, gate0_dir=args.gate0_dir,
@@ -467,6 +472,7 @@ def _cmd_target_run(args) -> int:
         tracker = run_budget_tracker(built)
         bundle = run_target(
             frame, built["providers"], judge_provider=built["judge"],
+            swap_judge_provider=built.get("judge_swap"),
             mode=built.get("mode"), budget_tracker=tracker,
             resolver=resolver_from_config(built),
             quote_checker=quote_checker_from_config(built),
@@ -514,6 +520,7 @@ def _cmd_run_frame(args) -> int:
         tracker = run_budget_tracker(built)
         bundle = run_frame(frame, built["providers"],
                            judge_provider=built["judge"],
+                           swap_judge_provider=built.get("judge_swap"),
                            mode=built.get("mode"),
                            budget_tracker=tracker,
                            resolver=resolver_from_config(built),

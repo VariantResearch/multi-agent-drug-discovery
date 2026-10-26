@@ -84,7 +84,8 @@ def build_target_frame(name: str, kind: str, target: str = None,
     return frame
 
 
-def run_target(frame: dict, providers, judge_provider=None, mode=None,
+def run_target(frame: dict, providers, judge_provider=None,
+               swap_judge_provider=None, mode=None,
                designer=None, budget=None, budget_tracker=None,
                run_id=None, on_event=None,
                resolver=None, quote_checker=None, entailment_checker=None,
@@ -109,6 +110,7 @@ def run_target(frame: dict, providers, judge_provider=None, mode=None,
     tracker = budget_tracker if budget_tracker is not None else (
         BudgetTracker(budget) if budget is not None else None)
     frame_bundle = run_frame(frame, providers, judge_provider=judge_provider,
+                             swap_judge_provider=swap_judge_provider,
                              budget_tracker=tracker, run_id=run_id + "-frame",
                              on_event=on_event, resolver=resolver,
                              quote_checker=quote_checker,

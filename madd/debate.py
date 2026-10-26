@@ -171,10 +171,14 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None,
     claim_schema = load_schema("claim")
     citation_entries = {}
     for entry in audit_citations({"claims": claims})["entries"]:
-        citation_entries[entry["claim_id"]] = entry
+        # Only string ids may key the lookup: a malformed id is
+        # struck schema_invalid in the main loop, and indexing it
+        # here would raise on an unhashable value before that.
+        if isinstance(entry.get("claim_id"), str):
+            citation_entries[entry["claim_id"]] = entry
     id_counts = {}
     for claim in claims:
-        if isinstance(claim, dict) and claim.get("claim_id") is not None:
+        if isinstance(claim, dict) and isinstance(claim.get("claim_id"), str):
             id_counts[claim["claim_id"]] = id_counts.get(claim["claim_id"], 0) + 1
     surviving = []
     struck = []
@@ -191,13 +195,14 @@ def audit_dossier(dossier: dict, resolver=None, quote_checker=None,
             # never reach the spec, even in a dossier that bypassed
             # the response parser.
             reasons.append("schema_invalid")
-        if id_counts.get(claim.get("claim_id"), 0) > 1:
+        if isinstance(claim.get("claim_id"), str) and id_counts.get(claim["claim_id"], 0) > 1:
             # A duplicated claim_id makes the citation entry ambiguous:
             # the dict above can only hold one entry per id, so a clean
             # copy could mask a malformed twin. Every copy is struck,
             # matching the document-level duplicate rule in claims.py.
             reasons.append("duplicate_claim_id")
-        entry = citation_entries.get(claim.get("claim_id", "<missing claim_id>"))
+        entry = (citation_entries.get(claim.get("claim_id"))
+                 if isinstance(claim.get("claim_id"), str) else None)
         if entry is not None:
             if not entry["format"]["ok"]:
                 reasons.append("citation_" + entry["format"]["code"])
@@ -385,6 +390,7 @@ def frame_identifier_set(frame) -> set | None:
 
 
 def run_debate(frame: dict, providers: list, judge_provider=None,
+               swap_judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
                resolver=None, quote_checker=None, entailment_checker=None,
                retrieval_first: bool = False,
@@ -394,6 +400,13 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     providers: at least two Provider objects (see madd/providers.py).
     judge_provider: optional third provider whose dossier, produced from
     the same frame, supplies the judge-swap stability comparison.
+    swap_judge_provider: optional further provider, the judge-swap
+    experiment's second judge. When both judges are supplied, each
+    one's case call is recorded (judge_swap_experiment in the
+    record) so a runner can count the calls the swap changed; the
+    experiment is evaluable only when the two dossiers report
+    different model families, as the threshold's contract requires
+    a swap to a different family. Requires judge_provider.
     require_stability: the dual protocol mode (two research models, no
     judge) passes False, so the stability test is recorded as
     not_applied instead of failed. The default True keeps the original
@@ -503,6 +516,10 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     # Step 6: consensus tests, with judge swap when a judge is supplied.
     swapped_spec = None
     judge_info = None
+    judge_dossier = None
+    if swap_judge_provider is not None and judge_provider is None:
+        raise ValueError("a judge-swap provider requires a judge provider "
+                         "to swap")
     if judge_provider is not None:
         judge_dossier = research(judge_provider)
         _canonicalize_dossier_focus(judge_dossier, frame)
@@ -535,27 +552,65 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                                     stability_required=require_stability)
     outcome = "locked" if consensus["all_passed"] else "no_go"
     spec["outcome"] = outcome
+    swap_experiment = None
     if judge_info is not None:
-        # The two case calls the judge-swap threshold compares: the
-        # call under the original judging (every consensus test except
-        # stability: the panel result as it stands) and the call with
-        # the swapped judge's stability verdict applied (which is this
-        # record's own outcome). A flip is the swap changing the call.
-        # Recording both calls here is what lets the runner count
-        # flips honestly: counting only locked records could never
-        # see one, because a stability failure is exactly what unlocks
-        # the spec.
+        # The case call under the operative judge: every consensus
+        # test except stability must pass, and the stability verdict
+        # (this judge's focus against the panel's) must hold. That
+        # is this record's own outcome by construction.
         non_stability_passed = all(
             r["passed"] for r in consensus["results"]
             if r["test"] != "stability")
         stability_passed = next(
             r["passed"] for r in consensus["results"]
             if r["test"] == "stability")
-        judge_info["original_outcome"] = (
-            "locked" if non_stability_passed else "no_go")
-        judge_info["swapped_outcome"] = (
+        outcome_under_judge = (
             "locked" if (non_stability_passed and stability_passed)
             else "no_go")
+        judge_info["outcome_under_judge"] = outcome_under_judge
+        judge_info["model_family"] = judge_dossier.get("model_family")
+        if swap_judge_provider is not None:
+            # The swap experiment: a second, independent judging
+            # result. Its call is computed the same way, from its
+            # own dossier's focus, and the flip is the two calls
+            # differing. Both families are recorded as provenance;
+            # the runner counts flips only when they differ, since
+            # the threshold's contract is a swap to a different
+            # model family.
+            swap_dossier = research(swap_judge_provider)
+            _canonicalize_dossier_focus(swap_dossier, frame)
+            swap_audited = audit_dossier(
+                swap_dossier, resolver=resolver,
+                quote_checker=quote_checker,
+                entailment_checker=entailment_checker,
+                allowed_identifiers=allowed)
+            swap_focus = swap_audited["proposed_focus_id"]
+            outcome_under_swap = (
+                "locked" if (non_stability_passed
+                             and swap_focus is not None
+                             and swap_focus == spec["focus_id"])
+                else "no_go")
+            swap_experiment = {
+                "provider": getattr(swap_judge_provider, "name", None),
+                "model_version": getattr(swap_judge_provider,
+                                         "model_version", None),
+                "model_family": swap_dossier.get("model_family"),
+                "dossier_id": swap_audited["dossier_id"],
+                "proposed_focus_id": swap_focus,
+                "struck": swap_audited["struck"],
+                "judge_family": judge_dossier.get("model_family"),
+                "swap_family": swap_dossier.get("model_family"),
+                "original_outcome": outcome_under_judge,
+                "swapped_outcome": outcome_under_swap,
+                "evaluable": bool(
+                    judge_dossier.get("model_family")
+                    and swap_dossier.get("model_family")
+                    and judge_dossier.get("model_family")
+                    != swap_dossier.get("model_family")),
+            }
+            if "proposed_focus_raw" in swap_audited:
+                swap_experiment["proposed_focus_raw"] = swap_audited[
+                    "proposed_focus_raw"]
 
     # Step 7: frozen record.
     frame_prompt_hash = prompt_hash(canonical_json(frame))
@@ -570,6 +625,13 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                       "provider": judge_info["provider"],
                       "model_version": judge_info["model_version"],
                       "agent_id": None, "dossier_id": judge_info["dossier_id"],
+                      "prompt_hash": frame_prompt_hash})
+    if swap_experiment is not None:
+        calls.append({"role": "judge_swap",
+                      "provider": swap_experiment["provider"],
+                      "model_version": swap_experiment["model_version"],
+                      "agent_id": None,
+                      "dossier_id": swap_experiment["dossier_id"],
                       "prompt_hash": frame_prompt_hash})
     manifest = build_manifest(
         model_name=", ".join(str(getattr(p, "name", "?")) for p in providers),
@@ -598,6 +660,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         "red_team_round": red_team,
         "evolution": evolution,
         "judge_swap": judge_info,
+        "judge_swap_experiment": swap_experiment,
         "consensus": consensus,
         "spec": spec,
         "outcome": outcome,

@@ -201,7 +201,12 @@ run does not hold the program back.
 
 The scored run runs in dual_judge protocol mode (research agents
 across two models, plus a judge model): the approved thresholds
-include judge-swap stability, which only that mode applies. The
+include judge-swap stability, which only that mode applies, and
+which is evaluable only when the run config also names a
+judge_swap provider from a different model family than the
+judge (the swap experiment compares two independently produced
+judging results; without the second result the threshold records
+not_evaluable). The
 simple and dual modes exist for cheaper exploratory and validation
 runs; a validation run in any mode may be judged against the
 approved thresholds and recorded, without becoming the scored

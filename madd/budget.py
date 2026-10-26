@@ -24,6 +24,24 @@ class BudgetExceeded(Exception):
     """Raised when recording a call would cross a budget cap."""
 
 
+def settle_transport_retries(tracker, provider, cost_usd: float,
+                             note: str) -> None:
+    """Charge a finished call's transport retries to the tracker.
+
+    HTTP providers retry inside one logical call and report the
+    attempt count on last_attempts. The reserve covered the first
+    attempt; the retries are real provider calls too, so they are
+    recorded here at the same per-call cost. Recording can raise
+    BudgetExceeded, which stops the run with honest numbers rather
+    than absorbing the overage silently. A None tracker (an
+    unbudgeted run) settles nothing."""
+    if tracker is None:
+        return
+    extra = int(getattr(provider, "last_attempts", 1) or 1) - 1
+    if extra > 0:
+        tracker.record(cost_usd * extra, calls=extra, note=note)
+
+
 def _non_negative_number(value, name):
     """Validate one budget number: reject bools and non-numbers, reject
     negatives, return the value as a float."""
