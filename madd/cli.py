@@ -398,6 +398,23 @@ def _cmd_trials(args) -> int:
     return 0
 
 
+def _cmd_run_memory(args) -> int:
+    """Print the fenced run-memory digest for a runs directory."""
+    from .run_memory import build_memory
+    memory = build_memory(args.runs)
+    print("runs scanned:", memory["runs_scanned"])
+    for name, slot in sorted(memory["targets"].items()):
+        print("  target " + str(name) + ": " + str(slot["runs"])
+              + " run(s), outcomes " + str(slot["outcomes"])
+              + ", total strikes " + str(slot["total_strikes"]))
+    for name, slot in sorted(memory["providers"].items()):
+        print("  provider " + str(name) + ": " + str(slot["runs"])
+              + " run(s), debate outcomes "
+              + str(slot["debate_outcomes"]))
+    print("fence:", memory["fence"])
+    return 0
+
+
 def _cmd_audit_claims(args) -> int:
     """audit-claims handler: print the claim and citation audits of a
     document; exit 1 when either audit finds errors."""
@@ -709,6 +726,14 @@ def _cmd_target_run(args) -> int:
             print("retrieved evidence:", len(entries),
                   "sources from Europe PMC (tier " + str(tier) + "),",
                   len(ot_entries), "association from Open Targets")
+        from .run_memory import build_memory, target_history
+        history = target_history(build_memory(args.out or "runs"),
+                                 args.name)
+        if history:
+            print("run memory:", args.name, "has", history["runs"],
+                  "prior run(s); outcomes:", history["outcomes"],
+                  "| total strikes:", history["total_strikes"],
+                  "| last:", history["last_outcome"])
         tracker = run_budget_tracker(built)
         bundle = run_target(
             frame, built["providers"], judge_provider=built["judge"],
@@ -1079,6 +1104,8 @@ def build_parser() -> argparse.ArgumentParser:
     p32.add_argument("--focus", default=None)
     p32.add_argument("--out", default="runs")
     p32.set_defaults(fn=_cmd_trials)
+    p33 = sub.add_parser("run-memory"); p33.add_argument("--runs", default="runs")
+    p33.set_defaults(fn=_cmd_run_memory)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (414 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (417 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -395,6 +395,15 @@ madd/            the package (standard library only)
                      finished stages with no provider calls and
                      no budget charge; changed inputs invalidate
                      a checkpoint completely
+  run_memory.py      fenced run memory: a digest over finished
+                     run bundles carrying operational metadata
+                     only (per-target run outcomes and strike
+                     totals, per-provider participation), printed
+                     by the run-memory command and surfaced by
+                     target-run at framing when the target has
+                     history; claim text, quotes, and structures
+                     never cross the fence, and the memory is
+                     never evidence in a run
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score

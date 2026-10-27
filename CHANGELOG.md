@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 17, 2026-10-27)
+
+- Fenced run memory (madd/run_memory.py, `madd run-memory`),
+  the third wave-4 item of the competitive-gap implementation
+  list. A digest over the finished bundles in a runs
+  directory carries operational metadata only: per target,
+  the runs attempted, their outcomes, and strike totals; per
+  provider, participation counts and debate outcomes; per
+  run, its kind and gate results. The fence is structural:
+  the scan reads only the named metadata fields, so claim
+  text, supporting quotes, dossier content, and candidate
+  structures cannot cross into the memory (a test plants
+  distinctive claim and structure strings in a fixture
+  bundle and asserts their absence from the digest). The
+  memory is surfaced to the operator, never to a run:
+  target-run prints a target's history at framing time when
+  one exists. Prior AI output is not citable as evidence,
+  and under this fence it cannot quietly become so.
+
 ### Added (competitive-gap item 16, 2026-10-27)
 
 - Checkpointed long runs (madd/checkpoints.py; --checkpoint-dir
