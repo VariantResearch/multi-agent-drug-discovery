@@ -364,6 +364,40 @@ def _cmd_scout(args) -> int:
     return 0
 
 
+def _cmd_trials(args) -> int:
+    """Report the ClinicalTrials.gov landscape for a disease."""
+    from datetime import datetime, timezone
+
+    from .trials import landscape
+    focus = [part.strip() for part in str(args.focus or "").split(",")
+             if part.strip()]
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    report = landscape(args.disease, focus_terms=focus,
+                       queried_on=today)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = "trials-" + stamp
+    out_bundle = {"kind": "trial_landscape", "run_id": run_id,
+                  "outcome": ("total trials: "
+                              + str(report["total_trials"])),
+                  "created_utc": stamp, "report": report}
+    run_dir = write_bundle(out_bundle, args.out)
+    print("trial landscape " + run_id + " written to " + str(run_dir))
+    print("disease: " + str(args.disease) + " | total trials: "
+          + str(report["total_trials"]))
+    if report["sample"]:
+        print("sample of " + str(report["sample"]["size"])
+              + " most recent | by phase: "
+              + str(report["sample"]["by_phase"]))
+    for entry in report["focus"]:
+        print("  focus " + str(entry["term"]) + ": "
+              + str(entry.get("trials", entry.get("status"))))
+    for study in report["recent"]:
+        print("  recent: " + str(study["nct_id"]) + " | "
+              + str(study["status"]) + " | "
+              + str(study["title"])[:70])
+    return 0
+
+
 def _cmd_audit_claims(args) -> int:
     """audit-claims handler: print the claim and citation audits of a
     document; exit 1 when either audit finds errors."""
@@ -1027,6 +1061,10 @@ def build_parser() -> argparse.ArgumentParser:
     p31.add_argument("--targets", required=True)
     p31.add_argument("--out", default="runs")
     p31.set_defaults(fn=_cmd_scout)
+    p32 = sub.add_parser("trials"); p32.add_argument("--disease", required=True)
+    p32.add_argument("--focus", default=None)
+    p32.add_argument("--out", default="runs")
+    p32.set_defaults(fn=_cmd_trials)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

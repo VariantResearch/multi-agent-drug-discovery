@@ -146,6 +146,28 @@ def run_target(frame: dict, providers, judge_provider=None,
         "design": None,
         "outcome": "no_go",
     }
+    # Every target run carries the trial landscape for its
+    # disease (competitive-gap item 14): what the clinic has
+    # already tried, as registry data. A registry failure marks
+    # the section unavailable; it never fails the run.
+    disease_text = frame.get("disease")
+    if disease_text:
+        from datetime import datetime, timezone
+
+        from .trials import landscape as _trial_landscape
+        focus = frame.get("target_name") or frame.get("target")
+        try:
+            bundle["trial_landscape"] = _trial_landscape(
+                str(disease_text),
+                focus_terms=[str(focus)] if focus else [],
+                queried_on=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        except Exception as exc:
+            bundle["trial_landscape"] = {
+                "artifact_type": "trial_landscape",
+                "disease": disease_text, "status": "unavailable",
+                "detail": (type(exc).__name__ + ": " + str(exc))}
+    else:
+        bundle["trial_landscape"] = None
     if record.get("outcome") == "stopped":
         bundle["outcome"] = "stopped"
     if prereg_ref is not None:

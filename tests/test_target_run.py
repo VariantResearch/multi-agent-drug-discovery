@@ -15,6 +15,22 @@ from madd.report import bundle_to_markdown
 from madd.target_run import TARGET_KINDS, build_target_frame, run_target
 
 
+@pytest.fixture(autouse=True)
+def _stub_trial_landscape(monkeypatch):
+    """Target runs fetch a live trial landscape; the suite
+    stubs it so plumbing tests stay hermetic and fast."""
+    def fake_landscape(disease, focus_terms=(), queried_on=None,
+                       **kwargs):
+        """A canned landscape section for any disease."""
+        return {"artifact_type": "trial_landscape",
+                "disease": disease, "total_trials": 7,
+                "queried_on": queried_on,
+                "focus": [{"term": term, "trials": 1}
+                          for term in focus_terms]}
+
+    monkeypatch.setattr("madd.trials.landscape", fake_landscape)
+
+
 def _claim(cid):
     """One audit-passing invented claim."""
     return {"claim_id": cid, "text": "invented claim " + cid,

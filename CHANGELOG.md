@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 14, 2026-10-27)
+
+- Trial landscape (madd/trials.py, `madd trials --disease
+  <d> [--focus <drug,...>]`), the fifth and final wave-3
+  item of the competitive-gap implementation list. From the
+  ClinicalTrials.gov API: the registry's own total for the
+  disease, phase and status breakdowns over a sample of the
+  most recent studies (labelled as sample counts, not
+  registry totals), a counted query per focus term with its
+  recent studies, and the five most recent studies with NCT
+  identifiers, statuses, sponsors, and interventions, all
+  stamped with the query date. A failed fetch marks its
+  section unavailable rather than reporting an unobserved
+  zero. The report states that registry presence is a fact
+  about a program's existence, not its quality or prospects.
+  Live-checked at build time: 15,097 obesity studies in the
+  registry, with no obesity study naming evolocumab or
+  MTCH2 as an intervention. As the list specifies, every
+  target run also gains the landscape as a bundle section
+  for its disease (focus: the run's target), fetched during
+  the run with the same failure tolerance - a registry
+  failure marks the section unavailable and never fails the
+  run - so a design is produced knowing what the clinic has
+  already tried.
+
 ### Added (competitive-gap item 13, 2026-10-27)
 
 - Target scout (madd/scout.py and madd/chembl.py, `madd
