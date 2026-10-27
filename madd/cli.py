@@ -696,13 +696,16 @@ def _cmd_target_run(args) -> int:
                                    disease=args.disease, focus_id=args.focus)
         retrieval_first = bool(built.get("retrieval_first"))
         if not args.no_retrieve:
-            entries = retrieve_evidence(frame)
+            from .fulltext import retrieve_tiered_evidence
+            tier = getattr(args, "retrieval_tier", None) \
+                or built.get("retrieval_tier", "abstract")
+            entries = retrieve_tiered_evidence(frame, tier)
             ot_entries = evidence_for_frame(frame)
             frame["evidence"] = entries + ot_entries
             retrieval_first = True
             print("retrieved evidence:", len(entries),
-                  "sources from Europe PMC,", len(ot_entries),
-                  "association from Open Targets")
+                  "sources from Europe PMC (tier " + str(tier) + "),",
+                  len(ot_entries), "association from Open Targets")
         tracker = run_budget_tracker(built)
         bundle = run_target(
             frame, built["providers"], judge_provider=built["judge"],
@@ -752,13 +755,15 @@ def _cmd_run_frame(args) -> int:
         built = _built_from_config(args)
         retrieval_first = bool(built.get("retrieval_first"))
         if getattr(args, "retrieve", False):
-            entries = retrieve_evidence(frame)
+            from .fulltext import retrieve_tiered_evidence
+            tier = built.get("retrieval_tier", "abstract")
+            entries = retrieve_tiered_evidence(frame, tier)
             ot_entries = evidence_for_frame(frame)
             frame["evidence"] = entries + ot_entries
             retrieval_first = True
             print("retrieved evidence:", len(entries),
-                  "sources from Europe PMC,", len(ot_entries),
-                  "association from Open Targets")
+                  "sources from Europe PMC (tier " + str(tier) + "),",
+                  len(ot_entries), "association from Open Targets")
         tracker = run_budget_tracker(built)
         bundle = run_frame(frame, built["providers"],
                            judge_provider=built["judge"],
@@ -1073,6 +1078,8 @@ def build_parser() -> argparse.ArgumentParser:
     p21.add_argument("--focus", default=None)
     p21.add_argument("--constraint", action="append", default=None)
     p21.add_argument("--no-retrieve", action="store_true")
+    p21.add_argument("--retrieval-tier", default=None,
+                     choices=["abstract", "concise", "deep"])
     p21.add_argument("--no-prereg", action="store_true")
     p21.add_argument("--source-check", action="store_true")
     p21.add_argument("--out", default=None)

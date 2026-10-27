@@ -441,7 +441,8 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
 
 
 def estimate_target_run(providers, judge_provider=None,
-                        swap_judge_provider=None) -> dict:
+                        swap_judge_provider=None,
+                        retrieval_tier: str = "abstract") -> dict:
     """Count what one target run will call and cost, without calling.
 
     A target run is one frame debate plus, when the target locks,
@@ -468,14 +469,22 @@ def estimate_target_run(providers, judge_provider=None,
                    + cost(swap_judge_provider))
     design_calls = len(panel)
     design_cost = sum(cost(p) for p in panel)
+    from .fulltext import tier_caps
+    caps = tier_caps(retrieval_tier)
     return {
         "debate_calls": debate_calls,
         "design_calls": design_calls,
         "total_calls": debate_calls + design_calls,
         "estimated_cost_usd": round(debate_cost + design_cost, 4),
+        "retrieval_tier": retrieval_tier,
+        "full_text_fetches": caps["articles"],
         "note": ("design calls are spent only when the debate locks "
                  "the target; entailment checks and registry lookups "
-                 "are additional and bounded by the run budget"),
+                 "are additional and bounded by the run budget; "
+                 "retrieval tier " + retrieval_tier + " fetches at "
+                 "most " + str(caps["articles"]) + " open-access full "
+                 "texts (at most " + str(caps["chunks"]) + " chunks "
+                 "each) into the evidence"),
     }
 
 

@@ -360,8 +360,11 @@ class RunManager:
                 focus_id=payload.get("focus_id") or None)
             retrieval_first = bool(built.get("retrieval_first"))
             if payload.get("retrieve", True):
-                frame["evidence"] = (retrieve_evidence(frame)
-                                     + evidence_for_frame(frame))
+                from .fulltext import retrieve_tiered_evidence
+                frame["evidence"] = (
+                    retrieve_tiered_evidence(
+                        frame, built.get("retrieval_tier", "abstract"))
+                    + evidence_for_frame(frame))
                 retrieval_first = True
             tracker = run_budget_tracker(built)
             self.current_tracker = tracker
@@ -650,7 +653,9 @@ def make_handler(manager: RunManager):
                                         "problems": ["setup problem: " + str(exc)]})
                 estimate = estimate_target_run(
                     built["providers"], built["judge"],
-                    swap_judge_provider=built.get("judge_swap"))
+                    swap_judge_provider=built.get("judge_swap"),
+                    retrieval_tier=built.get("retrieval_tier",
+                                             "abstract"))
                 budget = config.get("budget") or {}
                 problems = []
                 if budget.get("max_calls") is not None and \
@@ -1475,7 +1480,9 @@ async function preflight() {
   const e = out.estimate, b = out.budget || {};
   let s = "preflight: about " + e.total_calls + " calls (" + e.debate_calls +
     " debate + " + e.design_calls + " design if it locks), estimated $" +
-    e.estimated_cost_usd.toFixed(4);
+    e.estimated_cost_usd.toFixed(4) +
+    (e.retrieval_tier ? " | retrieval tier " + e.retrieval_tier +
+      " (up to " + e.full_text_fetches + " full texts)" : "");
   if (b.max_calls != null) s += " | budget cap " + b.max_calls + " calls";
   if (b.max_cost_usd != null) s += " / $" + b.max_cost_usd;
   if (out.problems && out.problems.length) s += " | PROBLEMS: " + out.problems.join("; ");

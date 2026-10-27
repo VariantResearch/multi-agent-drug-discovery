@@ -42,6 +42,10 @@ A run is described by a JSON config (see examples/run-config.example.json):
   identifiers present in the evidence the run supplied (the case pack
   or the frame's evidence entries); anything else is struck as
   citation_not_in_evidence.
+- retrieval_tier: how much text the retrieved evidence carries:
+  abstract (identifiers and titles, the default), concise (up to 3
+  open-access full texts chunked into the evidence), or deep (up to
+  10). Priced by the run preflight; see madd/fulltext.py.
 - parallel_cases: how many case debates may run at once (default 1).
 
 A provider entry is {name, kind, model, family, base_url,
@@ -228,6 +232,16 @@ def _build_one(entry, environ):
                              base_url, **common)
 
 
+def _retrieval_tier(config) -> str:
+    """The config's retrieval tier, validated against the tiers
+    madd/fulltext.py defines; an unknown tier is a config error,
+    not a silent default."""
+    from .fulltext import tier_caps
+    tier = str(config.get("retrieval_tier", "abstract") or "abstract")
+    tier_caps(tier)
+    return tier
+
+
 def build_providers(config, environ=None) -> dict:
     """Construct provider objects from a validated config.
 
@@ -257,6 +271,7 @@ def build_providers(config, environ=None) -> dict:
         "tournament": bool(config.get("tournament", False)),
         "meta_review": bool(config.get("meta_review", False)),
         "retrieval_first": bool(config.get("retrieval_first", False)),
+        "retrieval_tier": _retrieval_tier(config),
         "max_workers": int(config.get("parallel_cases", 1)),
     }
 

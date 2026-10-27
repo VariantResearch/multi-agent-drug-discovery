@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 15, 2026-10-27)
+
+- Full-text retrieval tiers (madd/fulltext.py), the first
+  wave-4 item of the competitive-gap implementation list.
+  Retrieved evidence now comes in three tiers, selectable
+  per run through the retrieval_tier config key or the
+  target-run --retrieval-tier flag, and honored by CLI and
+  console runs alike: abstract (the default; identifiers and
+  titles, exactly as retrieval has always supplied), concise
+  (up to 3 open-access full texts fetched from Europe PMC
+  and chunked into the evidence entries, at most 8 chunks
+  each, with the abstract carried too), and deep (up to 10
+  articles, 40 chunks each, wider search). An article with
+  no open full text is recorded abstract_only, and one past
+  the tier's cap is recorded as not attempted; neither is
+  ever padded with invented text. The preflight estimate
+  prices the tier, naming its fetch and chunk caps before a
+  run spends anything, in both the CLI estimate and the
+  console's preflight line. An unknown tier name is a config
+  error, not a silent default.
+
 ### Added (competitive-gap item 14, 2026-10-27)
 
 - Trial landscape (madd/trials.py, `madd trials --disease
