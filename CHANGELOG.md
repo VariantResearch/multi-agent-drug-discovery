@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added (target-selection proposal pack, 2026-10-27)
+
+- Target-selection proposal pack (madd/proposal.py, `madd
+  proposal --disease X --outcome Y --targets A,B,C --out
+  DIR`), built at the owner's request for a document that
+  answers for the choice of target. For each target on the
+  slate the pack assembles the scout's Open Targets and
+  ChEMBL signals with the datatype breakdown, the trial
+  landscape with per-target intervention mentions, and the
+  target's own run record: debate outcomes, strike tallies
+  by reason, design gate results, and the locked brief's
+  evidence constraints verbatim. Each target gets a fit
+  verdict under conventions declared in the pack itself
+  (FIT and DOES NOT FIT AS FRAMED come only from recorded
+  runs; undebated targets grade FIT FOR DEBATE, PARTIAL,
+  WEAK, or UNESTABLISHED from their signals and are named
+  proposal-stage readings). Charts are dependency-free SVG
+  generated from the same numbers, and the pack writes
+  proposal.json, proposal.md, proposal.html, and the chart
+  files. The standing note rides in every pack: no target
+  is locked in by it, and designed candidates are
+  computational only.
+
 ### Added (competitive-gap item 19, 2026-10-27)
 
 - Figure and table evidence extraction (madd/figure_table.py,

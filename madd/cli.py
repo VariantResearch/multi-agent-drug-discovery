@@ -398,6 +398,25 @@ def _cmd_trials(args) -> int:
     return 0
 
 
+def _cmd_proposal(args) -> int:
+    """Assemble the target-selection proposal pack."""
+    import datetime
+    from .proposal import build_proposal, write_pack
+    targets = [t.strip() for t in (args.targets or "").split(",")
+               if t.strip()]
+    if not targets:
+        print("proposal needs at least one --targets entry")
+        return 2
+    proposal = build_proposal(
+        args.disease, args.outcome, targets, runs_dir=args.runs,
+        queried_on=datetime.date.today().isoformat())
+    written = write_pack(proposal, args.out)
+    for target in proposal["targets"]:
+        print(" ", target["target"], "->", target["verdict"])
+    print("pack written:", args.out, "| files:", len(written))
+    return 0
+
+
 def _cmd_extract_evidence(args) -> int:
     """Extract table and figure-caption evidence from an
     article's full-text XML (fetched, or a local file)."""
@@ -1168,6 +1187,13 @@ def build_parser() -> argparse.ArgumentParser:
     p35.add_argument("--xml", default=None)
     p35.add_argument("--out", default=None)
     p35.set_defaults(fn=_cmd_extract_evidence)
+    p36 = sub.add_parser("proposal")
+    p36.add_argument("--disease", required=True)
+    p36.add_argument("--outcome", required=True)
+    p36.add_argument("--targets", required=True)
+    p36.add_argument("--runs", default="runs")
+    p36.add_argument("--out", default="proposal-pack")
+    p36.set_defaults(fn=_cmd_proposal)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))
