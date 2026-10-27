@@ -215,6 +215,7 @@ class RunManager:
         return {"configured": config is not None, "ready": ready,
                 "slots": slots, "judge_swap": swap,
                 "mode": (config or {}).get("mode"),
+                "preset": (config or {}).get("preset"),
                 "budget": (config or {}).get("budget") or {},
                 "switches": {
                     key: bool((config or {}).get(key))
@@ -255,6 +256,8 @@ class RunManager:
                 config[kept] = old[kept]
         if payload.get("mode"):
             config["mode"] = payload["mode"]
+        if payload.get("preset"):
+            config["preset"] = payload["preset"]
         budget = {}
         given = payload.get("budget") or {}
         if given.get("max_calls"):
@@ -856,6 +859,12 @@ PAGE = """<!DOCTYPE html>
 <div class="panel"><h2>SETUP // MODEL SLOTS</h2>
   <div id="setup-status" class="mut">checking setup...</div>
   <div id="slot-primary"></div><div id="slot-secondary"></div><div id="slot-judge"></div>
+  <div style="margin-top:10px">panel preset
+    <button type="button" class="presetchip" data-name="solo" data-mode="simple" data-summary="Every research agent runs on one and the same model, and there is no judge." onclick="pickPreset(this)">solo</button>
+    <button type="button" class="presetchip" data-name="solo_judged" data-mode="simple_judge" data-summary="Every research agent runs on one model, and a judge ranks the dossiers; the judge-swap experiment can run." onclick="pickPreset(this)">solo_judged</button>
+    <button type="button" class="presetchip" data-name="pair" data-mode="dual" data-summary="The research panel is split across two models, and there is no judge." onclick="pickPreset(this)">pair</button>
+    <button type="button" class="presetchip" data-name="pair_judged" data-mode="dual_judge" data-summary="The research panel is split across two models, and a judge ranks the dossiers; the judge-swap experiment can run." onclick="pickPreset(this)">pair_judged</button>
+    <span id="preset-summary" class="mut"></span></div>
   <div style="margin-top:10px">protocol mode <select id="s-mode"></select>
     <span style="margin-left:14px">budget max calls <input id="s-budget-calls" style="width:90px"></span>
     <span style="margin-left:10px">max cost USD <input id="s-budget-cost" style="width:90px"></span></div>
@@ -1387,6 +1396,19 @@ function slotHtml(slot, view) {
     " <span id='s-" + slot + "-test' class='mut'></span></div></div>";
   return h;
 }
+let chosenPreset = null;
+function pickPreset(el) {
+  chosenPreset = el.dataset.name;
+  refreshModes();
+  const sel = $('s-mode');
+  let note = el.dataset.summary;
+  const offered = Array.prototype.some.call(sel.options,
+    function (o) { return o.value === el.dataset.mode; });
+  if (offered) { sel.value = el.dataset.mode; }
+  else { note += ' (mode ' + el.dataset.mode
+    + ' is not offered for the current slot shapes)'; }
+  $('preset-summary').textContent = 'preset ' + chosenPreset + ': ' + note;
+}
 function refreshModes() {
   const pk = $('s-primary-kind').value, sk = $('s-secondary-kind').value;
   const jud = $('s-judge-kind').value;
@@ -1426,6 +1448,12 @@ function renderSetup(st) {
   for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'contradiction_check', 'tournament', 'meta_review', 'retrieval_first']) {
     $('s-sw-' + key).checked = !!st.switches[key];
   }
+  chosenPreset = st.preset || null;
+  const savedChip = chosenPreset
+    ? document.querySelector(".presetchip[data-name='" + chosenPreset + "']")
+    : null;
+  $('preset-summary').textContent = savedChip
+    ? 'preset ' + chosenPreset + ': ' + savedChip.dataset.summary : '';
   refreshModes();
   $('setup-status').innerHTML = !st.configured
     ? "<span class='fail'>NO SETUP SAVED</span> - assign at least the Primary model below, then save. The target form unlocks once the Primary slot is usable."
@@ -1447,8 +1475,17 @@ function collectSlot(slot) {
           api_key_env: $('s-' + slot + '-api_key_env').value};
 }
 async function saveSetup() {
+  let presetName = null;
+  if (chosenPreset) {
+    const chip = document.querySelector(
+      ".presetchip[data-name='" + chosenPreset + "']");
+    if (chip && chip.dataset.mode === $('s-mode').value) {
+      presetName = chosenPreset;
+    }
+  }
   const body = {primary: collectSlot('primary'), secondary: collectSlot('secondary'),
     judge: collectSlot('judge'), mode: $('s-mode').value || null,
+    preset: presetName,
     budget: {max_calls: $('s-budget-calls').value, max_cost_usd: $('s-budget-cost').value},
     switches: {}};
   for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'contradiction_check', 'tournament', 'meta_review', 'retrieval_first']) {

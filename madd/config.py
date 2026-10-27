@@ -9,6 +9,14 @@ A run is described by a JSON config (see examples/run-config.example.json):
   across exactly two models and allows no judge; dual_judge spreads
   it across exactly two models and requires a judge. With no mode,
   the original rule stands: at least two providers, judge optional.
+- preset: optional panel preset name, one of solo, solo_judged,
+  pair, pair_judged (the registry lives in madd/presets.py). A
+  preset is a setup convenience that names one protocol mode
+  together with the panel shape that fields it; it changes no
+  mode semantics. When a preset is given and no mode is declared,
+  the preset's mode is the run's mode. A config that declares
+  both a preset and a mode must have them agree; a disagreement
+  is a validation error.
 - providers: the research panel, at least two entries for a debate.
 - judge and baseline: one provider entry each, or null.
 - judge_swap: optional second judge entry, from a different model
@@ -68,6 +76,7 @@ from pathlib import Path
 
 from .budget import BudgetTracker, settle_transport_retries
 from .entailment import check_entailment
+from .presets import PRESETS
 from .providers import MockProvider
 from .resolve import check_quote_against_source, resolve_identifier
 from .providers_http import AnthropicProvider, OpenAICompatibleProvider
@@ -127,7 +136,23 @@ def validate_config(config) -> list:
         _check_entry(entry, "providers[" + str(i) + "]", errors)
         if isinstance(entry, dict) and entry.get("name"):
             names.append(entry["name"])
+    preset = config.get("preset")
+    preset_mode = None
+    if preset is not None:
+        if preset not in PRESETS:
+            errors.append("preset: must be one of "
+                          + ", ".join(sorted(PRESETS)))
+        else:
+            preset_mode = PRESETS[preset]["mode"]
     mode = config.get("mode")
+    if mode is not None and preset_mode is not None \
+            and mode != preset_mode:
+        errors.append("preset " + str(preset) + " names mode "
+                      + preset_mode + ", but the config declares mode "
+                      + str(mode) + "; the two must agree")
+    if mode is None:
+        # No mode declared: the preset, when one is given, supplies it.
+        mode = preset_mode
     if mode is not None:
         if mode not in MODES:
             errors.append("mode: must be one of " + ", ".join(MODES))
@@ -242,6 +267,19 @@ def _retrieval_tier(config) -> str:
     return tier
 
 
+def effective_mode(config):
+    """Return the run's protocol mode: the declared mode when the
+    config declares one, otherwise the mode the config's preset
+    names, otherwise None."""
+    mode = config.get("mode")
+    if mode is not None:
+        return mode
+    preset = config.get("preset")
+    if preset in PRESETS:
+        return PRESETS[preset]["mode"]
+    return None
+
+
 def build_providers(config, environ=None) -> dict:
     """Construct provider objects from a validated config.
 
@@ -256,7 +294,7 @@ def build_providers(config, environ=None) -> dict:
         raise ConfigError("invalid run config: " + "; ".join(errors))
     env = os.environ if environ is None else environ
     return {
-        "mode": config.get("mode"),
+        "mode": effective_mode(config),
         "providers": [_build_one(e, env) for e in config["providers"]],
         "judge": _build_one(config["judge"], env) if config.get("judge") else None,
         "judge_swap": _build_one(config["judge_swap"], env)

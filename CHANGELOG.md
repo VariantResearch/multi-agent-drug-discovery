@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added (panel presets, 2026-10-27)
+
+- Panel presets (madd/presets.py, `madd presets`), a setup
+  convenience layered over the protocol modes, implementing
+  natively the panel-composition reference recorded in
+  docs/DESIGN-REFERENCES.md. Four presets, one per mode: solo
+  (simple), solo_judged (simple_judge), pair (dual), and
+  pair_judged (dual_judge). Each names its mode, the panel
+  topology in plain words, the minimum panel size, whether a
+  judge is required, and whether the judge-swap experiment can
+  run. A run config may name a preset with its "preset" key:
+  the preset supplies the mode when none is declared, and a
+  preset that disagrees with a declared mode is a validation
+  error. The console setup panel gains one quick-pick chip per
+  preset, which selects the matching mode and saves the preset
+  name alongside it. Presets change no debate-engine
+  semantics; blinded inputs, sealed outcomes, and the
+  mechanical citation audit work exactly as before.
+
 ### Added (designed-candidate proposal pack, 2026-10-27)
 
 - Designed-candidate proposal pack (madd/candidate_proposal.py,

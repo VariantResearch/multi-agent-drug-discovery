@@ -10,6 +10,7 @@ Subcommands:
                [--audit-violations <n>] [--judge-swap-flips <n>]
   gate0-validate [--gate0-dir <dir>]
   gate0-new-case <case-id> [--gate0-dir <dir>]
+  presets
   providers-check --config <file>
   providers-smoke --config <file>
   resolve-citations <file>
@@ -57,6 +58,7 @@ from .gate0 import (evaluate_thresholds, list_case_ids, load_input_pack,
 from .design import ModelDesigner, build_brief, run_design
 from .design_tools import candidates_from_tool_run, run_structure_tool
 from .license_registry import check_tool
+from .presets import list_presets
 from .providers import MockProvider
 from .providers_http import ProviderError
 from .resolve import check_quote_against_source, resolve_document
@@ -516,6 +518,15 @@ def _cmd_run_memory(args) -> int:
               + " run(s), debate outcomes "
               + str(slot["debate_outcomes"]))
     print("fence:", memory["fence"])
+    return 0
+
+
+def _cmd_presets(args) -> int:
+    """presets handler: print each panel preset with the protocol
+    mode it names and its one-line summary."""
+    for preset in list_presets():
+        print(" -", preset["name"], "| mode", preset["mode"], "|",
+              preset["topology"], "|", preset["summary"])
     return 0
 
 
@@ -1231,6 +1242,8 @@ def build_parser() -> argparse.ArgumentParser:
     p37.add_argument("--no-assay", action="store_true")
     p37.add_argument("--out", default="candidate-proposal-pack")
     p37.set_defaults(fn=_cmd_candidate_proposal)
+    p38 = sub.add_parser("presets")
+    p38.set_defaults(fn=_cmd_presets)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

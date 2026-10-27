@@ -297,6 +297,11 @@ madd/            the package (standard library only)
   providers.py       the provider interface and the mock provider
   prompting.py       the shared research prompt and response contract
   config.py          run configuration loading and validation
+  presets.py         panel presets: four named panel shapes, one
+                     per protocol mode, that a run config can name
+                     with its preset key as a setup convenience;
+                     a preset supplies or must agree with the
+                     config's mode and changes no mode semantics
   claims.py          the claim ledger audit
   citation_auditor.py  offline identifier format and consistency checks
   resolve.py         live citation resolution (PubMed, Crossref, ClinicalTrials.gov,

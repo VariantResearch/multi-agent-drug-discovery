@@ -103,6 +103,19 @@ reference for panel-composition decisions, and any
 adoption belongs in a phase spec with the audit
 guarantees re-proven against it first.
 
+Status, 2026-10-27: the panel-composition half of this
+reference is now implemented natively as panel presets
+(madd/presets.py). Four presets, one per protocol mode,
+borrow the topology vocabulary only: each names a mode
+together with the panel shape that fields it, and the
+console offers them as quick-pick chips when a run is
+being set up. The boundary above is preserved in full:
+no Swarms code, dependency, or runtime is involved, no
+scored run is routed anywhere new, and the engine's
+guarantees are unchanged, because a preset resolves to
+a mode and the engine runs the mode exactly as it did
+before presets existed.
+
 ## Carbon-X - conversational DNA model
 
 Recorded 2026-10-26 at the owner's direction, parked for
