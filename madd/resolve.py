@@ -30,17 +30,31 @@ the source text. Full text that is not openly available is reported
 as full_text_unavailable and proves nothing either way.
 
 The HTTP transport is injectable: pass fetcher(url) -> (status, body)
-to test without a network. The default fetcher uses urllib from the
-standard library with a short timeout. Nothing here writes anywhere.
+to test without a network. The default fetcher keeps persistent
+connections per host (a run makes a hundred-plus registry lookups,
+and a fresh TLS handshake on each was pure overhead) and follows a
+short redirect chain, matching the urllib behaviour it replaced.
+
+An opt-in cache (CachingFetcher, enabled for a process by the
+MADD_REGISTRY_CACHE environment variable naming an SQLite file)
+stores registry responses across runs with a 24-hour TTL: the same
+identifier is resolved once per day, not once per run. Freshness is
+bounded, not eliminated - a status that changes inside the TTL (a
+retraction posted an hour after a fetch) is seen at the next
+expiry, and the fetched_at timestamp of every cached response is
+kept in the cache for inspection. Only 200 responses are cached.
+Nothing here writes anywhere except that cache file, when enabled.
 """
 from __future__ import annotations
 
 import html as _html
+import http.client
 import json
 import re
-import urllib.error
+import sqlite3
+import threading
+import time
 import urllib.parse
-import urllib.request
 
 from .citation_auditor import check_identifier
 from .claims import extract_claims
@@ -63,19 +77,192 @@ PUBCHEM_BASE = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
 UNIPROT_BASE = "https://rest.uniprot.org/uniprotkb"
 
 
-def default_fetcher(url: str) -> tuple:
-    """GET a URL, return (status_code, body_text). Never raises for HTTP
-    error statuses; transport failures raise and are handled upstream."""
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-            return response.status, response.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as exc:
+class PooledFetcher:
+    """GET URLs over persistent per-host connections.
+
+    Same contract as the urllib fetcher it replaces: returns
+    (status_code, body_text), never raises for HTTP error
+    statuses, and raises on transport failure (handled upstream).
+    Connections are borrowed from a small per-host pool and
+    returned for reuse; a connection that errors is discarded,
+    and the request is retried once on a fresh one. Redirects
+    are followed up to three hops, as urllib did.
+    """
+
+    def __init__(self, max_idle_per_host: int = 4):
+        """Create an empty pool keeping up to max_idle_per_host
+        idle connections per host."""
+        self._idle = {}
+        self._lock = threading.Lock()
+        self._max_idle = max_idle_per_host
+
+    def _borrow(self, key, scheme, host):
+        """Take an idle connection for the host, or open a new one."""
+        with self._lock:
+            pool = self._idle.get(key) or []
+            if pool:
+                return pool.pop()
+        factory = (http.client.HTTPSConnection if scheme == "https"
+                   else http.client.HTTPConnection)
+        return factory(host, timeout=TIMEOUT_SECONDS)
+
+    def _release(self, key, conn, reusable: bool):
+        """Return a connection to the idle pool, or close it."""
+        if reusable:
+            with self._lock:
+                pool = self._idle.setdefault(key, [])
+                if len(pool) < self._max_idle:
+                    pool.append(conn)
+                    return
         try:
-            body = exc.read().decode("utf-8", errors="replace")
+            conn.close()
         except Exception:
-            body = ""
-        return exc.code, body
+            pass
+
+    def __call__(self, url: str) -> tuple:
+        """GET the URL and return (status, body)."""
+        current = url
+        for _ in range(4):
+            status, body, location = self._get_once(current)
+            if status in (301, 302, 303, 307, 308) and location:
+                current = urllib.parse.urljoin(current, location)
+                continue
+            return status, body
+        return status, body
+
+    def _get_once(self, url: str) -> tuple:
+        """One GET attempt (with one fresh-connection retry on a
+        transport error). Returns (status, body, location)."""
+        parts = urllib.parse.urlsplit(url)
+        scheme = parts.scheme or "https"
+        host = parts.netloc
+        key = (scheme, host)
+        path = parts.path or "/"
+        if parts.query:
+            path += "?" + parts.query
+        last_exc = None
+        for attempt in (0, 1):
+            conn = self._borrow(key, scheme, host)
+            try:
+                conn.request("GET", path,
+                             headers={"User-Agent": USER_AGENT})
+                response = conn.getresponse()
+                body = response.read().decode("utf-8", errors="replace")
+                location = response.getheader("Location")
+                self._release(key, conn, reusable=True)
+                return response.status, body, location
+            except Exception as exc:
+                last_exc = exc
+                self._release(key, conn, reusable=False)
+                if attempt == 1:
+                    raise
+        raise last_exc
+
+
+class CachingFetcher:
+    """A fetcher wrapper adding a cross-run SQLite response cache
+    and in-flight deduplication (singleflight).
+
+    Only 200 responses are cached, for ttl_seconds. Concurrent
+    calls for the same URL share one underlying fetch. Cache
+    entries keep their fetched_at timestamp; stats() reports
+    hits, misses, and shared (singleflight) counts so the
+    cache's effect is measurable rather than assumed.
+    """
+
+    def __init__(self, base_fetcher, cache_path, ttl_seconds: float = 86400.0):
+        """Wrap base_fetcher with the cache stored at cache_path."""
+        self._base = base_fetcher
+        self._ttl = float(ttl_seconds)
+        self._lock = threading.Lock()
+        self._inflight = {}
+        self._counts = {"hits": 0, "misses": 0, "shared": 0}
+        self._db = sqlite3.connect(str(cache_path), check_same_thread=False)
+        with self._lock:
+            self._db.execute(
+                "CREATE TABLE IF NOT EXISTS fetches (url TEXT PRIMARY KEY,"
+                " status INTEGER, body TEXT, fetched_at REAL)")
+            self._db.commit()
+
+    def stats(self) -> dict:
+        """Return a copy of the hit/miss/shared counters."""
+        with self._lock:
+            return dict(self._counts)
+
+    def _cached(self, url: str):
+        """Return the cached (status, body) for url when fresh."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT status, body, fetched_at FROM fetches WHERE url = ?",
+                (url,)).fetchone()
+        if row is None:
+            return None
+        status, body, fetched_at = row
+        if time.time() - float(fetched_at) > self._ttl:
+            return None
+        return int(status), body
+
+    def _store(self, url: str, status: int, body: str):
+        """Record one fetched response in the cache."""
+        with self._lock:
+            self._db.execute(
+                "INSERT OR REPLACE INTO fetches (url, status, body, fetched_at)"
+                " VALUES (?, ?, ?, ?)", (url, status, body, time.time()))
+            self._db.commit()
+
+    def __call__(self, url: str) -> tuple:
+        """GET the URL, from cache when fresh, else via the base
+        fetcher, sharing one in-flight fetch per URL."""
+        cached = self._cached(url)
+        if cached is not None:
+            with self._lock:
+                self._counts["hits"] += 1
+            return cached
+        with self._lock:
+            event = self._inflight.get(url)
+            if event is None:
+                event = threading.Event()
+                self._inflight[url] = event
+                leader = True
+            else:
+                leader = False
+                self._counts["shared"] += 1
+        if not leader:
+            event.wait(timeout=TIMEOUT_SECONDS * 4)
+            cached = self._cached(url)
+            if cached is not None:
+                return cached
+            return self._base(url)
+        try:
+            with self._lock:
+                self._counts["misses"] += 1
+            status, body = self._base(url)
+            if status == 200:
+                self._store(url, status, body)
+            return status, body
+        finally:
+            with self._lock:
+                self._inflight.pop(url, None)
+            event.set()
+
+
+def registry_fetcher(cache_path=None, ttl_seconds: float = 86400.0):
+    """Build the registry transport: pooled connections, plus the
+    SQLite cache when cache_path is given."""
+    pooled = PooledFetcher()
+    if cache_path:
+        return CachingFetcher(pooled, cache_path, ttl_seconds=ttl_seconds)
+    return pooled
+
+
+_POOLED = PooledFetcher()
+
+
+def default_fetcher(url: str) -> tuple:
+    """GET a URL over the shared connection pool, returning
+    (status_code, body_text). Never raises for HTTP error
+    statuses; transport failures raise and are handled upstream."""
+    return _POOLED(url)
 
 
 def _europepmc_query_url(query: str) -> str:

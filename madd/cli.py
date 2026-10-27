@@ -24,6 +24,7 @@ Subcommands:
   transcript <file>
   report-html <bundle-file>
   report-pdf <bundle-file> --out <file.pdf> [--use research|commercial]
+  calibration <bundle-file>... [--gate0-dir <dir>]
   gui [--port 8765] [--host 127.0.0.1] [--runs-dir runs]
   validate-artifact <schema-name> <file>
 
@@ -617,6 +618,22 @@ def _cmd_report_pdf(args) -> int:
     return 0
 
 
+def _cmd_calibration(args) -> int:
+    """calibration handler: agreement-bucketed accuracy over one or
+    more Gate 0 bundles, judged against the sealed outcomes."""
+    from .calibration import calibration_report, format_calibration
+    bundles = []
+    for file in args.files:
+        bundle = _load(file)
+        if not isinstance(bundle, dict) or "case_records" not in bundle:
+            print("not a Gate 0 bundle:", file)
+            return 2
+        bundles.append(bundle)
+    report = calibration_report(bundles, gate0_dir=args.gate0_dir)
+    print(format_calibration(report))
+    return 0
+
+
 def _cmd_transcript(args) -> int:
     """transcript handler: render a debate record, or a frame run
     bundle's record, as a readable markdown transcript."""
@@ -707,6 +724,9 @@ def build_parser() -> argparse.ArgumentParser:
     p15b.add_argument("--out", required=True)
     p15b.add_argument("--use", default="research")
     p15b.set_defaults(fn=_cmd_report_pdf)
+    p15c = sub.add_parser("calibration"); p15c.add_argument("files", nargs="+")
+    p15c.add_argument("--gate0-dir", default=None)
+    p15c.set_defaults(fn=_cmd_calibration)
     p16 = sub.add_parser("compare-runs"); p16.add_argument("bundle_a")
     p16.add_argument("bundle_b"); p16.set_defaults(fn=_cmd_compare_runs)
     p17 = sub.add_parser("gate0-new-case"); p17.add_argument("case_id")

@@ -256,6 +256,29 @@ def run_budget_tracker(built: dict):
     return BudgetTracker(budget) if budget is not None else None
 
 
+_REGISTRY_FETCHER = None
+
+
+def _registry_fetcher():
+    """The shared registry transport for live evidence calls.
+
+    Persistent connections always; the cross-run SQLite cache is
+    added when the MADD_REGISTRY_CACHE environment variable names
+    its file (the console sets it to its runs directory by
+    default). Returns None when no cache is configured, in which
+    case the resolve module's own pooled default applies.
+    """
+    global _REGISTRY_FETCHER
+    if _REGISTRY_FETCHER is not None:
+        return _REGISTRY_FETCHER
+    cache_path = os.environ.get("MADD_REGISTRY_CACHE") or None
+    if not cache_path:
+        return None
+    from .resolve import registry_fetcher
+    _REGISTRY_FETCHER = registry_fetcher(cache_path=cache_path)
+    return _REGISTRY_FETCHER
+
+
 def resolver_from_config(built: dict):
     """Return the evidence-call resolver when the config enables live
     resolution, else None (audits stay offline)."""
@@ -267,7 +290,12 @@ def resolver_from_config(built: dict):
         the shape debate.audit_dossier expects from a resolver. A
         resolved-but-retracted record reports as retracted so the
         evidence call strikes it."""
-        result = resolve_identifier(identifier, identifier_type)
+        fetcher = _registry_fetcher()
+        if fetcher is None:
+            result = resolve_identifier(identifier, identifier_type)
+        else:
+            result = resolve_identifier(identifier, identifier_type,
+                                        fetcher=fetcher)
         if result["status"] == "resolved" and result.get("retracted"):
             return "retracted"
         return result["status"]
@@ -284,9 +312,14 @@ def quote_checker_from_config(built: dict):
     def quote_checker(claim):
         """Check one claim's quote against its source's open full text
         and return the status string debate.audit_dossier expects."""
+        fetcher = _registry_fetcher()
+        if fetcher is None:
+            return check_quote_against_source(
+                claim.get("source_identifier"), claim.get("identifier_type"),
+                claim.get("supporting_quote"))["status"]
         return check_quote_against_source(
             claim.get("source_identifier"), claim.get("identifier_type"),
-            claim.get("supporting_quote"))["status"]
+            claim.get("supporting_quote"), fetcher=fetcher)["status"]
 
     return quote_checker
 

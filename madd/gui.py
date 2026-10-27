@@ -64,6 +64,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .budget import BudgetExceeded
+from .calibration import calibration_report
 from .config import (ConfigError, build_providers,
                      entailment_checker_from_config, load_config,
                      quote_checker_from_config, resolver_from_config,
@@ -85,18 +86,28 @@ from .structure3d import candidate_model3d, candidate_structure3d
 class RunManager:
     """State of the one run the console drives at a time.
 
-    A run executes on a background thread; the page polls progress.
-    Events from the runner are appended verbatim. Starting a second
-    run while one is active is refused rather than queued: a console
-    that silently stacks runs would spend money silently.
+    A run executes on a background thread; its progress events
+    stream to the page over server-sent events (with polling kept
+    as the fallback transport) and are persisted into the finished
+    run's folder as events.jsonl. Starting a second run while one
+    is active is refused rather than queued: a console that
+    silently stacks runs would spend money silently.
     """
 
     def __init__(self, runs_dir, gate0_dir):
         """runs_dir receives finished bundles; gate0_dir locates the dataset."""
         self.runs_dir = runs_dir
         self.gate0_dir = gate0_dir
+        # The console is the long-lived process the registry cache
+        # exists for: enable it into the runs directory unless the
+        # operator already pointed it somewhere (or disabled it by
+        # pointing it at an empty string via their own setup).
+        if "MADD_REGISTRY_CACHE" not in os.environ:
+            os.environ["MADD_REGISTRY_CACHE"] = str(
+                Path(runs_dir) / "registry-cache.sqlite3")
         self.setup_path = Path(runs_dir) / "console-config.json"
         self.lock = threading.Lock()
+        self.cond = threading.Condition(self.lock)
         self.running = False
         self.events = []
         self.result = None
@@ -140,6 +151,7 @@ class RunManager:
                 retrieval_first=bool(built.get("retrieval_first")),
                 on_event=self._on_event, max_workers=built["max_workers"])
             run_dir = write_bundle(bundle, self.runs_dir)
+            self.persist_events(run_dir)
             with self.lock:
                 self.result = {"run_id": bundle["run_id"],
                                "outcome": bundle["outcome"],
@@ -155,8 +167,33 @@ class RunManager:
 
     def _on_event(self, event):
         """Append one runner progress event (called from the run thread)."""
-        with self.lock:
+        with self.cond:
             self.events.append(event)
+            self.cond.notify_all()
+
+    def wait_events(self, since: int, timeout: float = 15.0):
+        """Wait for events past index `since`, then snapshot.
+
+        Returns (new_events, total_count, running). Blocks on the
+        condition for up to timeout seconds so the SSE endpoint is
+        not a busy poll; wakes early when an event lands or the
+        run state flips.
+        """
+        with self.cond:
+            self.cond.wait_for(
+                lambda: len(self.events) > since or not self.running,
+                timeout=timeout)
+            return (list(self.events[since:]), len(self.events),
+                    self.running)
+
+    def persist_events(self, run_dir):
+        """Write this run's events into its run folder as
+        events.jsonl, the replayable record the run detail reads
+        back after the live stream is gone."""
+        with self.lock:
+            events = list(self.events)
+        lines = "".join(json.dumps(event) + "\n" for event in events)
+        (Path(run_dir) / "events.jsonl").write_text(lines, encoding="utf-8")
 
     def _load_setup_config(self):
         """The saved console setup as a config dict, or None.
@@ -354,6 +391,7 @@ class RunManager:
                 design_constraints=constraints,
                 on_event=self._on_event)
             run_dir = write_bundle(bundle, self.runs_dir)
+            self.persist_events(run_dir)
             design = bundle.get("design") or {}
             with self.lock:
                 self.result = {
@@ -469,8 +507,22 @@ def make_handler(manager: RunManager):
                 return _json(self, manager.setup_status())
             if path == "/api/runs":
                 return _json(self, {"runs": list_runs(manager.runs_dir)})
+            if path == "/api/calibration":
+                bundles = []
+                for entry in list_runs(manager.runs_dir):
+                    if entry.get("kind") != "gate0_run":
+                        continue
+                    try:
+                        bundles.append(load_bundle(manager.runs_dir,
+                                                   entry["run_id"]))
+                    except Exception:
+                        continue
+                return _json(self, calibration_report(
+                    bundles, gate0_dir=manager.gate0_dir))
             if path == "/api/progress":
                 return _json(self, manager.progress())
+            if path == "/api/events":
+                return self._events_stream(manager)
             if path.startswith("/api/runs/"):
                 return self._run_file(path)
             return _json(self, {"error": "not found"}, 404)
@@ -489,6 +541,46 @@ def make_handler(manager: RunManager):
                 return _json(self, {"error": "asset missing"}, 404)
             return _text(self, target.read_text(),
                          known[name] + "; charset=utf-8")
+
+        def _events_stream(self, manager):
+            """Stream the active run's progress as server-sent events.
+
+            Sends the backlog after ?since= first, then live events
+            as they land, with keep-alive comments while the run is
+            quiet, and a final caught_up event once the run has
+            finished and the backlog is drained. A client that
+            disconnects mid-stream is routine, not an error.
+            """
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                seq = max(0, int((query.get("since") or ["0"])[0]))
+            except ValueError:
+                seq = 0
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            try:
+                while True:
+                    new_events, total, running = manager.wait_events(
+                        seq, timeout=15.0)
+                    for event in new_events:
+                        seq += 1
+                        frame = ("id: " + str(seq) + "\ndata: " +
+                                 json.dumps(event) + "\n\n")
+                        self.wfile.write(frame.encode("utf-8"))
+                        self.wfile.flush()
+                    if not running and seq >= total:
+                        self.wfile.write(b"event: caught_up\ndata: {}\n\n")
+                        self.wfile.flush()
+                        return
+                    if not new_events:
+                        self.wfile.write(b": keep-alive\n\n")
+                        self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                return
 
         def _run_file(self, path):
             """Serve one run's bundle, HTML report, or a case transcript."""
@@ -516,6 +608,15 @@ def make_handler(manager: RunManager):
                 return _json(self, candidate_model3d(bundle, parts[4]))
             if parts[3] == "structure3d" and len(parts) == 5:
                 return _json(self, candidate_structure3d(bundle, parts[4]))
+            if parts[3] == "events" and len(parts) == 4:
+                events_path = (Path(manager.runs_dir) / parts[2]
+                               / "events.jsonl")
+                if not events_path.exists():
+                    return _json(self, {"error": "no recorded events"}, 404)
+                events = [json.loads(line) for line in
+                          events_path.read_text(encoding="utf-8").splitlines()
+                          if line.strip()]
+                return _json(self, {"events": events})
             if parts[3] == "transcript" and len(parts) == 5:
                 record = (bundle.get("case_records") or {}).get(parts[4])
                 if record is None and bundle.get("kind") == "frame_run":
@@ -722,7 +823,7 @@ PAGE = """<!DOCTYPE html>
   <div id="console">console ready.</div>
 </div>
 <div class="panel"><h2>GATE 0 SCOREBOARD</h2><div id="scoreboard">loading...</div></div>
-<div class="panel"><h2>RUN LIBRARY</h2><div id="library">loading...</div>
+<div class="panel"><h2>RUN LIBRARY</h2><div id="library">loading...</div><div id="calibration"></div>
   <div id="detail"></div></div>
 <script src="/assets/3Dmol-min.js"></script>
 <script>
@@ -750,29 +851,51 @@ async function dry() {
   log("dry run | cases: " + e.case_count + " | total calls: " + e.total_calls +
       " | estimated cost USD: " + e.estimated_cost_usd);
 }
+function eventLine(e) {
+  return e.event + (e.case_id ? " | " + e.case_id : "") +
+    (e.prediction ? " -> " + e.prediction : "") +
+    (e.outcome ? " | " + e.outcome : "");
+}
+function watchProgress(onEvent, onDone) {
+  let seen = 0, finished = false, es = null, iv = null;
+  function stop() { if (es) es.close(); if (iv) clearInterval(iv); }
+  function drain(p) {
+    for (; seen < p.events.length; seen++) onEvent(p.events[seen]);
+    if (!p.running && !finished) { finished = true; stop(); onDone(p); }
+  }
+  function startPoll() {
+    if (iv) return;
+    iv = setInterval(async () => {
+      const p = await (await fetch('/api/progress')).json(); drain(p);
+    }, 700);
+  }
+  if (window.EventSource) {
+    try {
+      es = new EventSource('/api/events?since=0');
+      es.onmessage = function (msg) { seen++; onEvent(JSON.parse(msg.data)); };
+      es.addEventListener('caught_up', async function () {
+        const p = await (await fetch('/api/progress')).json(); drain(p);
+      });
+      es.onerror = function () { if (es.readyState === 2) startPoll(); };
+      const safety = setInterval(async () => {
+        if (finished) { clearInterval(safety); return; }
+        const p = await (await fetch('/api/progress')).json();
+        if (!p.running) drain(p);
+      }, 4000);
+    } catch (e) { startPoll(); }
+  } else startPoll();
+}
 let polling = null;
 async function run() {
   const out = await post('/api/run-gate0', {config: $('config').value});
   if (!out.started) return log("not started: " + out.error);
   log("run started...");
-  let seen = 0;
-  clearInterval(polling);
-  polling = setInterval(async () => {
-    const p = await (await fetch('/api/progress')).json();
-    for (; seen < p.events.length; seen++) {
-      const e = p.events[seen];
-      log(e.event + (e.case_id ? " | " + e.case_id : "") +
-          (e.prediction ? " -> " + e.prediction : "") +
-          (e.outcome ? " | " + e.outcome : ""));
-    }
-    if (!p.running) {
-      clearInterval(polling);
-      if (p.error) log("RUN STOPPED: " + p.error);
-      if (p.result) { log("finished: " + p.result.run_id + " | outcome " +
-        p.result.outcome + " | debate " + p.result.debate_correct +
-        " vs baseline " + p.result.baseline_correct); loadLibrary(); }
-    }
-  }, 700);
+  watchProgress(function (e) { log(eventLine(e)); }, function (p) {
+    if (p.error) log("RUN STOPPED: " + p.error);
+    if (p.result) { log("finished: " + p.result.run_id + " | outcome " +
+      p.result.outcome + " | debate " + p.result.debate_correct +
+      " vs baseline " + p.result.baseline_correct); loadLibrary(); }
+  });
 }
 async function loadScoreboard() {
   const g = await (await fetch('/api/gate0')).json();
@@ -793,6 +916,24 @@ async function loadLibrary() {
   document.querySelectorAll('.runlink').forEach(function (el) {
     el.addEventListener('click', function () { show(el.dataset.runid); });
   });
+  loadCalibration();
+}
+async function loadCalibration() {
+  const el = $('calibration');
+  try {
+    const report = await (await fetch('/api/calibration')).json();
+    if (!report.runs) { el.innerHTML = ""; return; }
+    let h = "<h3>CALIBRATION (agreement vs accuracy, sealed outcomes)</h3>" +
+      "<table><tr><th>mode</th><th>overall</th><th>unanimous</th><th>majority</th><th>split</th></tr>";
+    const cell = function (g) { return g.cases ? (g.correct + "/" + g.cases + " (" + g.accuracy + ")") : "-"; };
+    for (const mode of Object.keys(report.modes).sort()) {
+      const g = report.modes[mode];
+      h += "<tr><td>" + esc(mode) + "</td><td>" + cell(g) + "</td><td>" +
+        cell(g.buckets.unanimous) + "</td><td>" + cell(g.buckets.majority) +
+        "</td><td>" + cell(g.buckets.split) + "</td></tr>";
+    }
+    el.innerHTML = h + "</table><div class='mut'>Diagnostics over a small frozen set, not guarantees.</div>";
+  } catch (e) { el.innerHTML = ""; }
 }
 async function show(runId) {
   const b = await (await fetch('/api/runs/' + encodeURIComponent(runId))).json();
@@ -852,6 +993,13 @@ async function show(runId) {
         + "<div id='designmsg' class='mut'></div>";
     }
   }
+  try {
+    const ev = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/events')).json();
+    if (ev.events && ev.events.length) {
+      h += "<div class='mut'>run activity (recorded stream):</div>";
+      for (const e of ev.events) h += "<div>" + esc(eventLine(e)) + "</div>";
+    }
+  } catch (err) { }
   $('detail').innerHTML = h;
   document.querySelectorAll('.txlink').forEach(function (el) {
     el.addEventListener('click', function (ev) {
@@ -1257,7 +1405,6 @@ function fillChips() {
     box.appendChild(btn);
   });
 }
-let targetPolling = null;
 async function runTarget() {
   const body = {name: $('t-name').value, kind: $('t-kind').value,
     target: $('t-target').value, disease: $('t-disease').value,
@@ -1269,31 +1416,19 @@ async function runTarget() {
     return;
   }
   log('target run started: ' + body.name);
-  let seen = 0;
-  clearInterval(targetPolling);
-  targetPolling = setInterval(async () => {
-    const p = await (await fetch('/api/progress')).json();
-    for (; seen < p.events.length; seen++) {
-      const e = p.events[seen];
-      log(e.event + (e.case_id ? ' | ' + e.case_id : '') +
-          (e.prediction ? ' -> ' + e.prediction : '') +
-          (e.outcome ? ' | ' + e.outcome : ''));
+  watchProgress(function (e) { log(eventLine(e)); }, function (p) {
+    if (p.error) {
+      log('RUN STOPPED: ' + p.error);
+      $('target-msg').textContent = 'stopped: ' + p.error;
     }
-    if (!p.running) {
-      clearInterval(targetPolling);
-      if (p.error) {
-        log('RUN STOPPED: ' + p.error);
-        $('target-msg').textContent = 'stopped: ' + p.error;
-      }
-      if (p.result) {
-        log('finished: ' + p.result.run_id + ' | outcome ' + p.result.outcome +
-            ' | focus ' + p.result.focus +
-            (p.result.design_gate ? ' | design gate ' + p.result.design_gate : ''));
-        loadLibrary();
-        show(p.result.run_id);
-      }
+    if (p.result) {
+      log('finished: ' + p.result.run_id + ' | outcome ' + p.result.outcome +
+          ' | focus ' + p.result.focus +
+          (p.result.design_gate ? ' | design gate ' + p.result.design_gate : ''));
+      loadLibrary();
+      show(p.result.run_id);
     }
-  }, 700);
+  });
 }
 loadScoreboard(); loadLibrary(); loadSetup();
 </script></body></html>

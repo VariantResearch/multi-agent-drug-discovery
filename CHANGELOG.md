@@ -4,6 +4,35 @@
 
 ### Added
 
+- Three feature sets from the owner's research commission
+  (2026-10-26), chosen from a sourced review of GUI, speed, and
+  novel-capability options. (1) Live run streaming: run progress
+  events now reach the console over server-sent events
+  (/api/events, backlog replay via ?since=, keep-alive comments,
+  a terminal caught_up event), replacing 700 ms polling as the
+  primary transport with polling kept as the fallback; each
+  finished run's events persist as events.jsonl in its folder
+  and replay in the run detail. (2) Registry transport speed:
+  the resolver's default fetcher keeps persistent per-host
+  connections (measured on loopback at roughly 12x for repeated
+  GETs, before counting the TLS handshakes it also saves on
+  real hosts), and an opt-in cross-run SQLite cache
+  (MADD_REGISTRY_CACHE; the console enables it in its runs
+  directory) stores 200 responses for 24 hours with singleflight
+  deduplication of concurrent identical lookups and hit/miss
+  counters, joining the parallel case fan-out the runner
+  already had. Freshness is bounded by the TTL and every cached
+  response keeps its fetch timestamp. (3) Calibration, a
+  capability the application did not have in any form:
+  madd/calibration.py buckets Gate 0 verdicts by panel
+  agreement (unanimous / majority / split, read from each
+  record's ranking) and reports realized accuracy per bucket
+  per protocol mode against the sealed outcomes - as
+  `madd calibration <bundle>...`, at /api/calibration, and as
+  a table under the console's run library. Counts only: no
+  fitted probabilities, and the report states plainly that
+  bucket accuracies over a small frozen set are diagnostics,
+  not guarantees.
 - Improvements adopted from the MADD-Gcloud variant review
   (owner's instruction, 2026-10-26), each rebuilt to this
   project's rules rather than copied: (1) structural alerts and
