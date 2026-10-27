@@ -573,6 +573,23 @@ def make_handler(manager: RunManager):
             except Exception:
                 return _json(self, {"error": "no such run"}, 404)
             if len(parts) == 3:
+                overlay_path = (Path(manager.runs_dir)
+                                / "retraction-overlay.json")
+                if overlay_path.exists():
+                    try:
+                        overlay = json.loads(
+                            overlay_path.read_text(encoding="utf-8"))
+                        notices = [f for f in
+                                   overlay.get("findings") or []
+                                   if parts[2] in
+                                   (f.get("cited_by") or {})]
+                        if notices:
+                            bundle = dict(bundle)
+                            bundle["retraction_notices"] = notices
+                            bundle["retraction_checked_on"] = \
+                                overlay.get("checked_on")
+                    except Exception:
+                        pass
                 return _json(self, bundle)
             if parts[3] == "report.html":
                 return _text(self, bundle_to_html(bundle),
@@ -1033,6 +1050,24 @@ function flowHtml(flow) {
 async function show(runId) {
   const b = await (await fetch('/api/runs/' + encodeURIComponent(runId))).json();
   let h = "<h2>RUN " + esc(runId) + "</h2>";
+  if (b.retraction_notices && b.retraction_notices.length) {
+    for (const f of b.retraction_notices) {
+      h += "<div style='border:1px solid #ff5470;border-radius:6px;"
+        + "padding:8px 12px;margin:8px 0'><b>Post-publication notice ("
+        + esc(f.severity) + ")</b>: " + esc(f.identifier_type) + " "
+        + esc(f.identifier) + " - checked " +
+        esc(b.retraction_checked_on || "") + "<br>";
+      for (const n of f.notices) {
+        h += "<span class='mut'>" + esc(n.source) + ": " +
+          esc(n.type_label || n.severity) +
+          (n.date ? " (" + esc(n.date) + ")" : "") +
+          (n.notice_doi ? " <a href='https://doi.org/" +
+            esc(n.notice_doi) + "' target='_blank'>notice</a>" : "") +
+          "</span><br>";
+      }
+      h += "</div>";
+    }
+  }
   if (b.kind === 'design_run') {
     const candById = {};
     for (const c of b.candidates) candById[c.candidate_id] = c;

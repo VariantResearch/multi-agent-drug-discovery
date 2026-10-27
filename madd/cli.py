@@ -504,6 +504,27 @@ def _cmd_manuscript(args) -> int:
     return 0
 
 
+def _cmd_retraction_watch(args) -> int:
+    """Check cited sources for retraction and correction notices."""
+    from .retraction_watch import SEVERITY_ORDER, watch
+    report = watch(args.runs, out_path=args.out)
+    print("sources checked:", report["sources_checked"],
+          f"({report['sources_by_type']['doi']} DOI,",
+          f"{report['sources_by_type']['pmid']} PMID)",
+          "on", report["checked_on"])
+    if not report["findings"]:
+        print("no notices found as of", report["checked_on"])
+        return 0
+    for severity in SEVERITY_ORDER:
+        hits = [f for f in report["findings"]
+                if f["severity"] == severity]
+        for finding in hits:
+            runs = ", ".join(sorted(finding["cited_by"]))
+            print(f"  [{severity}] {finding['identifier_type']} "
+                  f"{finding['identifier']} - cited by: {runs}")
+    return 0
+
+
 def _cmd_run_memory(args) -> int:
     """Print the fenced run-memory digest for a runs directory."""
     from .run_memory import build_memory
@@ -1244,6 +1265,10 @@ def build_parser() -> argparse.ArgumentParser:
     p37.set_defaults(fn=_cmd_candidate_proposal)
     p38 = sub.add_parser("presets")
     p38.set_defaults(fn=_cmd_presets)
+    p39 = sub.add_parser("retraction-watch")
+    p39.add_argument("--runs", default="runs")
+    p39.add_argument("--out", default=None)
+    p39.set_defaults(fn=_cmd_retraction_watch)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

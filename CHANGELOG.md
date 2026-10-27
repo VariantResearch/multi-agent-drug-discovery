@@ -4,6 +4,20 @@
 
 ### Added
 
+- Retraction and correction surveillance (the second of the
+  three researched features): `madd retraction-watch` re-checks
+  every DOI and PMID cited in the runs directory's frozen records
+  against Crossref's updated-by notices (the Retraction Watch
+  data, via the per-DOI route - the update-type filter returns
+  notices, not retracted works) cross-checked with Europe PMC's
+  Retracted Publication type and comment-correction list.
+  Findings land in a separate overlay file
+  (runs/retraction-overlay.json) keyed by run with the affected
+  claims; frozen bundles are never modified. The severity ladder
+  (retraction, partial retraction, expression of concern,
+  correction) keeps corrections informational, and the console
+  shows a banner on any run the overlay names. Live smoke on
+  2026-10-27 checked 23 cited PMIDs with no notices found.
 - Audit waterfall in the console run detail (the first of three
   features from the 2026-10-27 feature research): the evidence
   funnel of the debate, computed from the frozen record by
