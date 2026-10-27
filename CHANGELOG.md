@@ -4,6 +4,27 @@
 
 ### Added
 
+- Security hardening for the console and the prompt path, with
+  the trust model written down in SECURITY.md. The console now
+  refuses any Host outside its allowlist (loopback names plus the
+  deployment's tunnelled hostname) before routing, which is the
+  DNS-rebinding defence; refuses POSTs whose Origin or Referer
+  names another host; caps POST bodies at 1 MiB (a malformed
+  Content-Length is a 400 rather than a crashed handler); and
+  sends nosniff, frame-deny, and no-referrer headers on every
+  response plus a Content-Security-Policy on HTML. The audit
+  behind it found the rendering already sound (every run-data
+  value escaped for text and attribute contexts in the console,
+  html.escape in the standalone reports) and setup already
+  key-safe (variable names only, presence booleans only). On the
+  prompt path, the research system prompt gains a data-boundary
+  rule and the frame now travels between explicit DATA markers;
+  the entailment, contradiction, tournament, meta-review, and
+  design prompts each state that the material shown is data,
+  never instructions. SECURITY.md is explicit that fencing is
+  not the load-bearing layer: the mechanical audit is, because an
+  injection can steer emphasis but cannot mint a resolving
+  identifier or a verbatim quote.
 - Candidate comparison workbench in the console (the fourth
   researched feature, built after its data audit): for a designed
   run, ranked candidates as columns over grouped rows - identity

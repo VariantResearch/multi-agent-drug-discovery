@@ -458,11 +458,40 @@ def build_guide_payload(bundle: dict) -> dict:
     return {"sheets": sheets}
 
 
+# Hostnames the console answers to: the loopback names a local
+# browser uses, plus the one public hostname routed to it through
+# the owner's tunnel. Any other Host is refused before routing, so
+# a DNS-rebinding site (a public name resolving to 127.0.0.1) cannot
+# read run data or drive the API from the operator's browser.
+ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1",
+                 "madd.variantresearchgroup.com"}
+# POST bodies are small JSON payloads; anything larger is refused
+# unread rather than buffered into memory.
+MAX_POST_BODY = 1 << 20
+# The page is a single inline-script document served from the same
+# origin as its API and its two vendored libraries; the policy
+# keeps exactly that shape and forbids framing outright.
+PAGE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'unsafe-inline'; img-src 'self' data:; "
+            "connect-src 'self'; frame-ancestors 'none'; "
+            "base-uri 'none'; form-action 'self'")
+
+
+def _send_security_headers(handler, content_type=""):
+    """The headers every console response carries."""
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("X-Frame-Options", "DENY")
+    handler.send_header("Referrer-Policy", "no-referrer")
+    if content_type.startswith("text/html"):
+        handler.send_header("Content-Security-Policy", PAGE_CSP)
+
+
 def _json(handler, payload, status=200):
     """Send a JSON response."""
     body = json.dumps(payload).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json")
+    _send_security_headers(handler)
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
@@ -473,9 +502,27 @@ def _text(handler, content, content_type, status=200):
     body = content if isinstance(content, bytes) else content.encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", content_type)
+    _send_security_headers(handler, content_type)
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def _host_name(host_header):
+    """The bare hostname of a Host or origin value, lowercased.
+
+    Strips any port and IPv6 brackets; returns "" when the value is
+    absent or unparseable, which the allowlist check treats as a
+    refusal.
+    """
+    if not host_header:
+        return ""
+    value = host_header.strip().lower()
+    if "://" in value:
+        value = value.split("://", 1)[1].split("/", 1)[0]
+    if value.startswith("["):
+        return value[1:].split("]", 1)[0]
+    return value.split(":", 1)[0]
 
 
 def make_handler(manager: RunManager):
@@ -488,8 +535,36 @@ def make_handler(manager: RunManager):
             """Silence the default request logging."""
             pass
 
+        def _host_allowed(self):
+            """Whether the request's Host is one the console serves.
+
+            Refusing unknown hosts is the DNS-rebinding and
+            virtual-host probing defence: the console binds to
+            loopback (plus one tunnelled hostname), and a browser
+            tricked into resolving a public name to 127.0.0.1 still
+            sends that public name as Host, which is not allowed.
+            """
+            return _host_name(self.headers.get("Host")) in ALLOWED_HOSTS
+
+        def _origin_allowed(self):
+            """Whether a POST's Origin or Referer is same-site.
+
+            Browsers send Origin on cross-site POSTs, so a present
+            Origin naming any other host means another site is
+            driving the API (CSRF or rebinding) and the request is
+            refused. Non-browser clients send neither header and
+            are governed by the Host check alone.
+            """
+            for header in ("Origin", "Referer"):
+                value = self.headers.get(header)
+                if value:
+                    return _host_name(value) in ALLOWED_HOSTS
+            return True
+
         def do_GET(self):
             """Route GET requests: the page, the JSON API, run files."""
+            if not self._host_allowed():
+                return _json(self, {"error": "host not allowed"}, 403)
             path = urlparse(self.path).path
             if path.startswith("/assets/"):
                 return self._asset(path)
@@ -543,6 +618,7 @@ def make_handler(manager: RunManager):
                 seq = 0
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
+            _send_security_headers(self)
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
             self.end_headers()
@@ -658,8 +734,20 @@ def make_handler(manager: RunManager):
         def do_POST(self):
             """Route POST actions: setup save and slot tests, target
             run start and design runs."""
+            if not self._host_allowed():
+                return _json(self, {"error": "host not allowed"}, 403)
+            if not self._origin_allowed():
+                return _json(self, {"error": "origin not allowed"}, 403)
             path = urlparse(self.path).path
-            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except (TypeError, ValueError):
+                return _json(self, {"error": "bad content length"}, 400)
+            if length < 0:
+                return _json(self, {"error": "bad content length"}, 400)
+            if length > MAX_POST_BODY:
+                self.close_connection = True
+                return _json(self, {"error": "body too large"}, 413)
             try:
                 payload = json.loads(self.rfile.read(length) or b"{}")
             except Exception:
