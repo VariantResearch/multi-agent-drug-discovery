@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 13, 2026-10-27)
+
+- Target scout (madd/scout.py and madd/chembl.py, `madd
+  scout --disease <d> --targets <a,b,c>`), the fourth wave-3
+  item of the competitive-gap implementation list. For each
+  named target the scout resolves the pair in Open Targets
+  (association score with the literature and genetic
+  components shown separately) and pulls ChEMBL's recorded
+  drug-mechanism count and bioactivity count for the target,
+  then ranks by the association score as reported. The
+  whitespace read is mechanical and labelled: an associated
+  target with no recorded mechanism is "comparatively open",
+  one with mechanisms is "validated but occupied", and a
+  pair with no association is "unestablished". ChEMBL
+  resolution prefers a component synonym exactly matching
+  the query (gene symbols live there, not in the preferred
+  name) and the search uses the API's search endpoint; both
+  choices were forced by live checks during the build, in
+  which the naive lookups returned the same wrong target for
+  every query and then an mRNA entry for PCSK9. Failed
+  lookups record None, never zero, and unresolved targets
+  are kept in the report with their problems named. The
+  scout nominates; it locks nothing in. ChEMBL is registered
+  (CC BY-SA 4.0).
+
 ### Added (competitive-gap item 12, 2026-10-27)
 
 - Executable protocol export (madd/protocol_export.py,

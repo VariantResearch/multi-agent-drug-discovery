@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (399 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (403 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -361,6 +361,15 @@ madd/            the package (standard library only)
                      (hypotheses, per-candidate assays, controls,
                      criteria checklist with thresholds, decision
                      rule) via the protocol-export command
+  chembl.py          ChEMBL lookups: target resolution by name
+                     (component-synonym aware) and the mechanism
+                     and bioactivity counts the API reports
+  scout.py           target scout: named targets for one disease
+                     ranked by their Open Targets association,
+                     with ChEMBL mechanism and bioactivity
+                     signals and a mechanical whitespace read,
+                     via the scout command; nominates targets
+                     for a debate and locks nothing in
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score

@@ -332,6 +332,38 @@ def _cmd_protocol_export(args) -> int:
     return 0
 
 
+def _cmd_scout(args) -> int:
+    """Scout named targets against one disease and rank them."""
+    from datetime import datetime, timezone
+
+    from .scout import scout_targets
+    names = [part.strip() for part in str(args.targets).split(",")
+             if part.strip()]
+    if not names:
+        print("scout failed: --targets names no targets",
+              file=sys.stderr)
+        return 2
+    report = scout_targets(args.disease, names)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = "scout-" + stamp
+    out_bundle = {"kind": "target_scout", "run_id": run_id,
+                  "outcome": ("scouted " + str(report["candidates_total"])
+                              + " targets"),
+                  "created_utc": stamp, "report": report}
+    run_dir = write_bundle(out_bundle, args.out)
+    print("scout report " + run_id + " written to " + str(run_dir))
+    print("disease: " + str(args.disease) + " -> "
+          + str((report["disease_resolved"] or {}).get("name")))
+    for entry in report["candidates"]:
+        print("  #" + str(entry["rank"]) + " " + str(entry["target_input"])
+              + " | association: "
+              + str(entry["signals"].get("association_score"))
+              + " | mechanisms: "
+              + str(entry["signals"].get("known_mechanisms"))
+              + " | " + str(entry["whitespace"]))
+    return 0
+
+
 def _cmd_audit_claims(args) -> int:
     """audit-claims handler: print the claim and citation audits of a
     document; exit 1 when either audit finds errors."""
@@ -991,6 +1023,10 @@ def build_parser() -> argparse.ArgumentParser:
     p30 = sub.add_parser("protocol-export"); p30.add_argument("plan_bundle")
     p30.add_argument("--out-file", default=None)
     p30.set_defaults(fn=_cmd_protocol_export)
+    p31 = sub.add_parser("scout"); p31.add_argument("--disease", required=True)
+    p31.add_argument("--targets", required=True)
+    p31.add_argument("--out", default="runs")
+    p31.set_defaults(fn=_cmd_scout)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))
