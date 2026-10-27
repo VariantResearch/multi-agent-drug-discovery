@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (395 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (399 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -356,6 +356,11 @@ madd/            the package (standard library only)
                      not_reported, never silently passed), with
                      advance/revise/retire recommendations per
                      the plan's decision rule, via assay-grade
+  protocol_export.py executable protocol export: one assay plan
+                     rendered as a bench-ready Markdown document
+                     (hypotheses, per-candidate assays, controls,
+                     criteria checklist with thresholds, decision
+                     rule) via the protocol-export command
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score

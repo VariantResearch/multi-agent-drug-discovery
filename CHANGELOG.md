@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 12, 2026-10-27)
+
+- Executable protocol export (madd/protocol_export.py,
+  `madd protocol-export <plan bundle>`), the third wave-3
+  item of the competitive-gap implementation list. One assay
+  plan renders as a single bench-ready Markdown document:
+  the hypotheses under test by claim id, and per candidate
+  the structure, primary and secondary assays with readouts,
+  counterscreens, the named controls, and the acceptance
+  criteria as a checklist spelling out the metric and
+  threshold each graded criterion uses, closing with the
+  plan's conduct and decision rule. The export is a rendering
+  of the plan as written - nothing in it is added, computed,
+  or re-thresholded - and its notes repeat the boundary:
+  reagent identities and settings are verified against local
+  SOPs, execution is laboratory work outside this system,
+  and results return through assay-grade.
+
 ### Added (competitive-gap item 11, 2026-10-27)
 
 - Assay results ingestion (madd/assay_results.py, `madd

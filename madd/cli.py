@@ -305,6 +305,33 @@ def _cmd_assay_grade(args) -> int:
     return 0
 
 
+def _cmd_protocol_export(args) -> int:
+    """Render an assay plan as an executable Markdown protocol."""
+    from pathlib import Path
+
+    from .compare import load_bundle_anywhere
+    from .protocol_export import export_protocol
+    try:
+        plan_bundle = load_bundle_anywhere(args.plan_bundle)
+    except Exception as exc:
+        print("protocol-export failed: cannot load the plan bundle: "
+              + str(exc), file=sys.stderr)
+        return 2
+    plan = plan_bundle.get("plan") or plan_bundle
+    try:
+        text = export_protocol(plan)
+    except ValueError as exc:
+        print("protocol-export failed: " + str(exc), file=sys.stderr)
+        return 2
+    out_path = Path(args.out_file) if args.out_file else Path(
+        str(plan.get("plan_id") or "assay-plan") + "-protocol.md")
+    out_path.write_text(text, encoding="utf-8")
+    print("protocol written to " + str(out_path)
+          + " (" + str(len(text.splitlines())) + " lines, "
+          + str(plan.get("candidates_planned")) + " candidates)")
+    return 0
+
+
 def _cmd_audit_claims(args) -> int:
     """audit-claims handler: print the claim and citation audits of a
     document; exit 1 when either audit finds errors."""
@@ -961,6 +988,9 @@ def build_parser() -> argparse.ArgumentParser:
     p29.add_argument("results")
     p29.add_argument("--out", default="runs")
     p29.set_defaults(fn=_cmd_assay_grade)
+    p30 = sub.add_parser("protocol-export"); p30.add_argument("plan_bundle")
+    p30.add_argument("--out-file", default=None)
+    p30.set_defaults(fn=_cmd_protocol_export)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))
