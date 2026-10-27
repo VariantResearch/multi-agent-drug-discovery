@@ -67,6 +67,7 @@ from urllib.parse import unquote, urlparse
 
 from .budget import BudgetExceeded
 from .config import (ConfigError, build_providers,
+                     contradiction_checker_from_config,
                      entailment_checker_from_config, load_config,
                      quote_checker_from_config, resolver_from_config,
                      run_budget_tracker, validate_config)
@@ -217,7 +218,8 @@ class RunManager:
                 "switches": {
                     key: bool((config or {}).get(key))
                     for key in ("live_resolution", "live_quote_check",
-                                "entailment_check", "retrieval_first")}}
+                                "entailment_check", "contradiction_check",
+                                "retrieval_first")}}
 
     def save_setup(self, payload) -> dict:
         """Validate and save the setup panel's slots as a run config.
@@ -260,7 +262,8 @@ class RunManager:
         if budget:
             config["budget"] = budget
         for key in ("live_resolution", "live_quote_check",
-                    "entailment_check", "retrieval_first"):
+                    "entailment_check", "contradiction_check",
+                    "retrieval_first"):
             if (payload.get("switches") or {}).get(key):
                 config[key] = True
         errors = validate_config(config)
@@ -371,6 +374,8 @@ class RunManager:
                 resolver=resolver_from_config(built),
                 quote_checker=quote_checker_from_config(built),
                 entailment_checker=entailment_checker_from_config(
+                    built, tracker),
+                contradiction_checker=contradiction_checker_from_config(
                     built, tracker),
                 retrieval_first=retrieval_first,
                 design_constraints=constraints,
@@ -835,6 +840,7 @@ PAGE = """<!DOCTYPE html>
     <label><input type="checkbox" id="s-sw-live_resolution"> live resolution</label>
     <label><input type="checkbox" id="s-sw-live_quote_check"> quote check</label>
     <label><input type="checkbox" id="s-sw-entailment_check"> entailment check</label>
+    <label><input type="checkbox" id="s-sw-contradiction_check"> contradiction check</label>
     <label><input type="checkbox" id="s-sw-retrieval_first"> retrieval first</label></div>
   <p><button class="run" onclick="saveSetup()">SAVE SETUP</button>
   <span id="setup-msg" class="mut"></span></p>
@@ -1389,7 +1395,7 @@ function renderSetup(st) {
   }
   $('s-budget-calls').value = st.budget.max_calls || '';
   $('s-budget-cost').value = st.budget.max_cost_usd || '';
-  for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'retrieval_first']) {
+  for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'contradiction_check', 'retrieval_first']) {
     $('s-sw-' + key).checked = !!st.switches[key];
   }
   refreshModes();
@@ -1417,7 +1423,7 @@ async function saveSetup() {
     judge: collectSlot('judge'), mode: $('s-mode').value || null,
     budget: {max_calls: $('s-budget-calls').value, max_cost_usd: $('s-budget-cost').value},
     switches: {}};
-  for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'retrieval_first']) {
+  for (const key of ['live_resolution', 'live_quote_check', 'entailment_check', 'contradiction_check', 'retrieval_first']) {
     body.switches[key] = $('s-sw-' + key).checked;
   }
   const out = await post('/api/setup', body);

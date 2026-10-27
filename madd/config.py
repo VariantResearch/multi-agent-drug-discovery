@@ -26,6 +26,11 @@ A run is described by a JSON config (see examples/run-config.example.json):
   judge provider whether each surviving quote_checked claim is
   supported by the passage it cites, and strikes claims the judge
   finds refuted by their own quote. Requires a judge provider.
+- contradiction_check: when true, surviving load-bearing claims
+  from different dossiers are judged pairwise for contradiction;
+  judged contradictions become named disputes and their claims
+  are kept out of the consensus spec as contested. Requires a
+  judge provider.
 - retrieval_first: when true, load-bearing claims may cite only
   identifiers present in the evidence the run supplied (the case pack
   or the frame's evidence entries); anything else is struck as
@@ -241,6 +246,7 @@ def build_providers(config, environ=None) -> dict:
         "live_resolution": bool(config.get("live_resolution", False)),
         "live_quote_check": bool(config.get("live_quote_check", False)),
         "entailment_check": bool(config.get("entailment_check", False)),
+        "contradiction_check": bool(config.get("contradiction_check", False)),
         "retrieval_first": bool(config.get("retrieval_first", False)),
         "max_workers": int(config.get("parallel_cases", 1)),
     }
@@ -356,3 +362,37 @@ def entailment_checker_from_config(built: dict, budget_tracker=None):
         return verdict
 
     return entailment_checker
+
+
+def contradiction_checker_from_config(built: dict, budget_tracker=None):
+    """Return the contradiction checker when the config enables
+    contradiction checking, else None. The checker judges claim
+    pairs with the config's judge provider; enabling the check
+    without one is a configuration error, raised as ValueError.
+    When a budget tracker is given, every judging call reserves
+    against it first and settles transport retries afterwards,
+    exactly as the entailment checker does."""
+    if not built.get("contradiction_check"):
+        return None
+    judge = built.get("judge")
+    if judge is None:
+        raise ValueError("contradiction_check is on but the config names "
+                         "no judge provider to judge contradictions with")
+
+    def contradiction_checker(claim_a, claim_b):
+        """Judge one pair of claims and return the verdict string
+        madd.contradictions.find_disputes expects."""
+        from .contradictions import check_pair
+        cost = float(getattr(judge, "cost_per_call_usd", 0.0) or 0.0)
+        if budget_tracker is not None:
+            budget_tracker.reserve(
+                cost, note="contradiction:"
+                + str(getattr(judge, "name", "?")))
+        verdict = check_pair(claim_a, claim_b, judge)
+        settle_transport_retries(
+            budget_tracker, judge, cost,
+            "transport retries:contradiction:"
+            + str(getattr(judge, "name", "?")))
+        return verdict
+
+    return contradiction_checker

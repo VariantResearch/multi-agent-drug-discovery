@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 2, 2026-10-26)
+
+- Contradiction detection (madd/contradictions.py), the second
+  item of the competitive-gap implementation list, in the shape
+  of PaperQA2's ContraCrow: after the evidence call, surviving
+  load-bearing claims from different dossiers are compared.
+  Candidate pairs are prefiltered deterministically (claims
+  citing the same source first, then shared content tokens,
+  capped at 24 judged pairs) and a judge provider rules on each:
+  contradicts, compatible, or cannot_tell. Only a clear
+  "contradicts" creates a dispute, and every failure of the
+  check itself creates nothing. Disputes are not strikes: both
+  claims survive annotated with their partners, the
+  cross-examination transcript names each dispute as an
+  objection that must be answered, and the evolution merge
+  keeps disputed claims out of the consensus spec, recording
+  them there as contested claims, so a lock cannot silently
+  rest on a claim another surviving claim contradicts. The
+  screened and judged pair counts are recorded on the run.
+  Enabled by the contradiction_check config switch (CLI and
+  console setup), judged by the config's judge provider, with
+  judging calls reserved against the run budget like every
+  other provider call.
+
 ### Added (competitive-gap item 1, 2026-10-26)
 
 - Open Targets as an evidence source (madd/opentargets.py),

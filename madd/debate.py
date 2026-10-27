@@ -280,13 +280,29 @@ def rank_dossiers(audited_dossiers: list) -> list:
     return summaries
 
 
-def _cross_examination(audited_dossiers: list, ranking: list) -> tuple:
+def _dispute_entries(audited_dossiers: list, disputes: list) -> list:
+    """Cross-examination entries naming each judged contradiction:
+    an objection between the two claims' dossiers that must be
+    answered before either claim can carry a consensus."""
+    by_agent = {a["agent_id"]: a["dossier_id"] for a in audited_dossiers}
+    return [{"kind": "contradiction_dispute",
+             "objector_agent_id": d["agent_b"],
+             "target_dossier_id": by_agent.get(d["agent_a"]),
+             "target_agent_id": d["agent_a"],
+             "claim_ids": [d["claim_a"], d["claim_b"]],
+             "note": d["note"]} for d in disputes or []]
+
+
+def _cross_examination(audited_dossiers: list, ranking: list,
+                       disputes: list = None) -> tuple:
     """Structured cross-examination record (protocol step 3).
 
     Focus disagreement produces an objection from each dossier against
     each dossier arguing a different focus, naming the rival's
     surviving load-bearing claims as the ground that must be answered.
-    Instant agreement triggers the red-team rule instead.
+    Instant agreement triggers the red-team rule instead. Judged
+    contradictions between surviving claims are appended as named
+    disputes in both cases.
     """
     focuses = {a["proposed_focus_id"] for a in audited_dossiers}
     transcript = []
@@ -303,6 +319,7 @@ def _cross_examination(audited_dossiers: list, ranking: list) -> tuple:
                 "claim_ids": [c.get("claim_id") for c in a["surviving_claims"]
                               if c.get("load_bearing")],
             })
+        transcript += _dispute_entries(audited_dossiers, disputes)
         return transcript, True
     for a in audited_dossiers:
         for b in audited_dossiers:
@@ -320,6 +337,7 @@ def _cross_examination(audited_dossiers: list, ranking: list) -> tuple:
                 "claim_ids": [c.get("claim_id") for c in b["surviving_claims"]
                               if c.get("load_bearing")],
             })
+    transcript += _dispute_entries(audited_dossiers, disputes)
     return transcript, False
 
 
@@ -329,6 +347,7 @@ def _evolve_spec(frame: dict, audited_dossiers: list, ranking: list,
     by_id = {a["dossier_id"]: a for a in audited_dossiers}
     top = by_id[ranking[0]["dossier_id"]]
     merged = []
+    contested = []
     seen = set()
     duplicates = 0
     contributors = []
@@ -341,6 +360,13 @@ def _evolve_spec(frame: dict, audited_dossiers: list, ranking: list,
                 duplicates += 1
                 continue
             seen.add(cid)
+            if claim.get("dispute_partners"):
+                # A claim another surviving claim contradicts does
+                # not enter the consensus as agreed material; it is
+                # recorded as contested so the lock never rests on it
+                # silently.
+                contested.append(copy.deepcopy(claim))
+                continue
             merged.append(copy.deepcopy(claim))
             contributed = True
         if contributed:
@@ -362,6 +388,9 @@ def _evolve_spec(frame: dict, audited_dossiers: list, ranking: list,
                  "contributing_dossiers": contributors,
                  "claims_merged": len(merged),
                  "duplicate_claim_ids_skipped": duplicates}
+    if contested:
+        spec["contested_claims"] = contested
+        evolution["contested_claims_excluded"] = len(contested)
     return spec, evolution
 
 
@@ -393,6 +422,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                swap_judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
                resolver=None, quote_checker=None, entailment_checker=None,
+               contradiction_checker=None,
                retrieval_first: bool = False,
                require_stability: bool = True,
                should_stop=None) -> dict:
@@ -491,6 +521,21 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     strike_list = [{"dossier_id": a["dossier_id"], "claim_id": s["claim_id"],
                     "reasons": s["reasons"]}
                    for a in audited for s in a["struck"]]
+    # Contradiction detection (when a checker is supplied): surviving
+    # load-bearing claims from different dossiers are compared, and
+    # judged contradictions become named disputes. Both claims stay
+    # in play, annotated with their partners; the cross-examination
+    # names each dispute and the evolution merge keeps disputed
+    # claims out of the consensus spec (recorded there as contested).
+    disputes = []
+    contradiction_summary = None
+    if contradiction_checker is not None:
+        from .contradictions import find_disputes
+        found = find_disputes(audited, contradiction_checker)
+        disputes = found["disputes"]
+        contradiction_summary = {"pairs_screened": found["pairs_screened"],
+                                 "pairs_judged": found["pairs_judged"],
+                                 "disputes": len(disputes)}
     # Ranking (protocol step 4) is computed before the cross-examination
     # record (step 3) is written because the red-team target and the
     # evolution base are both the top-ranked dossier. The two steps use
@@ -498,7 +543,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     # changes nothing in either result.
     ranking = rank_dossiers(audited)
     # Step 3: cross-examination record.
-    transcript, red_team = _cross_examination(audited, ranking)
+    transcript, red_team = _cross_examination(audited, ranking,
+                                              disputes=disputes)
     dissent_log = [{"objector_agent_id": t["objector_agent_id"],
                     "target_dossier_id": t["target_dossier_id"],
                     "objection": "focus disagreement: objector proposes "
@@ -664,6 +710,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                                    "rubric but not mechanically defined, "
                                    "so it is not scored"]},
         "cross_examination": transcript,
+        "disputes": disputes,
+        "contradiction_check": contradiction_summary,
         "red_team_round": red_team,
         "evolution": evolution,
         "judge_swap": judge_info,

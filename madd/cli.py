@@ -45,6 +45,7 @@ from .budget import BudgetExceeded
 from .citation_auditor import audit_citations
 from .claims import audit_claims
 from .config import (ConfigError, build_providers,
+                     contradiction_checker_from_config,
                      entailment_checker_from_config, load_config,
                      quote_checker_from_config, resolver_from_config,
                      run_budget_tracker)
@@ -435,6 +436,7 @@ def _cmd_run_gate0(args) -> int:
                            resolver=resolver_from_config(built),
                            quote_checker=quote_checker_from_config(built),
                            entailment_checker=entailment_checker_from_config(built, tracker),
+                           contradiction_checker=contradiction_checker_from_config(built, tracker),
                            retrieval_first=bool(built.get("retrieval_first")),
                            max_workers=args.jobs or built["max_workers"],
                            on_event=_print_run_event)
@@ -483,6 +485,7 @@ def _cmd_target_run(args) -> int:
             resolver=resolver_from_config(built),
             quote_checker=quote_checker_from_config(built),
             entailment_checker=entailment_checker_from_config(built, tracker),
+                           contradiction_checker=contradiction_checker_from_config(built, tracker),
             retrieval_first=retrieval_first,
             design_constraints=tuple(args.constraint or ()),
             source_check=bool(args.source_check),
@@ -537,6 +540,7 @@ def _cmd_run_frame(args) -> int:
                            resolver=resolver_from_config(built),
                            quote_checker=quote_checker_from_config(built),
                            entailment_checker=entailment_checker_from_config(built, tracker),
+                           contradiction_checker=contradiction_checker_from_config(built, tracker),
                            retrieval_first=retrieval_first)
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
         print("run stopped:", exc)

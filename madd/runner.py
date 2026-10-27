@@ -224,7 +224,7 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
               resolver=None, run_id=None,
               on_event=None, max_workers=1, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
-              mode=None, should_stop=None) -> dict:
+              mode=None, should_stop=None, contradiction_checker=None) -> dict:
     """Run the full Gate 0 protocol. Returns the run bundle.
 
     baseline_provider is required: the approved thresholds include a
@@ -294,6 +294,7 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                 budget_tracker=tracker, resolver=resolver,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
+                                contradiction_checker=contradiction_checker,
                                 retrieval_first=retrieval_first,
                                 require_stability=False,
                                 should_stop=should_stop)
@@ -304,6 +305,7 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                 budget_tracker=tracker, resolver=resolver,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
+                                contradiction_checker=contradiction_checker,
                                 retrieval_first=retrieval_first,
                                 should_stop=should_stop)
         else:
@@ -312,6 +314,7 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                 budget_tracker=tracker, resolver=resolver,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
+                                contradiction_checker=contradiction_checker,
                                 retrieval_first=retrieval_first,
                                 should_stop=should_stop)
         prediction = "advance" if record["outcome"] == "locked" else "kill"
@@ -513,7 +516,7 @@ def run_frame(frame, providers, judge_provider=None,
               budget_tracker=None,
               resolver=None, run_id=None, on_event=None, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
-              mode=None, should_stop=None) -> dict:
+              mode=None, should_stop=None, contradiction_checker=None) -> dict:
     """Run one prospective frame (not a Gate 0 case) under a protocol
     mode: simple (agents all on one model), simple_judge (one model
     plus a judge), dual (agents across two models, no judge),
@@ -533,6 +536,7 @@ def run_frame(frame, providers, judge_provider=None,
                             budget_tracker=tracker, resolver=resolver,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
+                                contradiction_checker=contradiction_checker,
                             retrieval_first=retrieval_first,
                             require_stability=False,
                             should_stop=should_stop)
@@ -542,6 +546,7 @@ def run_frame(frame, providers, judge_provider=None,
                             budget_tracker=tracker, resolver=resolver,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
+                                contradiction_checker=contradiction_checker,
                             retrieval_first=retrieval_first,
                             should_stop=should_stop)
     else:
@@ -550,6 +555,7 @@ def run_frame(frame, providers, judge_provider=None,
                             budget_tracker=tracker, resolver=resolver,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
+                                contradiction_checker=contradiction_checker,
                             retrieval_first=retrieval_first,
                             should_stop=should_stop)
     _emit(on_event, {"event": "debate_case_done",
