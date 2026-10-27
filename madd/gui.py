@@ -594,7 +594,8 @@ def make_handler(manager: RunManager):
                             "affinity_kcal_mol": record.get(
                                 "affinity_kcal_mol"),
                             "note": record["note"],
-                            "box": record.get("box")}
+                            "box": record.get("box"),
+                            "cross_check": record.get("cross_check")}
                 return _json(self, payload)
             if parts[3] == "structure3d" and len(parts) == 5:
                 return _json(self, candidate_structure3d(bundle, parts[4]))
@@ -707,6 +708,17 @@ def make_handler(manager: RunManager):
                 record = dock_candidate(
                     receptor["data"], structure.get("value"),
                     run_dir / ("dockwork-" + str(candidate_id)))
+                if record.get("status") == "completed":
+                    # A configured DiffDock installation cross-checks
+                    # the Vina pose with an independent method; with
+                    # none configured the record simply carries no
+                    # cross-check, which never reads as a failure.
+                    from .diffdock import configured_home, cross_check
+                    if configured_home() is not None:
+                        record["cross_check"] = cross_check(
+                            receptor["data"], structure.get("value"),
+                            record.get("pose") or "",
+                            run_dir / ("diffdock-" + str(candidate_id)))
                 record["candidate_id"] = candidate_id
                 record["receptor_label"] = receptor.get("label")
                 docking_record_path(run_dir, candidate_id).write_text(
@@ -1210,7 +1222,10 @@ async function loadModel3d(runId, cid) {
       const pcap = $('glpose-cap');
       if (pcap) pcap.textContent = 'Vina score ' + out.docked_pose.affinity_kcal_mol +
         ' kcal/mol | ' + out.docked_pose.note + ' | box: ' +
-        ((out.docked_pose.box || {}).source || '');
+        ((out.docked_pose.box || {}).source || '') +
+        (out.docked_pose.cross_check && out.docked_pose.cross_check.status === 'completed' ?
+          ' | DiffDock cross-check: ' + out.docked_pose.cross_check.agreement +
+          ' (centroid ' + out.docked_pose.cross_check.centroid_distance_a + ' A)' : '');
     } else {
       ppane.style.display = 'none';
     }

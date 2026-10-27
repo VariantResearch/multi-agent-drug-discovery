@@ -67,6 +67,16 @@
     },
     {
       "aliases": [
+        "diffdock",
+        "diffdock-l"
+      ],
+      "commercial_allowed": true,
+      "license": "MIT",
+      "name": "DiffDock",
+      "status": "allowed"
+    },
+    {
+      "aliases": [
         "esm3 open",
         "esm3-open",
         "esm3"

@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 9, 2026-10-27)
+
+- DiffDock pose cross-check (madd/diffdock.py), the ninth and
+  final wave-2 item of the competitive-gap implementation
+  list. Where an installation is configured
+  (MADD_DIFFDOCK_HOME naming a DiffDock checkout, registered
+  MIT in the license registry), the console's dock action
+  also runs DiffDock on the same receptor and ligand and
+  compares its top pose against the Vina pose: centroid
+  distance graded agree (at most 2.0 A), partial (at most
+  4.0 A), or disagree, with DiffDock's own confidence
+  recorded when its output reports one. The verdict rides in
+  the docking record and in the console's pose caption. The
+  record states plainly that a centroid is a coarse geometry
+  summary, not an RMSD, and that agreement between two
+  computed poses is not evidence of binding. With no
+  installation configured, no cross-check key appears in the
+  record at all, so absence never reads as a failed check.
+
 ### Added (competitive-gap item 8, 2026-10-27)
 
 - Generative designer seat (madd/design_generative.py), the
