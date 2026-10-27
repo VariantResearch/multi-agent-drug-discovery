@@ -67,6 +67,12 @@ def _smiles_identity(candidate: dict, value: str) -> dict:
             key = design_rdkit.inchikey(value)
             if key:
                 identity["inchikey"] = key
+            if result.get("structural_alerts"):
+                # Computed triage information for whoever would
+                # make this: PAINS/Brenk flags on the structure,
+                # recorded on the sheet, never hidden and never a
+                # readiness input on their own.
+                identity["structural_alerts"] = result["structural_alerts"]
             try:
                 from rdkit import Chem
                 from rdkit.Chem import rdMolDescriptors

@@ -4,6 +4,29 @@
 
 ### Added
 
+- Improvements adopted from the MADD-Gcloud variant review
+  (owner's instruction, 2026-10-26), each rebuilt to this
+  project's rules rather than copied: (1) structural alerts and
+  triage scores in the design stage - the RDKit pass now also
+  computes QED and the SA score (recorded as computed properties)
+  and screens every SMILES candidate against the PAINS and Brenk
+  FilterCatalogs, recording alerts on the candidate and on its
+  production sheet as triage information that never excludes on
+  its own; (2) a PDF report export - madd/report_pdf.py renders
+  a bundle's canonical HTML report to PDF through WeasyPrint
+  (BSD, added to the license registry) when the package is
+  installed, reports not_installed plainly when it is not, and
+  is reachable as `madd report-pdf <bundle> --out <file>`, as a
+  console /api/runs/<run>/report.pdf route, and as a PDF report
+  link beside each HTML report link. Assessed and not adopted,
+  with reasons: the variant's extra provider kinds duplicate the
+  openai-compatible kind's base_url reach; its ClinicalTrials.gov
+  resolver duplicates the NCT resolution resolve.py already does;
+  its hardcoded descriptor table and hash-derived InChIKey
+  function contradict the computed-or-absent rule and were
+  rejected outright; its analog-editing studio and target
+  intelligence suite remain unbuilt here (the latter was
+  researched and shelved before the variant existed).
 - A fourth protocol mode, simple_judge (owner's decision,
   2026-10-26): the research panel on one model, plus a judge. It
   completes the ablation square - one model or two, judge or

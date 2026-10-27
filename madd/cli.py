@@ -23,6 +23,7 @@ Subcommands:
                [--use research|commercial] [--tool-input <file>]
   transcript <file>
   report-html <bundle-file>
+  report-pdf <bundle-file> --out <file.pdf> [--use research|commercial]
   gui [--port 8765] [--host 127.0.0.1] [--runs-dir runs]
   validate-artifact <schema-name> <file>
 
@@ -597,6 +598,25 @@ def _cmd_report_html(args) -> int:
     return 0
 
 
+def _cmd_report_pdf(args) -> int:
+    """report-pdf handler: render a bundle's HTML report to a PDF
+    file through WeasyPrint, an optional dependency. Without it the
+    command says so plainly and writes nothing."""
+    from .report_pdf import render_report_pdf
+    bundle = _load(args.file)
+    if not isinstance(bundle, dict) or "kind" not in bundle:
+        print("not a run bundle:", args.file)
+        return 2
+    result = render_report_pdf(bundle, use=args.use)
+    if result["status"] != "completed":
+        print("PDF not rendered (" + result["status"] + "):",
+              result.get("reason") or "")
+        return 2
+    Path(args.out).write_bytes(result["pdf"])
+    print("PDF written to:", args.out, "(" + str(result["bytes"]) + " bytes)")
+    return 0
+
+
 def _cmd_transcript(args) -> int:
     """transcript handler: render a debate record, or a frame run
     bundle's record, as a readable markdown transcript."""
@@ -683,6 +703,10 @@ def build_parser() -> argparse.ArgumentParser:
     p14.set_defaults(fn=_cmd_transcript)
     p15 = sub.add_parser("report-html"); p15.add_argument("file")
     p15.set_defaults(fn=_cmd_report_html)
+    p15b = sub.add_parser("report-pdf"); p15b.add_argument("file")
+    p15b.add_argument("--out", required=True)
+    p15b.add_argument("--use", default="research")
+    p15b.set_defaults(fn=_cmd_report_pdf)
     p16 = sub.add_parser("compare-runs"); p16.add_argument("bundle_a")
     p16.add_argument("bundle_b"); p16.set_defaults(fn=_cmd_compare_runs)
     p17 = sub.add_parser("gate0-new-case"); p17.add_argument("case_id")

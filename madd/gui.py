@@ -71,6 +71,7 @@ from .config import (ConfigError, build_providers,
 from .design import ModelDesigner, run_design
 from .gate0 import list_case_ids, load_input_pack, validate_dataset
 from .html_report import bundle_to_html
+from .report_pdf import render_report_pdf
 from .retrieval import retrieve_evidence
 from .runner import estimate_gate0_run, run_gate0
 from .smoke import smoke_provider
@@ -426,8 +427,8 @@ def _json(handler, payload, status=200):
 
 
 def _text(handler, content, content_type, status=200):
-    """Send a text or HTML response."""
-    body = content.encode("utf-8")
+    """Send a text, HTML, or binary (PDF) response."""
+    body = content if isinstance(content, bytes) else content.encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(body)))
@@ -502,6 +503,13 @@ def make_handler(manager: RunManager):
             if parts[3] == "report.html":
                 return _text(self, bundle_to_html(bundle),
                              "text/html; charset=utf-8")
+            if parts[3] == "report.pdf":
+                result = render_report_pdf(bundle)
+                if result["status"] != "completed":
+                    return _json(self, {"error": "PDF not rendered (" +
+                                        result["status"] + "): " +
+                                        (result.get("reason") or "")}, 501)
+                return _text(self, result["pdf"], "application/pdf")
             if parts[3] == "build-guide" and len(parts) == 4:
                 return _json(self, build_guide_payload(bundle))
             if parts[3] == "model3d" and len(parts) == 5:
@@ -797,7 +805,7 @@ async function show(runId) {
     for (const c of b.thresholds.checks) h += "<tr><td>" + esc(c.threshold) + "</td><td class='" +
       (c.status === 'pass' ? 'pass' : 'fail') + "'>" + esc(c.status) + "</td><td>" +
       esc(c.detail) + "</td></tr>";
-    h += "</table><p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a></p>";
+    h += "</table><p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a> | <a href='/api/runs/" + encodeURIComponent(runId) + "/report.pdf' target='_blank'>PDF report</a></p>";
     h += "<div class='mut'>transcripts:</div>";
     for (const cid of b.case_ids) h += "<div><a href='#' class='txlink' data-runid=\\"" +
       esc(runId) + "\\" data-caseid=\\"" + esc(cid) + "\\">" + esc(cid) + "</a></div>";
@@ -821,7 +829,7 @@ async function show(runId) {
       h += "<div class='mut'>tool runs:</div>";
       for (const t of b.tool_runs) h += "<div>" + esc(t.tool) + ": " + esc(t.status) + "</div>";
     }
-    h += "<p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a></p>";
+    h += "<p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a> | <a href='/api/runs/" + encodeURIComponent(runId) + "/report.pdf' target='_blank'>PDF report</a></p>";
   } else if (b.kind === 'target_run') {
     const rec = b.frame_run.record; const tg = b.target || {};
     h += "<div>target <b>" + esc(tg.name) + "</b> (" + esc(tg.kind) + ")" +
@@ -834,7 +842,7 @@ async function show(runId) {
     } else {
       h += "<div class='mut'>no design stage (the specification did not lock)</div>";
     }
-    h += "<p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a></p>";
+    h += "<p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a> | <a href='/api/runs/" + encodeURIComponent(runId) + "/report.pdf' target='_blank'>PDF report</a></p>";
   } else {
     h += "<div>frame " + esc(b.frame_id) + " | outcome <b>" + esc(b.outcome) + "</b></div>";
     if (b.record && b.record.spec && b.record.spec.outcome === 'locked') {

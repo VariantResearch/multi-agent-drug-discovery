@@ -4,9 +4,15 @@ RDKit is the one real cheminformatics engine in the design stage: it
 parses a candidate's SMILES, says whether the structure is valid, and
 computes descriptors (molecular weight, logP, TPSA, hydrogen bond
 donors and acceptors, rotatable bonds) that are calculations, not
-model opinions. Computed values enter a candidate's predicted
-properties with the basis "computed:RDKit <version>", which the audit
-keeps distinct from designer predictions.
+model opinions. The same pass computes two triage scores - QED
+(drug-likeness) and the SA score (synthetic accessibility) - and
+screens the structure against the PAINS and Brenk structural alert
+catalogs. Scores enter a candidate's predicted properties with the
+basis "computed:RDKit <version>", which the audit keeps distinct
+from designer predictions; alerts are recorded on the candidate as
+structural_alerts. Both are information for triage, never a gate
+verdict on their own: an alert flags a structure for a chemist's
+eye, it does not exclude the candidate.
 
 RDKit is an optional dependency, deliberately: the package core is
 standard-library only, and this bridge follows the same pattern as the
@@ -39,22 +45,67 @@ def describe_smiles(smiles: str) -> dict:
     or use enrich_candidates, which reports instead of raising.
     """
     from rdkit import Chem
-    from rdkit.Chem import Crippen, Descriptors, rdMolDescriptors
+    from rdkit.Chem import Crippen, Descriptors, QED, rdMolDescriptors
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return {"valid": False, "error": "RDKit could not parse the SMILES"}
+    descriptors = {
+        "molecular_weight": round(float(Descriptors.MolWt(mol)), 3),
+        "logp": round(float(Crippen.MolLogP(mol)), 3),
+        "tpsa": round(float(rdMolDescriptors.CalcTPSA(mol)), 3),
+        "hbd": int(rdMolDescriptors.CalcNumHBD(mol)),
+        "hba": int(rdMolDescriptors.CalcNumHBA(mol)),
+        "rotatable_bonds": int(rdMolDescriptors.CalcNumRotatableBonds(mol)),
+        "qed": round(float(QED.qed(mol)), 3),
+    }
+    try:
+        from rdkit.Contrib.SA_Score import sascorer
+        descriptors["sa_score"] = round(
+            float(sascorer.calculateScore(mol)), 2)
+    except Exception:
+        # The SA score ships in RDKit's Contrib tree; where a build
+        # lacks it the score is simply absent, never approximated.
+        pass
     return {
         "valid": True,
         "canonical_smiles": Chem.MolToSmiles(mol),
-        "descriptors": {
-            "molecular_weight": round(float(Descriptors.MolWt(mol)), 3),
-            "logp": round(float(Crippen.MolLogP(mol)), 3),
-            "tpsa": round(float(rdMolDescriptors.CalcTPSA(mol)), 3),
-            "hbd": int(rdMolDescriptors.CalcNumHBD(mol)),
-            "hba": int(rdMolDescriptors.CalcNumHBA(mol)),
-            "rotatable_bonds": int(rdMolDescriptors.CalcNumRotatableBonds(mol)),
-        },
+        "descriptors": descriptors,
+        "structural_alerts": _structural_alerts(mol),
     }
+
+
+def _structural_alerts(mol) -> list:
+    """Screen one parsed molecule against the PAINS and Brenk
+    structural alert catalogs (RDKit FilterCatalog).
+
+    Returns one entry per distinct alert: {catalog, name}, catalog
+    being "PAINS" or "Brenk". The catalogs are run separately so
+    each alert keeps its family; a structure matching nothing
+    returns an empty list. Alerts are computed triage information,
+    not verdicts.
+    """
+    from rdkit.Chem.FilterCatalog import (FilterCatalog,
+                                          FilterCatalogParams)
+    families = []
+    pains_params = FilterCatalogParams()
+    for catalog in (FilterCatalogParams.FilterCatalogs.PAINS_A,
+                    FilterCatalogParams.FilterCatalogs.PAINS_B,
+                    FilterCatalogParams.FilterCatalogs.PAINS_C):
+        pains_params.AddCatalog(catalog)
+    families.append(("PAINS", FilterCatalog(pains_params)))
+    brenk_params = FilterCatalogParams()
+    brenk_params.AddCatalog(FilterCatalogParams.FilterCatalogs.BRENK)
+    families.append(("Brenk", FilterCatalog(brenk_params)))
+    alerts = []
+    seen = set()
+    for family, catalog in families:
+        for entry in catalog.GetMatches(mol):
+            name = entry.GetDescription()
+            key = (family, name)
+            if key not in seen:
+                seen.add(key)
+                alerts.append({"catalog": family, "name": name})
+    return alerts
 
 
 def inchikey(smiles: str):
@@ -83,7 +134,8 @@ def enrich_candidates(candidates: list, use: str = "research") -> dict:
     """
     record = {"tool": TOOL_NAME, "kind": "computed_properties",
               "requested": False, "use": use, "status": "not_run",
-              "checked": 0, "valid": 0, "invalid": 0}
+              "checked": 0, "valid": 0, "invalid": 0,
+              "alerts": 0, "alerted": 0}
     verdict = license_registry.check_tool(TOOL_NAME, use)
     record["license"] = verdict
     if not verdict.get("allowed"):
@@ -119,6 +171,11 @@ def enrich_candidates(candidates: list, use: str = "research") -> dict:
                 cand.setdefault("predicted_properties", []).append(
                     {"name": name, "value": val, "basis": basis,
                      "verified": True})
+            alerts = result.get("structural_alerts") or []
+            cand["structural_alerts"] = alerts
+            if alerts:
+                record["alerts"] += len(alerts)
+                record["alerted"] += 1
         else:
             record["invalid"] += 1
     record["status"] = "completed"

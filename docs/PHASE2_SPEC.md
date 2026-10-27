@@ -50,7 +50,11 @@ target run is how a named target reaches it.
    with the basis "computed:RDKit <version>", a calculation rather
    than an estimate; an unparseable structure enters audit as a failed
    computed constraint. When RDKit is not installed the step reports
-   not_installed and nothing is fabricated to fill the gap. Three
+   not_installed and nothing is fabricated to fill the gap. The same
+   RDKit pass computes the QED and SA triage scores and screens the
+   structure against the PAINS and Brenk alert catalogs; alerts are
+   recorded on the candidate and its production sheet as computed
+   information, never as an exclusion. Three
    further enrichments run before audit, each recorded on the
    candidate and none of them exclusionary: a known-compound lookup
    (with --source-check, the candidate's InChIKey is searched in
