@@ -5,3 +5,8 @@
   (banner in `3Dmol-min.js.LICENSE.txt`). Source:
   https://3dmol.org - vendored so the console renders fully 3D
   structures without a network connection.
+- `cytoscape.min.js` - Cytoscape.js v3.30.2, a graph visualization
+  library by the Cytoscape Consortium, MIT license (banner in
+  `cytoscape.min.js.LICENSE.txt`). Source:
+  https://js.cytoscape.org - vendored so the console renders the
+  claim graph without a network connection.

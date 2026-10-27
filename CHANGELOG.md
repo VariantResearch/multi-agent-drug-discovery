@@ -4,6 +4,17 @@
 
 ### Added
 
+- Claim graph in the console run detail (the third researched
+  feature): sources, claims, and the specification rendered as a
+  Cytoscape.js graph (v3.30.2, MIT, vendored under madd/assets/
+  like the 3D viewer) built by madd/claim_graph.py from the
+  frozen record and served at /api/runs/<id>/claim-graph.
+  Tapping a claim shows its text, supporting quote, verification
+  status, and strike reasons. Struck claims are per
+  dossier-claim instance, carry only what strike entries record,
+  and collapse into per-reason aggregate nodes past 150 strikes;
+  edges are labelled cites / in spec because that is what the
+  record establishes.
 - Retraction and correction surveillance (the second of the
   three researched features): `madd retraction-watch` re-checks
   every DOI and PMID cited in the runs directory's frozen records

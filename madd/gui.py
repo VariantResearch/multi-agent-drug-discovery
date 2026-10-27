@@ -514,7 +514,9 @@ def make_handler(manager: RunManager):
             library), by whitelist so no other file is reachable."""
             from pathlib import Path
             known = {"3Dmol-min.js": "text/javascript",
-                     "3Dmol-min.js.LICENSE.txt": "text/plain"}
+                     "3Dmol-min.js.LICENSE.txt": "text/plain",
+                     "cytoscape.min.js": "text/javascript",
+                     "cytoscape.min.js.LICENSE.txt": "text/plain"}
             name = path[len("/assets/"):]
             if name not in known:
                 return _json(self, {"error": "not found"}, 404)
@@ -635,6 +637,10 @@ def make_handler(manager: RunManager):
                 from .audit_flow import audit_flow_of_bundle
                 return _json(self, {
                     "audit_flow": audit_flow_of_bundle(bundle)})
+            if parts[3] == "claim-graph" and len(parts) == 4:
+                from .claim_graph import claim_graph_of_bundle
+                return _json(self, {
+                    "claim_graph": claim_graph_of_bundle(bundle)})
             if parts[3] == "transcript" and len(parts) == 5:
                 record = (bundle.get("case_records") or {}).get(parts[4])
                 if record is None and bundle.get("kind") == "frame_run":
@@ -944,6 +950,7 @@ PAGE = """<!DOCTYPE html>
   <div id="library">loading...</div>
   <div id="detail"></div></div>
 <script src="/assets/3Dmol-min.js"></script>
+<script src="/assets/cytoscape.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 function esc(s) {
@@ -1047,6 +1054,56 @@ function flowHtml(flow) {
   });
   return h + "</div><div class='mut'>" + esc(flow.note) + "</div>";
 }
+function renderClaimGraph(runId) {
+  const box = document.getElementById('cybox');
+  if (!box || typeof cytoscape === 'undefined') return;
+  fetch('/api/runs/' + encodeURIComponent(runId) + '/claim-graph')
+    .then(function (r) { return r.json(); })
+    .then(function (g) {
+      if (!g.claim_graph || !g.claim_graph.nodes.length) return;
+      box.innerHTML = "<div class='mut'>claim graph: sources, claims "
+        + "and the specification as recorded; tap a node to inspect "
+        + "it</div><div id='cy' style='height:420px;border:1px solid "
+        + "#345;border-radius:6px'></div><div id='cyinfo' "
+        + "style='margin-top:6px'></div>";
+      const cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: g.claim_graph.nodes.concat(g.claim_graph.edges),
+        style: [
+          { selector: 'node', style: { 'label': 'data(label)',
+            'color': '#e8e8f0', 'font-size': 9,
+            'background-color': '#4a6fa5', 'text-wrap': 'wrap',
+            'text-max-width': 90 } },
+          { selector: 'node[kind = "source"]', style: {
+            'background-color': '#2e7d5b', 'shape': 'round-rectangle' } },
+          { selector: 'node[kind = "spec"]', style: {
+            'background-color': '#7a4fd0', 'shape': 'diamond' } },
+          { selector: 'node[status = "struck"]', style: {
+            'background-color': '#8a3049' } },
+          { selector: 'node[status = "contested"]', style: {
+            'background-color': '#b58900' } },
+          { selector: 'edge', style: { 'label': 'data(label)',
+            'font-size': 8, 'color': '#9a9ab5', 'line-color': '#556',
+            'target-arrow-color': '#556',
+            'target-arrow-shape': 'triangle',
+            'curve-style': 'bezier' } }
+        ],
+        layout: { name: 'breadthfirst', directed: true, padding: 12 }
+      });
+      cy.on('tap', 'node', function (evt) {
+        const d = evt.target.data();
+        let t = '<b>' + esc(d.label || d.id) + '</b>';
+        if (d.text) t += '<br>' + esc(d.text);
+        if (d.quote) t += '<br><i>' + esc(d.quote) + '</i>';
+        if (d.verification) t += '<br>verification: ' +
+          esc(d.verification);
+        if (d.reasons && d.reasons.length) t += '<br>strike reasons: ' +
+          esc(d.reasons.join(', '));
+        if (d.dossier) t += '<br>dossier: ' + esc(d.dossier);
+        document.getElementById('cyinfo').innerHTML = t;
+      });
+    }).catch(function () { });
+}
 async function show(runId) {
   const b = await (await fetch('/api/runs/' + encodeURIComponent(runId))).json();
   let h = "<h2>RUN " + esc(runId) + "</h2>";
@@ -1113,7 +1170,7 @@ async function show(runId) {
   }
   try {
     const af = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/audit-flow')).json();
-    if (af.audit_flow) h += flowHtml(af.audit_flow);
+    if (af.audit_flow) h += flowHtml(af.audit_flow) + "<div id='cybox'></div>";
   } catch (err) { }
   try {
     const ev = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/events')).json();
@@ -1129,6 +1186,7 @@ async function show(runId) {
   });
   initViewer3d(runId, b);
   initBuildGuide(runId, b);
+  renderClaimGraph(runId);
   const db = $('designbtn');
   if (db) db.addEventListener('click', function () { designFrom(runId); });
 }

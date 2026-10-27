@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (447 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (451 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -389,6 +389,14 @@ madd/            the package (standard library only)
                      outcome and consensus tally); counts are the
                      record's own and unrecorded remainders are
                      stated, never estimated
+  claim_graph.py     the console's claim graph: sources, claims
+                     (in spec, contested, struck) and the
+                     specification as Cytoscape.js elements built
+                     from the frozen record, with tap-to-inspect
+                     node data; struck claims collapse by reason
+                     past 150 so large audits stay readable, and
+                     struck nodes carry only what strike entries
+                     record (id, dossier, reasons)
   assay.py           assay design output: from a design run, a
                      concrete assay plan per top candidate
                      (assays, readouts, controls, dose layout, and
