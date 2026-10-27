@@ -21,8 +21,8 @@ This repository contains the complete working application: the target-first pipe
 A target run (`madd target-run`) takes one named target through the whole pipeline:
 
 0. Pre-registers itself. Before anything runs, the target, the question, the panel's model identities, and what will count as a lock are hashed into a small record written alongside the runs (`--no-prereg` skips it). The finished bundle carries the hash, and `madd prereg-verify` later confirms the run answered the question declared up front. The record states its own limit: it proves declaration-before-execution, not that no undeclared runs happened.
-1. Frames the target. Evidence is retrieved for it from Europe PMC, and the frame carries those sources as the evidence set the panel may cite.
-2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a registry identifier: PubMed, DOI, ClinicalTrials.gov, Europe PMC, GWAS Catalog, ChEMBL, PubChem, or UniProt), its evidence tier, and a supporting quote.
+1. Frames the target. Evidence is retrieved for it from Europe PMC, plus its Open Targets target-disease association when the target and disease resolve there, and the frame carries those sources as the evidence set the panel may cite.
+2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a registry identifier: PubMed, DOI, ClinicalTrials.gov, Europe PMC, GWAS Catalog, ChEMBL, PubChem, UniProt, or an Open Targets target-disease association), its evidence tier, and a supporting quote.
 3. Runs an evidence call. A claim ledger audit and a citation audit strike any claim that is unsourced, sourced to model opinion, malformed, or - when live resolution is switched on - pointing at a registry record that does not exist. Struck claims take no further part.
 4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, and one evolution round that merges the best material.
 5. Applies the consensus tests (agreement, survival, evidence floor, and stability under a judge swap where the run's protocol mode has a judge). Only when every applied test passes does the run lock a design specification for the target. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away, and no design work starts.
@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (343 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (348 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -65,7 +65,7 @@ python3 -m madd check-tool Boltz-2
 python3 -m madd resolve-citations examples/synthetic/dossier.json
 ```
 
-The first four run offline. resolve-citations makes live lookups against the registry that owns each identifier: PubMed (pmid), Crossref (doi), ClinicalTrials.gov (nct), Europe PMC (pmcid and preprint PPR ids), the GWAS Catalog v2 API (gcst study accessions and rsIDs), ChEMBL (chembl molecule ids), PubChem (pubchem_cid), and UniProt (uniprot accessions). On this invented dossier it correctly reports the invented identifiers as not found or badly formatted, since none of them exist in any registry. With --check-quotes it goes one step further for quote_checked claims: the claim's supporting quote is searched in the source's abstract in the Europe PMC record and in its open-access full text when Europe PMC has it. A quote found in either place is reported quote_found. A quote absent from both, when the full text was actually retrieved, is reported quote_not_found; a source with no open full text whose quote is also absent from its abstract is reported full_text_unavailable, which proves nothing either way. The abstract can clear a quote but never strike one.
+The first four run offline. resolve-citations makes live lookups against the registry that owns each identifier: PubMed (pmid), Crossref (doi), ClinicalTrials.gov (nct), Europe PMC (pmcid and preprint PPR ids), the GWAS Catalog v2 API (gcst study accessions and rsIDs), ChEMBL (chembl molecule ids), PubChem (pubchem_cid), UniProt (uniprot accessions), and the Open Targets Platform (opentargets association ids, an Ensembl target id and a disease id joined by a colon, resolved over its GraphQL API). On this invented dossier it correctly reports the invented identifiers as not found or badly formatted, since none of them exist in any registry. With --check-quotes it goes one step further for quote_checked claims: the claim's supporting quote is searched in the source's abstract in the Europe PMC record and in its open-access full text when Europe PMC has it. A quote found in either place is reported quote_found. A quote absent from both, when the full text was actually retrieved, is reported quote_not_found; a source with no open full text whose quote is also absent from its abstract is reported full_text_unavailable, which proves nothing either way. The abstract can clear a quote but never strike one.
 
 ## The MADD Console (GUI)
 
@@ -297,6 +297,9 @@ madd/            the package (standard library only)
   resolve.py         live citation resolution (PubMed, Crossref, ClinicalTrials.gov,
                      Europe PMC, GWAS Catalog, ChEMBL, PubChem, UniProt),
                      retraction flags, and full-text quote checking
+  opentargets.py     the Open Targets Platform as an evidence source:
+                     target-disease associations resolved live over
+                     its GraphQL API and retrieved into target frames
   entailment.py      judged claim-versus-quote entailment verdicts
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests

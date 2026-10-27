@@ -377,6 +377,12 @@ def resolve_identifier(identifier, identifier_type, fetcher=None) -> dict:
         status = "unknown_type" if fmt["code"] == "unknown_identifier_type" else "format_invalid"
         return dict(base, status=status, detail=fmt["message"])
     itype = str(identifier_type).strip().lower()
+    if itype == "opentargets":
+        # The Open Targets API answers GraphQL over POST only, so
+        # this type resolves through its own module and transport;
+        # the GET fetcher does not apply.
+        from .opentargets import resolve_association
+        return resolve_association(identifier)
     url = _url_for(itype, identifier)
     base["registry"] = urllib.parse.urlparse(url).hostname
     try:

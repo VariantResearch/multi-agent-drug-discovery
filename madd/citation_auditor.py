@@ -22,11 +22,13 @@ RSID_RE = re.compile(r"^rs\d+$")
 CHEMBL_RE = re.compile(r"^CHEMBL\d+$")
 PUBCHEM_CID_RE = re.compile(r"^\d+$")
 UNIPROT_RE = re.compile(r"^([A-Z][0-9][A-Z0-9]{3}[0-9]|[A-Z0-9]{6,10})$")
+OPENTARGETS_RE = re.compile(r"^ENSG[0-9]{11}:(EFO|MONDO)_[0-9]{7}$")
 
 PATTERNS = {"doi": DOI_RE, "pmid": PMID_RE, "nct": NCT_RE,
             "pmcid": PMCID_RE, "preprint": PREPRINT_RE, "gcst": GCST_RE,
             "rsid": RSID_RE, "chembl": CHEMBL_RE,
-            "pubchem_cid": PUBCHEM_CID_RE, "uniprot": UNIPROT_RE}
+            "pubchem_cid": PUBCHEM_CID_RE, "uniprot": UNIPROT_RE,
+            "opentargets": OPENTARGETS_RE}
 
 
 def check_identifier(identifier, identifier_type) -> dict:

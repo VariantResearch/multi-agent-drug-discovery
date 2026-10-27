@@ -27,7 +27,7 @@ Your task: study the frame and the evidence supplied with it, decide which singl
 Rules you must follow:
 - Use only the evidence supplied in the frame and the case pack. Do not rely on outcomes you may happen to remember: judge the program as of the evidence_as_of date.
 - Advancing to a locked specification is a strong claim: it means the evidence supports this program, its target and its approach together. Evidence that a target is present in, or associated with, a disease does not by itself make that case. If the pack leaves the intervention's own effect untested, or the step from the target evidence to this intervention unestablished, record that in unverified_notes and let it weigh against advancing.
-- Every claim you mark load_bearing must carry a source_identifier and identifier_type taken from a real source in the supplied evidence, plus a short supporting_quote from that source. Never invent an identifier, a quote, or a number. Identifier types: pmid, doi, nct, pmcid, preprint (Europe PMC PPR id), gcst and rsid (GWAS Catalog), chembl (ChEMBL molecule id), pubchem_cid (PubChem compound id), uniprot (UniProt accession).
+- Every claim you mark load_bearing must carry a source_identifier and identifier_type taken from a real source in the supplied evidence, plus a short supporting_quote from that source. Never invent an identifier, a quote, or a number. Identifier types: pmid, doi, nct, pmcid, preprint (Europe PMC PPR id), gcst and rsid (GWAS Catalog), chembl (ChEMBL molecule id), pubchem_cid (PubChem compound id), uniprot (UniProt accession), opentargets (an Open Targets target-disease association, cited as Ensembl id:disease id; its score is the Platform's integration of its evidence types, not a primary measurement).
 - If you cannot source a claim, either mark it load_bearing false with verification_status "unverified", or leave it out. Claims sourced from your own opinion are worthless here and will be struck.
 - evidence_tier: 1 human causal genetics, 2 human clinical or randomised evidence, 3 human observational or biomarker evidence, 4 animal or in-vivo evidence, 5 in-vitro, computational, or other indirect evidence.
 - verification_status: use "quote_checked" only when your supporting_quote is copied from the supplied evidence; otherwise "unverified".
@@ -39,7 +39,7 @@ Return ONLY a JSON object with these fields:
  "claims": [{"claim_id": string, "text": string, "load_bearing": boolean,
              "evidence_tier": integer 1-5, "source_kind": string,
              "source_identifier": string or null,
-             "identifier_type": "pmid" | "doi" | "nct" | "pmcid" | "preprint" | "gcst" | "rsid" | "chembl" | "pubchem_cid" | "uniprot",
+             "identifier_type": "pmid" | "doi" | "nct" | "pmcid" | "preprint" | "gcst" | "rsid" | "chembl" | "pubchem_cid" | "uniprot" | "opentargets",
              "verification_status": "unverified" | "quote_checked",
              "supporting_quote": string}],
  "unverified_notes": [string]}

@@ -58,6 +58,7 @@ from .license_registry import check_tool
 from .providers import MockProvider
 from .providers_http import ProviderError
 from .resolve import check_quote_against_source, resolve_document
+from .opentargets import evidence_for_frame
 from .retrieval import retrieve_evidence
 from .runner import estimate_gate0_run, run_frame, run_gate0
 from .target_run import TARGET_KINDS, build_target_frame, run_target
@@ -468,10 +469,12 @@ def _cmd_target_run(args) -> int:
         retrieval_first = bool(built.get("retrieval_first"))
         if not args.no_retrieve:
             entries = retrieve_evidence(frame)
-            frame["evidence"] = entries
+            ot_entries = evidence_for_frame(frame)
+            frame["evidence"] = entries + ot_entries
             retrieval_first = True
             print("retrieved evidence:", len(entries),
-                  "sources from Europe PMC")
+                  "sources from Europe PMC,", len(ot_entries),
+                  "association from Open Targets")
         tracker = run_budget_tracker(built)
         bundle = run_target(
             frame, built["providers"], judge_provider=built["judge"],
@@ -519,9 +522,12 @@ def _cmd_run_frame(args) -> int:
         retrieval_first = bool(built.get("retrieval_first"))
         if getattr(args, "retrieve", False):
             entries = retrieve_evidence(frame)
-            frame["evidence"] = entries
+            ot_entries = evidence_for_frame(frame)
+            frame["evidence"] = entries + ot_entries
             retrieval_first = True
-            print("retrieved evidence:", len(entries), "sources from Europe PMC")
+            print("retrieved evidence:", len(entries),
+                  "sources from Europe PMC,", len(ot_entries),
+                  "association from Open Targets")
         tracker = run_budget_tracker(built)
         bundle = run_frame(frame, built["providers"],
                            judge_provider=built["judge"],

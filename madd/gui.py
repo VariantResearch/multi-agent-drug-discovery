@@ -73,6 +73,7 @@ from .config import (ConfigError, build_providers,
 from .design import ModelDesigner, run_design
 from .html_report import bundle_to_html
 from .report_pdf import render_report_pdf
+from .opentargets import evidence_for_frame
 from .retrieval import retrieve_evidence
 from .smoke import smoke_provider
 from .storage import list_runs, load_bundle, write_bundle
@@ -354,7 +355,8 @@ class RunManager:
                 focus_id=payload.get("focus_id") or None)
             retrieval_first = bool(built.get("retrieval_first"))
             if payload.get("retrieve", True):
-                frame["evidence"] = retrieve_evidence(frame)
+                frame["evidence"] = (retrieve_evidence(frame)
+                                     + evidence_for_frame(frame))
                 retrieval_first = True
             tracker = run_budget_tracker(built)
             self.current_tracker = tracker

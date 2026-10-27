@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 1, 2026-10-26)
+
+- Open Targets as an evidence source (madd/opentargets.py),
+  the first item of the competitive-gap implementation list.
+  Target-disease associations from the Open Targets Platform
+  are now citable claims: the identifier is the Ensembl target
+  id and disease id joined by a colon (identifier_type
+  "opentargets"), live resolution re-queries the Platform's
+  GraphQL API for exactly that pair, and a pair with no
+  association does not resolve. Target runs (CLI and console)
+  retrieve the frame's association at framing time beside the
+  Europe PMC set, carrying the overall score and the
+  per-datatype breakdown, labelled as the Platform's integrated
+  score, not a primary measurement. The API answers GraphQL
+  over POST only, so the source carries its own injectable
+  transport rather than riding the resolver's GET fetcher.
+
 ### Added (the nine-item build, 2026-10-26)
 
 - Cooperative stop: debates, frame runs, Gate 0 runs, and target
