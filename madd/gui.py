@@ -641,6 +641,10 @@ def make_handler(manager: RunManager):
                 from .claim_graph import claim_graph_of_bundle
                 return _json(self, {
                     "claim_graph": claim_graph_of_bundle(bundle)})
+            if parts[3] == "workbench" and len(parts) == 4:
+                from .workbench import workbench_of_bundle
+                return _json(self, {
+                    "workbench": workbench_of_bundle(bundle)})
             if parts[3] == "transcript" and len(parts) == 5:
                 record = (bundle.get("case_records") or {}).get(parts[4])
                 if record is None and bundle.get("kind") == "frame_run":
@@ -1054,6 +1058,51 @@ function flowHtml(flow) {
   });
   return h + "</div><div class='mut'>" + esc(flow.note) + "</div>";
 }
+function renderWorkbench(runId) {
+  const box = document.getElementById('wbbox');
+  if (!box) return;
+  fetch('/api/runs/' + encodeURIComponent(runId) + '/workbench')
+    .then(function (r) { return r.json(); })
+    .then(function (g) {
+      if (!g.workbench) return;
+      const wb = g.workbench;
+      let h = "<h3>CANDIDATE COMPARISON</h3><table><tr><th>property</th>";
+      for (const c of wb.columns) {
+        h += "<th>" + esc(c.candidate_id) + "<br><span class='mut'>" +
+          esc(c.modality || "") + (c.production_ready ? " | ready" :
+          " | not ready") + "</span></th>";
+      }
+      h += "</tr>";
+      let lastGroup = "";
+      for (const row of wb.rows) {
+        if (row.group !== lastGroup) {
+          lastGroup = row.group;
+          h += "<tr><td colspan='" + (wb.columns.length + 1) +
+            "' class='mut'>" + esc(row.group) + "</td></tr>";
+        }
+        h += "<tr><td>" + esc(row.name) + "</td>";
+        row.values.forEach(function (v, i) {
+          const best = row.best_index === i;
+          h += "<td" + (best ? " style='background:#14532d'" : "") + ">" +
+            (v === null || v === undefined ? "<span class='mut'>-</span>"
+             : esc(String(v))) +
+            (row.deltas && row.deltas[i] !== null && i > 0 ?
+              "<br><span class='mut'>(" + (row.deltas[i] > 0 ? "+" : "") +
+              row.deltas[i] + " vs rank 1)</span>" : "") + "</td>";
+        });
+        h += "</tr>";
+      }
+      h += "</table>";
+      for (const c of wb.columns) {
+        if (c.note) h += "<div class='mut'>" + esc(c.candidate_id) +
+          ": " + esc(c.note) + "</div>";
+      }
+      if (wb.radar_svg) h += "<div style='margin-top:8px'>" +
+        wb.radar_svg + "</div>";
+      h += "<div class='mut'>" + esc(wb.note) + "</div>";
+      box.innerHTML = h;
+    }).catch(function () { });
+}
 function renderClaimGraph(runId) {
   const box = document.getElementById('cybox');
   if (!box || typeof cytoscape === 'undefined') return;
@@ -1172,6 +1221,7 @@ async function show(runId) {
     const af = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/audit-flow')).json();
     if (af.audit_flow) h += flowHtml(af.audit_flow) + "<div id='cybox'></div>";
   } catch (err) { }
+  h += "<div id='wbbox'></div>";
   try {
     const ev = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/events')).json();
     if (ev.events && ev.events.length) {
@@ -1187,6 +1237,7 @@ async function show(runId) {
   initViewer3d(runId, b);
   initBuildGuide(runId, b);
   renderClaimGraph(runId);
+  renderWorkbench(runId);
   const db = $('designbtn');
   if (db) db.addEventListener('click', function () { designFrom(runId); });
 }

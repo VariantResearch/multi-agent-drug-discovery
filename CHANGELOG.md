@@ -4,6 +4,20 @@
 
 ### Added
 
+- Candidate comparison workbench in the console (the fourth
+  researched feature, built after its data audit): for a designed
+  run, ranked candidates as columns over grouped rows - identity
+  from the production sheets, RDKit descriptors, ADMET-AI
+  endpoints, designer predictions - built by madd/workbench.py
+  and served at /api/runs/<id>/workbench, with a delta-from-rank-1
+  column, best-value marks only under the direction conventions
+  declared in the module, a min-max radar of the small molecules'
+  RDKit descriptors, and no composite score. The audit behind it:
+  both designed runs carry a uniform computed set within a
+  modality (same RDKit and ADMET-AI versions for both small
+  molecules), the ASO candidates carry designer predictions only
+  (their computed cells render as explicit gaps, never zeroes),
+  and bundles store no docking poses, so there is no pose overlay.
 - Claim graph in the console run detail (the third researched
   feature): sources, claims, and the specification rendered as a
   Cytoscape.js graph (v3.30.2, MIT, vendored under madd/assets/
