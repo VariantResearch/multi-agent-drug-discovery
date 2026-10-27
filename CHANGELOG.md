@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The console is now purely the product interface, at the
+  owner's direction: Gate 0 and the prefilled MTCH2 are removed
+  from it. Gate 0 is a validation set, not the product - it
+  remains fully available from the CLI (gate0-validate,
+  run-gate0, and the calibration command) to validate a setup
+  and calibrate it, but the console's scoreboard panel, run
+  control (check / dry run / run Gate 0), Gate 0 detail view,
+  and calibration panel are gone, its endpoints return 404,
+  and Gate 0 bundles are no longer listed in the run library.
+  The target form opens blank: the preset target chips (MTCH2
+  and the Gate 0 case targets) are removed, and the bundled
+  MTCH2 AlphaFold receptor no longer ships - the receptor
+  registry mechanism remains, empty, so a design's receptor
+  view states none on file instead of showing a preloaded
+  example protein. The design-from-a-run action now runs on
+  the saved setup's models when no config is named. The
+  `gui --gate0-dir` option is removed with the surface it fed.
+
 ### Added
 
 - Three feature sets from the owner's research commission

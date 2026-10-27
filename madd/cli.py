@@ -548,8 +548,7 @@ def _cmd_gui(args) -> int:
     """gui handler: serve the MADD Console web interface locally
     until interrupted."""
     from .gui import serve
-    serve(host=args.host, port=args.port, runs_dir=args.runs_dir,
-          gate0_dir=args.gate0_dir)
+    serve(host=args.host, port=args.port, runs_dir=args.runs_dir)
     return 0
 
 
@@ -765,7 +764,6 @@ def build_parser() -> argparse.ArgumentParser:
     p18 = sub.add_parser("gui"); p18.add_argument("--port", type=int, default=8765)
     p18.add_argument("--host", default="127.0.0.1")
     p18.add_argument("--runs-dir", default="runs")
-    p18.add_argument("--gate0-dir", default=None)
     p18.set_defaults(fn=_cmd_gui)
     return parser
 

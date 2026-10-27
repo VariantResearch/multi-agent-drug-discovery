@@ -22,8 +22,7 @@ def gui_server(tmp_path):
     """Provide the running console server on a temporary runs dir."""
     runs = tmp_path / "runs"
     runs.mkdir()
-    server = create_server("127.0.0.1", 0, runs_dir=str(runs),
-                           gate0_dir=None)
+    server = create_server("127.0.0.1", 0, runs_dir=str(runs))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield "http://127.0.0.1:" + str(server.server_address[1]), runs
@@ -47,7 +46,7 @@ def _mock_slot():
 
 def test_manager_wait_events_wakes_on_append(tmp_path):
     """wait_events returns promptly when an event lands mid-wait."""
-    manager = RunManager(str(tmp_path), None)
+    manager = RunManager(str(tmp_path))
     with manager.lock:
         manager.running = True
 
@@ -72,7 +71,7 @@ def test_manager_wait_events_wakes_on_append(tmp_path):
 
 def test_manager_persist_events_writes_jsonl(tmp_path):
     """The run folder gains an events.jsonl replay of the stream."""
-    manager = RunManager(str(tmp_path), None)
+    manager = RunManager(str(tmp_path))
     manager._on_event({"event": "run_started", "run_id": "r1"})
     manager._on_event({"event": "debate_case_done", "case_id": "c1"})
     run_dir = tmp_path / "r1"

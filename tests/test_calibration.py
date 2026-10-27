@@ -2,18 +2,16 @@
 over Gate 0 bundles against the sealed outcomes.
 
 Synthetic records pin the bucketing and counting math; a stub
-Gate 0 run and the console endpoint cover the real shapes.
+Gate 0 run and the CLI cover the real shapes. (Calibration is a
+CLI tool: the console carries no Gate 0 surface.)
 """
 import json
-import threading
-import urllib.request
+import subprocess
+import sys
+from pathlib import Path
 
-import pytest
-
-from madd import storage
 from madd.calibration import (calibration_report, case_bucket,
                               format_calibration)
-from madd.gui import create_server
 from madd.runner import run_gate0
 from tests.test_runner import CaseStub, DRUGS, GATE0
 
@@ -80,30 +78,19 @@ def test_report_over_a_real_stub_bundle():
         "cases": 8, "correct": 4, "accuracy": 0.5}
 
 
-@pytest.fixture()
-def gui_server(tmp_path):
-    """Provide the console server with one stored stub Gate 0 run."""
-    runs = tmp_path / "runs"
-    runs.mkdir()
+def test_calibration_cli_over_a_bundle_file(tmp_path):
+    """The CLI prints the table for a bundle file on disk."""
     a = CaseStub("a", set(DRUGS.values()))
     b = CaseStub("b", set(DRUGS.values()))
     bundle = run_gate0([a, b], judge_provider=CaseStub("j", set(DRUGS.values())),
                        baseline_provider=CaseStub("base", set()),
-                       gate0_dir=GATE0, run_id="test-calib-gui")
-    storage.write_bundle(bundle, runs)
-    server = create_server("127.0.0.1", 0, runs_dir=str(runs),
-                           gate0_dir=str(GATE0))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield "http://127.0.0.1:" + str(server.server_address[1])
-    server.shutdown()
-
-
-def test_console_calibration_endpoint(gui_server):
-    """The endpoint aggregates the stored Gate 0 bundles."""
-    with urllib.request.urlopen(gui_server + "/api/calibration",
-                                timeout=30) as resp:
-        report = json.loads(resp.read().decode())
-    assert report["runs"] == 1
-    assert report["overall"]["cases"] == 8
-    assert report["overall"]["accuracy"] == 0.5
+                       gate0_dir=GATE0, run_id="test-calib-cli")
+    path = tmp_path / "bundle.json"
+    path.write_text(json.dumps(bundle))
+    out = subprocess.run(
+        [sys.executable, "-m", "madd", "calibration", str(path)],
+        capture_output=True, text=True,
+        cwd=str(Path(__file__).resolve().parent.parent))
+    assert out.returncode == 0
+    assert "mode legacy: 4/8 correct (accuracy 0.5)" in out.stdout
+    assert "unanimous    4/8 (accuracy 0.5)" in out.stdout

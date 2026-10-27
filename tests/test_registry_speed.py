@@ -169,7 +169,7 @@ def test_console_enables_the_registry_cache(tmp_path, monkeypatch):
     from madd.gui import RunManager
     monkeypatch.delenv("MADD_REGISTRY_CACHE", raising=False)
     try:
-        RunManager(str(tmp_path), None)
+        RunManager(str(tmp_path))
         assert os.environ["MADD_REGISTRY_CACHE"].endswith(
             "registry-cache.sqlite3")
     finally:

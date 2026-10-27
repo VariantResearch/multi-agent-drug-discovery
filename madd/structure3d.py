@@ -11,7 +11,7 @@ not a docked pose; nothing here asserts the molecule adopts it.
 
 The module also serves receptor structures shipped with the
 package (assets/receptors/), keyed by target name: today that is
-the AlphaFold predicted model for human MTCH2, labelled predicted
+a registered predicted model, labelled predicted
 wherever it is used. A target with no shipped structure gets an
 honest none. Molecule and receptor are always separate models for
 separate views - no run here docks anything, so no binding pose is
@@ -164,29 +164,24 @@ def smiles_to_sdf(smiles: str) -> dict:
     return {"status": "ok", "sdf": buffer.getvalue()}
 
 
-# Receptor structures shipped with the package, keyed by the target
-# name they belong to. A target with no entry simply has no receptor
-# on file; the console says so rather than substituting another
-# protein. Every entry names its kind plainly: a predicted model is
-# labelled predicted, never presented as an experimental structure.
-RECEPTORS = {
-    "MTCH2": {
-        "file": "receptors/mtch2_alphafold.pdb",
-        "label": "MTCH2 (human, UniProt Q9Y6C9)",
-        "kind": "predicted",
-        "detail": ("AlphaFold predicted model AF-Q9Y6C9-F1 v6, mean "
-                   "pLDDT 86.3; not an experimental structure"),
-        "source": "AlphaFold Protein Structure Database (CC BY 4.0)",
-    },
-}
+# Receptor structures registered with the package, keyed by the
+# target name they belong to. None ship today: the application
+# opens blank, for the operator's own targets, and a target with
+# no entry simply has no receptor on file - the console says so
+# rather than substituting another protein or preloading an
+# example target. When a structure is registered, its entry
+# names its kind plainly: a predicted model is labelled
+# predicted, never presented as an experimental structure.
+RECEPTORS = {}
 
 
 def receptor_for_target(target) -> dict:
     """The receptor structure on file for a target name, or None.
 
-    Matches the target name against the shipped registry
-    (normalizing case, spaces, and parentheticals, so a brief
-    target of "MTCH2 (inhibition)" matches the MTCH2 entry).
+    Matches the target name against the registry (normalizing
+    case, spaces, and parentheticals). The registry ships empty,
+    so this returns None for every target until a structure is
+    registered.
     Returns the registry metadata plus the PDB text, or None when
     no structure is on file for the target.
     """

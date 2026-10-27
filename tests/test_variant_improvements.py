@@ -135,8 +135,7 @@ def gui_server(tmp_path):
     runs = tmp_path / "runs"
     runs.mkdir()
     storage.write_bundle(_frame_bundle(), runs)
-    server = create_server("127.0.0.1", 0, runs_dir=str(runs),
-                           gate0_dir=None)
+    server = create_server("127.0.0.1", 0, runs_dir=str(runs))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield "http://127.0.0.1:" + str(server.server_address[1])

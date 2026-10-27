@@ -73,9 +73,15 @@ def _frame():
 
 
 def test_a1_console_passes_all_four_evidence_switches(tmp_path):
-    """A1: a console Gate 0 run wires resolver, quote checker,
-    entailment checker, and retrieval_first from the config,
-    exactly as the CLI does."""
+    """A1: a Gate 0 run wires resolver, quote checker, entailment
+    checker, and retrieval_first from the config. Written against
+    the console's run path; the console no longer runs Gate 0
+    (the owner's call: Gate 0 is CLI validation tooling), so the
+    probe now targets the surviving CLI path, which shares the
+    same run_config_kwargs wiring."""
+    from types import SimpleNamespace
+
+    from madd import cli
     config = {"providers": [{"name": "a", "kind": "mock", "label": "a"},
                             {"name": "b", "kind": "mock", "label": "b"}],
               "judge": {"name": "j", "kind": "mock", "label": "j"},
@@ -86,17 +92,21 @@ def test_a1_console_passes_all_four_evidence_switches(tmp_path):
     cfg = tmp_path / "synthetic.json"
     cfg.write_text(json.dumps(config))
     captured = {}
-    original = gui.run_gate0
 
-    def capture(*args, **kwargs):
-        """Record the runner invocation, then run it for real."""
+    def capture(providers, **kwargs):
+        """Record the runner invocation, then run it for real
+        (mock providers keep it offline and fast)."""
         captured.update(kwargs)
-        return original(*args, **kwargs)
+        kwargs.pop("on_event", None)
+        return run_gate0(providers, **kwargs)
 
-    manager = gui.RunManager(str(tmp_path), None)
-    with patch.object(gui, "run_gate0", capture):
-        manager._run_gate0(str(cfg))
-    assert manager.error is None
+    args = SimpleNamespace(config=str(cfg), dry_run=False, out=None,
+                           gate0_dir=None, jobs=None)
+    with patch.object(cli, "run_gate0", capture):
+        code = cli._cmd_run_gate0(args)
+    # Exit 1: the run completed and failed its thresholds, as
+    # mock panels do; 2 would mean the run itself stopped.
+    assert code == 1
     assert callable(captured.get("resolver"))
     assert callable(captured.get("quote_checker"))
     assert callable(captured.get("entailment_checker"))

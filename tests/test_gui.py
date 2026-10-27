@@ -60,42 +60,49 @@ class TestGui(unittest.TestCase):
         self.assertIn("#ff71ce", page)
         self.assertIn("laser", page)
 
-    def test_gate0_api(self):
-        """Gate0 api."""
-        data = json.loads(_request(self.base + "/api/gate0"))
-        self.assertTrue(data["ok"])
-        self.assertEqual(len(data["cases"]), 8)
+    def test_gate0_is_not_part_of_the_console(self):
+        """The console carries no Gate 0 surface: the scoreboard,
+        run, check, and dry-run endpoints are gone (404), and the
+        page has no Gate 0 panel and no prefilled MTCH2."""
+        import urllib.error
+        for path in ("/api/gate0", "/api/run-gate0",
+                     "/api/providers-check", "/api/dry-run",
+                     "/api/calibration"):
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                _request(self.base + path,
+                         {"config": "x"} if "run" in path or "check" in path or "dry" in path else None)
+            self.assertEqual(ctx.exception.code, 404)
+        page = _request(self.base + "/")
+        self.assertNotIn("GATE 0 SCOREBOARD", page)
+        self.assertNotIn("RUN GATE 0", page)
+        self.assertNotIn("MTCH2", page)
+        self.assertNotIn("target-chips", page)
 
-    def test_check_dry_run_and_full_run_flow(self):
-        """Check dry run and full run flow."""
-        checked = json.loads(_request(self.base + "/api/providers-check",
-                                      {"config": str(self.config)}))
-        self.assertTrue(checked["ok"])
-        dry = json.loads(_request(self.base + "/api/dry-run",
-                                  {"config": str(self.config)}))
-        self.assertEqual(dry["estimate"]["total_calls"], 32)
-        started = json.loads(_request(self.base + "/api/run-gate0",
-                                      {"config": str(self.config)}))
-        self.assertTrue(started["started"])
-        deadline = time.time() + 30
-        progress = {}
-        while time.time() < deadline:
-            progress = json.loads(_request(self.base + "/api/progress"))
-            if not progress["running"] and progress["result"]:
-                break
-            time.sleep(0.2)
-        self.assertIsNotNone(progress["result"])
-        self.assertEqual(progress["result"]["outcome"], "fail")
-        self.assertTrue(any(e["event"] == "debate_case_done"
-                            for e in progress["events"]))
+    def test_library_excludes_gate0_bundles(self):
+        """Gate 0 bundles stored in the runs directory are not
+        listed in the console library; product runs are."""
+        from madd import storage
+        from madd.providers import MockProvider
+        from madd.runner import run_frame, run_gate0
+        from tests.test_runner import CaseStub, DRUGS, GATE0
+        frame = {"artifact_type": "frame", "schema_version": "0.1.0",
+                 "frame_id": "F-GUI", "question": "invented",
+                 "round_cap": 2}
+        frame_bundle = run_frame(
+            frame, [MockProvider("001"), MockProvider("002")],
+            run_id="gui-frame-1")
+        storage.write_bundle(frame_bundle, self.runs)
+        a = CaseStub("a", set(DRUGS.values()))
+        b = CaseStub("b", set(DRUGS.values()))
+        gate0_bundle = run_gate0(
+            [a, b], judge_provider=CaseStub("j", set(DRUGS.values())),
+            baseline_provider=CaseStub("base", set()), gate0_dir=GATE0,
+            run_id="gui-gate0-1")
+        storage.write_bundle(gate0_bundle, self.runs)
         runs = json.loads(_request(self.base + "/api/runs"))
-        self.assertEqual(len(runs["runs"]), 1)
-        run_id = runs["runs"][0]["run_id"]
-        report = _request(self.base + "/api/runs/" + run_id + "/report.html")
-        self.assertIn("#0a0a16", report)
-        transcript = _request(self.base + "/api/runs/" + run_id
-                              + "/transcript/evolocumab-pcsk9-cvd")
-        self.assertIn("Debate transcript", transcript)
+        ids = [entry["run_id"] for entry in runs["runs"]]
+        self.assertIn("gui-frame-1", ids)
+        self.assertNotIn("gui-gate0-1", ids)
 
 
 if __name__ == "__main__":

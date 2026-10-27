@@ -19,20 +19,20 @@ leaves the machine. One page, six panels:
   whether to retrieve Europe PMC evidence first; the run executes
   on the setup's models under the setup's protocol mode and lands
   in the run library like any other bundle.
-- RUN CONTROL: a config path, with Check, Dry run, and Run Gate 0
-  buttons, and a live console that renders the runner's progress
-  events as a run happens.
-- GATE 0 SCOREBOARD: dataset validation state and the case list.
-- RUN LIBRARY: every bundle in the runs directory; click one for its
-  scores, threshold checks, and case calls, with links to its styled
-  HTML report and per-case debate transcripts. A completed design
+- ACTIVITY: a live console that renders the runner's progress
+  events as a run happens (streamed; see the streaming note in
+  the RunManager docstring).
+- RUN LIBRARY: the product runs in the runs directory (Gate 0
+  validation bundles are CLI territory and are not listed here);
+  click one for its detail, with links to its styled HTML report
+  and debate transcripts. A completed design
   (a design run, or a target run whose design stage ran) also shows
   a fully rendered 3D structural view: the ranked drug candidate as
   a WebGL model (3Dmol.js, vendored under madd/assets/, geometry
   generated from its SMILES by madd/structure3d.py) beside the
-  receptor structure on file for the target when one is shipped -
-  today the AlphaFold predicted model for MTCH2, labelled
-  predicted, shown in its own view because no run docks the
+  receptor structure on file for the target when one is
+  registered - none ships today, so the receptor view states
+  that plainly - shown in its own view because no run docks the
   candidate and no binding pose is claimed. If the WebGL library
   cannot load, the view falls back to a canvas ball-and-stick
   rendering of the same coordinates. Sequence candidates have no
@@ -64,17 +64,14 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .budget import BudgetExceeded
-from .calibration import calibration_report
 from .config import (ConfigError, build_providers,
                      entailment_checker_from_config, load_config,
                      quote_checker_from_config, resolver_from_config,
                      run_budget_tracker, validate_config)
 from .design import ModelDesigner, run_design
-from .gate0 import list_case_ids, load_input_pack, validate_dataset
 from .html_report import bundle_to_html
 from .report_pdf import render_report_pdf
 from .retrieval import retrieve_evidence
-from .runner import estimate_gate0_run, run_gate0
 from .smoke import smoke_provider
 from .storage import list_runs, load_bundle, write_bundle
 from .target_run import build_target_frame, run_target
@@ -94,10 +91,9 @@ class RunManager:
     silently stacks runs would spend money silently.
     """
 
-    def __init__(self, runs_dir, gate0_dir):
-        """runs_dir receives finished bundles; gate0_dir locates the dataset."""
+    def __init__(self, runs_dir):
+        """runs_dir receives finished bundles."""
         self.runs_dir = runs_dir
-        self.gate0_dir = gate0_dir
         # The console is the long-lived process the registry cache
         # exists for: enable it into the runs directory unless the
         # operator already pointed it somewhere (or disabled it by
@@ -118,52 +114,6 @@ class RunManager:
         with self.lock:
             return {"running": self.running, "events": list(self.events),
                     "result": self.result, "error": self.error}
-
-    def start_gate0(self, config_path) -> dict:
-        """Validate the config path and launch a Gate 0 run thread."""
-        with self.lock:
-            if self.running:
-                return {"started": False, "error": "a run is already in progress"}
-            self.running = True
-            self.events = []
-            self.result = None
-            self.error = None
-        thread = threading.Thread(target=self._run_gate0,
-                                  args=(config_path,), daemon=True)
-        thread.start()
-        return {"started": True}
-
-    def _run_gate0(self, config_path):
-        """The run thread body: config, run with events, write bundle."""
-        try:
-            config = load_config(config_path)
-            built = build_providers(config)
-            tracker = run_budget_tracker(built)
-            bundle = run_gate0(
-                built["providers"], judge_provider=built["judge"],
-                swap_judge_provider=built.get("judge_swap"),
-                baseline_provider=built["baseline"], mode=built.get("mode"),
-                budget_tracker=tracker,
-                gate0_dir=self.gate0_dir,
-                resolver=resolver_from_config(built),
-                quote_checker=quote_checker_from_config(built),
-                entailment_checker=entailment_checker_from_config(built, tracker),
-                retrieval_first=bool(built.get("retrieval_first")),
-                on_event=self._on_event, max_workers=built["max_workers"])
-            run_dir = write_bundle(bundle, self.runs_dir)
-            self.persist_events(run_dir)
-            with self.lock:
-                self.result = {"run_id": bundle["run_id"],
-                               "outcome": bundle["outcome"],
-                               "debate_correct": bundle["debate_score"]["correct_calls"],
-                               "baseline_correct": bundle["baseline_score"]["correct_calls"],
-                               "run_dir": str(run_dir)}
-        except Exception as exc:
-            with self.lock:
-                self.error = type(exc).__name__ + ": " + str(exc)
-        finally:
-            with self.lock:
-                self.running = False
 
     def _on_event(self, event):
         """Append one runner progress event (called from the run thread)."""
@@ -491,34 +441,12 @@ def make_handler(manager: RunManager):
                 return self._asset(path)
             if path == "/":
                 return _text(self, PAGE, "text/html; charset=utf-8")
-            if path == "/api/gate0":
-                report = validate_dataset(manager.gate0_dir)
-                cases = []
-                for case_id in list_case_ids(manager.gate0_dir):
-                    pack = load_input_pack(case_id, manager.gate0_dir)
-                    cases.append({"case_id": case_id,
-                                  "disease": pack.get("disease"),
-                                  "drug_name": pack.get("drug_name"),
-                                  "target": pack.get("target")})
-                return _json(self, {"ok": report["ok"],
-                                    "error_count": report["error_count"],
-                                    "cases": cases})
             if path == "/api/setup":
                 return _json(self, manager.setup_status())
             if path == "/api/runs":
-                return _json(self, {"runs": list_runs(manager.runs_dir)})
-            if path == "/api/calibration":
-                bundles = []
-                for entry in list_runs(manager.runs_dir):
-                    if entry.get("kind") != "gate0_run":
-                        continue
-                    try:
-                        bundles.append(load_bundle(manager.runs_dir,
-                                                   entry["run_id"]))
-                    except Exception:
-                        continue
-                return _json(self, calibration_report(
-                    bundles, gate0_dir=manager.gate0_dir))
+                runs = [entry for entry in list_runs(manager.runs_dir)
+                        if entry.get("kind") != "gate0_run"]
+                return _json(self, {"runs": runs})
             if path == "/api/progress":
                 return _json(self, manager.progress())
             if path == "/api/events":
@@ -629,8 +557,7 @@ def make_handler(manager: RunManager):
 
         def do_POST(self):
             """Route POST actions: setup save and slot tests, target
-            run start, Gate 0 run start, design runs, config check,
-            and dry run."""
+            run start and design runs."""
             path = urlparse(self.path).path
             length = int(self.headers.get("Content-Length") or 0)
             try:
@@ -651,11 +578,6 @@ def make_handler(manager: RunManager):
                     return _json(self, {"started": False, "error":
                                         "a target name and kind are required"})
                 return _json(self, manager.start_target(payload))
-            config_path = payload.get("config")
-            if path == "/api/run-gate0":
-                if not config_path:
-                    return _json(self, {"error": "config path required"}, 400)
-                return _json(self, manager.start_gate0(config_path))
             if path == "/api/design-run":
                 run_id = payload.get("run_id")
                 if not run_id:
@@ -665,10 +587,6 @@ def make_handler(manager: RunManager):
                     if src.get("kind") == "frame_run":
                         spec = (src.get("record") or {}).get("spec")
                         source = "console, frame run " + str(run_id)
-                    elif src.get("kind") == "gate0_run" and payload.get("case"):
-                        spec = ((src.get("case_records") or {})
-                                .get(payload["case"]) or {}).get("spec")
-                        source = "console, gate 0 case " + str(payload["case"])
                     else:
                         spec = None
                         source = ""
@@ -677,8 +595,9 @@ def make_handler(manager: RunManager):
                                             "that run has no consensus spec to design from"})
                     designer = None
                     tracker = None
-                    if payload.get("config"):
-                        built = build_providers(load_config(payload["config"]))
+                    if payload.get("config") or manager.setup_path.exists():
+                        built = build_providers(load_config(
+                            payload.get("config") or str(manager.setup_path)))
                         tracker = run_budget_tracker(built)
                         designer = ModelDesigner(built["providers"],
                                                  budget_tracker=tracker)
@@ -697,38 +616,22 @@ def make_handler(manager: RunManager):
                 return _json(self, {"ok": True, "run_id": bundle["run_id"],
                                     "gate": bundle["gate_report"]["result"],
                                     "ranked": bundle["ranking"]["ranked"]})
-            if path in ("/api/providers-check", "/api/dry-run"):
-                try:
-                    config = load_config(config_path)
-                    built = build_providers(config)
-                except ConfigError as exc:
-                    return _json(self, {"ok": False, "error": str(exc)})
-                if path == "/api/providers-check":
-                    names = [getattr(p, "name", "?") for p in built["providers"]]
-                    return _json(self, {"ok": True, "providers": names,
-                                        "judge": built["judge"] is not None,
-                                        "baseline": built["baseline"] is not None})
-                estimate = estimate_gate0_run(built["providers"], built["judge"],
-                                              built["baseline"],
-                                              manager.gate0_dir,
-                                              swap_judge_provider=built.get("judge_swap"))
-                return _json(self, {"ok": True, "estimate": estimate})
             return _json(self, {"error": "not found"}, 404)
 
     return Handler
 
 
-def create_server(host="127.0.0.1", port=8765, runs_dir="runs", gate0_dir=None):
+def create_server(host="127.0.0.1", port=8765, runs_dir="runs"):
     """Create (but do not start) the console server."""
-    manager = RunManager(runs_dir, gate0_dir)
+    manager = RunManager(runs_dir)
     server = ThreadingHTTPServer((host, port), make_handler(manager))
     server.madd_manager = manager
     return server
 
 
-def serve(host="127.0.0.1", port=8765, runs_dir="runs", gate0_dir=None):
+def serve(host="127.0.0.1", port=8765, runs_dir="runs"):
     """Start the console and serve until interrupted. Prints the URL."""
-    server = create_server(host, port, runs_dir, gate0_dir)
+    server = create_server(host, port, runs_dir)
     print("MADD Console: http://" + host + ":" + str(server.server_address[1])
           + " (local only by default; Ctrl-C to stop)")
     try:
@@ -799,7 +702,6 @@ PAGE = """<!DOCTYPE html>
 </div>
 <div class="panel"><h2>TARGET RUN</h2>
   <div id="target-gate" class="mut"></div>
-  <div id="target-chips" style="margin:8px 0"></div>
   <div>name <input id="t-name" style="width:300px">
     kind <select id="t-kind">
       <option value="target">molecular target</option>
@@ -815,15 +717,10 @@ PAGE = """<!DOCTYPE html>
   <p><button class="run" onclick="runTarget()">RUN TARGET</button>
   <span id="target-msg" class="mut"></span></p>
 </div>
-<div class="panel"><h2>RUN CONTROL</h2>
-  <input id="config" value="examples/run-config.example.json">
-  <button onclick="check()">CHECK CONFIG</button>
-  <button onclick="dry()">DRY RUN</button>
-  <button class="run" onclick="run()">RUN GATE 0</button>
+<div class="panel"><h2>ACTIVITY</h2>
   <div id="console">console ready.</div>
 </div>
-<div class="panel"><h2>GATE 0 SCOREBOARD</h2><div id="scoreboard">loading...</div></div>
-<div class="panel"><h2>RUN LIBRARY</h2><div id="library">loading...</div><div id="calibration"></div>
+<div class="panel"><h2>RUN LIBRARY</h2><div id="library">loading...</div>
   <div id="detail"></div></div>
 <script src="/assets/3Dmol-min.js"></script>
 <script>
@@ -837,19 +734,6 @@ async function post(path, body) {
   const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
                                body: JSON.stringify(body)});
   return r.json();
-}
-async function check() {
-  const out = await post('/api/providers-check', {config: $('config').value});
-  log(out.ok ? ("config OK | providers: " + out.providers.join(', ') +
-                " | judge: " + out.judge + " | baseline: " + out.baseline)
-             : ("config problem: " + out.error));
-}
-async function dry() {
-  const out = await post('/api/dry-run', {config: $('config').value});
-  if (!out.ok) return log("dry run problem: " + out.error);
-  const e = out.estimate;
-  log("dry run | cases: " + e.case_count + " | total calls: " + e.total_calls +
-      " | estimated cost USD: " + e.estimated_cost_usd);
 }
 function eventLine(e) {
   return e.event + (e.case_id ? " | " + e.case_id : "") +
@@ -885,27 +769,6 @@ function watchProgress(onEvent, onDone) {
     } catch (e) { startPoll(); }
   } else startPoll();
 }
-let polling = null;
-async function run() {
-  const out = await post('/api/run-gate0', {config: $('config').value});
-  if (!out.started) return log("not started: " + out.error);
-  log("run started...");
-  watchProgress(function (e) { log(eventLine(e)); }, function (p) {
-    if (p.error) log("RUN STOPPED: " + p.error);
-    if (p.result) { log("finished: " + p.result.run_id + " | outcome " +
-      p.result.outcome + " | debate " + p.result.debate_correct +
-      " vs baseline " + p.result.baseline_correct); loadLibrary(); }
-  });
-}
-async function loadScoreboard() {
-  const g = await (await fetch('/api/gate0')).json();
-  let h = "<div>dataset validation: " + (g.ok ? "<span class='pass'>PASS</span>"
-        : "<span class='fail'>FAIL (" + g.error_count + " errors)</span>") +
-        "</div><table><tr><th>case</th><th>drug</th><th>target</th><th>disease</th></tr>";
-  for (const c of g.cases) h += "<tr><td>" + esc(c.case_id) + "</td><td>" + esc(c.drug_name) +
-    "</td><td>" + esc(c.target) + "</td><td>" + esc(c.disease) + "</td></tr>";
-  $('scoreboard').innerHTML = h + "</table>";
-}
 async function loadLibrary() {
   const out = await (await fetch('/api/runs')).json();
   if (!out.runs.length) { $('library').innerHTML = "<span class='mut'>no runs yet</span>"; return; }
@@ -916,41 +779,11 @@ async function loadLibrary() {
   document.querySelectorAll('.runlink').forEach(function (el) {
     el.addEventListener('click', function () { show(el.dataset.runid); });
   });
-  loadCalibration();
-}
-async function loadCalibration() {
-  const el = $('calibration');
-  try {
-    const report = await (await fetch('/api/calibration')).json();
-    if (!report.runs) { el.innerHTML = ""; return; }
-    let h = "<h3>CALIBRATION (agreement vs accuracy, sealed outcomes)</h3>" +
-      "<table><tr><th>mode</th><th>overall</th><th>unanimous</th><th>majority</th><th>split</th></tr>";
-    const cell = function (g) { return g.cases ? (g.correct + "/" + g.cases + " (" + g.accuracy + ")") : "-"; };
-    for (const mode of Object.keys(report.modes).sort()) {
-      const g = report.modes[mode];
-      h += "<tr><td>" + esc(mode) + "</td><td>" + cell(g) + "</td><td>" +
-        cell(g.buckets.unanimous) + "</td><td>" + cell(g.buckets.majority) +
-        "</td><td>" + cell(g.buckets.split) + "</td></tr>";
-    }
-    el.innerHTML = h + "</table><div class='mut'>Diagnostics over a small frozen set, not guarantees.</div>";
-  } catch (e) { el.innerHTML = ""; }
 }
 async function show(runId) {
   const b = await (await fetch('/api/runs/' + encodeURIComponent(runId))).json();
   let h = "<h2>RUN " + esc(runId) + "</h2>";
-  if (b.kind === 'gate0_run') {
-    h += "<div>outcome: <b>" + esc(b.outcome) + "</b> | debate correct " +
-      b.debate_score.correct_calls + "/" + b.debate_score.case_count +
-      " | baseline correct " + b.baseline_score.correct_calls + "</div>";
-    h += "<table><tr><th>threshold</th><th>status</th><th>detail</th></tr>";
-    for (const c of b.thresholds.checks) h += "<tr><td>" + esc(c.threshold) + "</td><td class='" +
-      (c.status === 'pass' ? 'pass' : 'fail') + "'>" + esc(c.status) + "</td><td>" +
-      esc(c.detail) + "</td></tr>";
-    h += "</table><p><a href='/api/runs/" + encodeURIComponent(runId) + "/report.html' target='_blank'>HTML report</a> | <a href='/api/runs/" + encodeURIComponent(runId) + "/report.pdf' target='_blank'>PDF report</a></p>";
-    h += "<div class='mut'>transcripts:</div>";
-    for (const cid of b.case_ids) h += "<div><a href='#' class='txlink' data-runid=\\"" +
-      esc(runId) + "\\" data-caseid=\\"" + esc(cid) + "\\">" + esc(cid) + "</a></div>";
-  } else if (b.kind === 'design_run') {
+  if (b.kind === 'design_run') {
     const candById = {};
     for (const c of b.candidates) candById[c.candidate_id] = c;
     h += "<div>target <b>" + esc(b.brief.target) + "</b> | spec " + esc(b.brief.spec_id) +
@@ -1346,7 +1179,6 @@ function renderSetup(st) {
 }
 async function loadSetup() {
   renderSetup(await (await fetch('/api/setup')).json());
-  fillChips();
 }
 function collectSlot(slot) {
   return {kind: $('s-' + slot + '-kind').value,
@@ -1380,31 +1212,6 @@ async function testSlot(slot) {
        ' | ' + out.latency_ms + ' ms')
     : ('failed: ' + (out.error || 'unknown'));
 }
-const PRESETS = [
-  {label: 'MTCH2 - fat mass', name: 'MTCH2', kind: 'target', target: 'MTCH2', disease: 'obesity'},
-  {label: 'KRAS G12C - lung cancer', name: 'KRAS G12C', kind: 'target', target: 'KRAS G12C', disease: 'non-small cell lung cancer'},
-  {label: 'PCSK9 - cholesterol', name: 'PCSK9', kind: 'target', target: 'PCSK9', disease: 'hypercholesterolemia'},
-  {label: 'CFTR - cystic fibrosis', name: 'cystic fibrosis', kind: 'genetic_disorder', target: 'CFTR', disease: 'cystic fibrosis'},
-  {label: 'GLP-1 receptor - diabetes', name: 'GLP-1 receptor', kind: 'receptor', target: 'GLP-1R', disease: 'type 2 diabetes'},
-  {label: 'CGRP receptor - migraine', name: 'CGRP receptor', kind: 'receptor', target: 'CGRP receptor', disease: 'migraine'},
-  {label: 'BACE1 - Alzheimer disease', name: 'BACE1', kind: 'target', target: 'BACE1', disease: 'Alzheimer disease'},
-  {label: 'Nav1.7 - pain', name: 'Nav1.7', kind: 'target', target: 'SCN9A', disease: 'chronic pain'}
-];
-function fillChips() {
-  const box = $('target-chips');
-  if (box.dataset.done) return;
-  box.dataset.done = '1';
-  PRESETS.forEach(function (pr, i) {
-    const btn = document.createElement('button');
-    btn.textContent = pr.label;
-    btn.style.marginRight = '6px';
-    btn.addEventListener('click', function () {
-      $('t-name').value = pr.name; $('t-kind').value = pr.kind;
-      $('t-target').value = pr.target; $('t-disease').value = pr.disease;
-    });
-    box.appendChild(btn);
-  });
-}
 async function runTarget() {
   const body = {name: $('t-name').value, kind: $('t-kind').value,
     target: $('t-target').value, disease: $('t-disease').value,
@@ -1430,6 +1237,6 @@ async function runTarget() {
     }
   });
 }
-loadScoreboard(); loadLibrary(); loadSetup();
+loadLibrary(); loadSetup();
 </script></body></html>
 """
