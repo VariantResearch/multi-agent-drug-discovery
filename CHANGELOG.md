@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- Audit waterfall in the console run detail (the first of three
+  features from the 2026-10-27 feature research): the evidence
+  funnel of the debate, computed from the frozen record by
+  madd/audit_flow.py and served at /api/runs/<id>/audit-flow -
+  dossiers contributed, claims struck grouped by the recorded
+  strike reasons, contested claims where the record carries them,
+  claims in the final specification, and the outcome with its
+  consensus tally. The frozen record does not carry the dossiers'
+  full claim lists, so claims that survived without entering the
+  specification are not a recorded number; the flow states that
+  instead of estimating a remainder.
+
 ### Fixed (README audit, 2026-10-27)
 
 - A full audit of the README against the code found the

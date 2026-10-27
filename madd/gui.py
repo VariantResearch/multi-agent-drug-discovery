@@ -614,6 +614,10 @@ def make_handler(manager: RunManager):
                           events_path.read_text(encoding="utf-8").splitlines()
                           if line.strip()]
                 return _json(self, {"events": events})
+            if parts[3] == "audit-flow" and len(parts) == 4:
+                from .audit_flow import audit_flow_of_bundle
+                return _json(self, {
+                    "audit_flow": audit_flow_of_bundle(bundle)})
             if parts[3] == "transcript" and len(parts) == 5:
                 record = (bundle.get("case_records") or {}).get(parts[4])
                 if record is None and bundle.get("kind") == "frame_run":
@@ -847,6 +851,13 @@ PAGE = """<!DOCTYPE html>
   table { border-collapse:collapse; } th,td { border:1px solid #2c2c54;
           padding:5px 11px; text-align:left; } th { color:#b967ff; }
   .pass { color:#3dff8f; } .fail { color:#ff5470; } .mut { color:#9a9ab5; }
+  .flow { display:flex; gap:6px; flex-wrap:wrap; align-items:stretch;
+    margin:10px 0; }
+  .fbox { border:1px solid #345; border-radius:6px; padding:8px 12px;
+    min-width:120px; }
+  .fbox b { display:block; font-size:20px; }
+  .fbox .fl { font-size:11px; color:#9a9ab5; text-transform:uppercase; }
+  .farrow { align-self:center; color:#9a9ab5; }
   a { color:#01cdfe; } .runlink { cursor:pointer; color:#01cdfe; }
   select, textarea { background:#0a0a16; color:#e8e8f2; border:1px solid #b967ff;
                      padding:8px; border-radius:4px; }
@@ -1000,6 +1011,25 @@ function renderLibrary() {
     el.addEventListener('click', function () { show(el.dataset.runid); });
   });
 }
+function flowHtml(flow) {
+  let h = "<div class='flow'>";
+  flow.stages.forEach(function (s, i) {
+    if (i) h += "<div class='farrow'>&rarr;</div>";
+    h += "<div class='fbox'><span class='fl'>" + esc(s.label) + "</span>";
+    if (s.key === 'outcome') {
+      h += "<b>" + esc(s.value) + "</b><span class='mut'>consensus " +
+        s.consensus_passed + "/" + s.consensus_total + " checks</span>";
+    } else {
+      h += "<b>" + s.count + "</b>";
+      if (s.by_reason) {
+        for (const r in s.by_reason) h += "<div class='mut'>" + esc(r) +
+          ": " + s.by_reason[r] + "</div>";
+      }
+    }
+    h += "</div>";
+  });
+  return h + "</div><div class='mut'>" + esc(flow.note) + "</div>";
+}
 async function show(runId) {
   const b = await (await fetch('/api/runs/' + encodeURIComponent(runId))).json();
   let h = "<h2>RUN " + esc(runId) + "</h2>";
@@ -1046,6 +1076,10 @@ async function show(runId) {
         + "<div id='designmsg' class='mut'></div>";
     }
   }
+  try {
+    const af = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/audit-flow')).json();
+    if (af.audit_flow) h += flowHtml(af.audit_flow);
+  } catch (err) { }
   try {
     const ev = await (await fetch('/api/runs/' + encodeURIComponent(runId) + '/events')).json();
     if (ev.events && ev.events.length) {
