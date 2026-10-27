@@ -30,6 +30,7 @@ import json as _json
 from . import citation_auditor
 from . import claims as claims_mod
 from . import design_admet
+from . import design_txgemma
 from . import design_rdkit
 from . import design_sources
 from . import schemas
@@ -440,6 +441,7 @@ def run_design(spec: dict, source: str, designer=None,
                target: str = None, disease: str = None,
                use: str = "research", rdkit: bool = True,
                source_check: bool = False, admet: bool = True,
+               txgemma: bool = False,
                retro_config=None, retro_work_dir=None,
                on_event=None) -> dict:
     """Run the design stage for a locked spec and freeze the bundle.
@@ -481,6 +483,14 @@ def run_design(spec: dict, source: str, designer=None,
         # candidate, recorded as unverified predictions from a named
         # tool - more than a designer's guess, less than a measurement.
         all_tool_runs.append(design_admet.enrich_candidates(candidates, use=use))
+    if txgemma:
+        # Operator-requested TxGemma predictions from the configured
+        # endpoint, recorded as unverified predictions from a named
+        # model; with no endpoint configured the tool run records
+        # not_configured and predicts nothing.
+        tx_record = design_txgemma.enrich_candidates(candidates, use=use)
+        tx_record["requested"] = True
+        all_tool_runs.append(tx_record)
     if retro_config:
         # Operator-requested retrosynthesis: one AiZynthFinder route
         # search per SMILES candidate, recorded on the candidate as

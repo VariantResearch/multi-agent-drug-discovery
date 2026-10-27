@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 7, 2026-10-27)
+
+- TxGemma property predictions (madd/design_txgemma.py), the
+  seventh item of the competitive-gap implementation list.
+  TxGemma runs as a served model, not a library, so the bridge
+  calls an operator-configured text-generation endpoint named
+  by MADD_TXGEMMA_URL (an HF Inference Endpoint or TGI-style
+  URL serving TxGemma; MADD_TXGEMMA_TOKEN optionally supplies
+  a bearer token). With design-run --txgemma, each SMILES
+  candidate is asked three TDC tasks (Ames mutagenicity Yes/No,
+  hERG inhibition Yes/No, aqueous solubility logS), answers
+  are parsed conservatively, and predictions attach as
+  txgemma:* predicted properties with verified False, the same
+  grade ADMET-AI carries: never evidence, never in the audit's
+  path. With no endpoint configured the tool run records
+  not_configured and predicts nothing; an endpoint that
+  answers nothing parseable records failed. TxGemma is
+  registered in the license registry under the Gemma Terms of
+  Use: allowed for research, blocked for commercial use.
+
 ### Added (competitive-gap item 6, 2026-10-27)
 
 - Lead optimization loop (madd/optimize.py, CLI command

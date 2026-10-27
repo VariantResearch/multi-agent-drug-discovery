@@ -125,6 +125,18 @@
     },
     {
       "aliases": [
+        "txgemma",
+        "tx-gemma",
+        "txgemma-9b",
+        "txgemma-27b"
+      ],
+      "commercial_allowed": false,
+      "license": "Gemma Terms of Use",
+      "name": "TxGemma",
+      "status": "allowed"
+    },
+    {
+      "aliases": [
         "weasyprint"
       ],
       "commercial_allowed": true,

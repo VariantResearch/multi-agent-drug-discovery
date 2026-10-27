@@ -149,6 +149,7 @@ def _cmd_design_run(args) -> int:
                             target=args.target, disease=args.disease,
                             use=args.use,
                             source_check=bool(getattr(args, "source_check", False)),
+                            txgemma=bool(getattr(args, "txgemma", False)),
                             retro_config=getattr(args, "retro_config", None),
                             retro_work_dir=(Path(args.out) / "retro-work"
                                             if getattr(args, "retro_config", None)
@@ -865,6 +866,7 @@ def build_parser() -> argparse.ArgumentParser:
     p20.add_argument("--disease", default=None)
     p20.add_argument("--config", default=None)
     p20.add_argument("--source-check", action="store_true")
+    p20.add_argument("--txgemma", action="store_true")
     p20.add_argument("--retro-config", default=None)
     p20.add_argument("--out", default="runs")
     p20.add_argument("--tool", default=None)
