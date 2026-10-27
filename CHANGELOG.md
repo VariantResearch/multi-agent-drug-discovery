@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 16, 2026-10-27)
+
+- Checkpointed long runs (madd/checkpoints.py; --checkpoint-dir
+  and --resume on run-gate0 and target-run), the second wave-4
+  item of the competitive-gap implementation list. Gate 0
+  persists each case's baseline and debate results as the
+  case completes; target runs persist the frame stage and
+  the design stage. A resumed run reuses a checkpoint only
+  when its guard matches the inputs just rebuilt (the case
+  pack's hash for Gate 0, a hash of the frame for target
+  runs): changed inputs invalidate the checkpoint completely
+  rather than letting a different run wear the same id.
+  Resumed stages make no provider calls and charge no
+  budget, the event stream names each resumed stage, and
+  the bundle a resumed run produces is identical in form to
+  a fresh run's. Checkpoints are working state in their own
+  directory, never the frozen record of anything.
+
 ### Added (competitive-gap item 15, 2026-10-27)
 
 - Full-text retrieval tiers (madd/fulltext.py), the first

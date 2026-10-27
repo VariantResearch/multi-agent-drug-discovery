@@ -93,7 +93,8 @@ def run_target(frame: dict, providers, judge_provider=None,
                meta_reviewer=None,
                retrieval_first: bool = False, design_constraints: tuple = (),
                target_label: str = None, disease: str = None,
-               use: str = "research", source_check: bool = False) -> dict:
+               use: str = "research", source_check: bool = False,
+               checkpoint_dir=None, resume: bool = False) -> dict:
     """Run one named target end to end. Returns the combined bundle.
 
     The research stage is madd.runner.run_frame under the declared
@@ -118,17 +119,37 @@ def run_target(frame: dict, providers, judge_provider=None,
         prereg_record = build_preregistration(frame, providers, mode=mode)
         prereg_path = write_preregistration(prereg_record, prereg_dir)
         prereg_ref = preregistration_ref(prereg_record, prereg_path)
-    frame_bundle = run_frame(frame, providers, judge_provider=judge_provider,
-                             swap_judge_provider=swap_judge_provider,
-                             budget_tracker=tracker, run_id=run_id + "-frame",
-                             on_event=on_event, resolver=resolver,
-                             quote_checker=quote_checker,
-                             entailment_checker=entailment_checker,
-                             contradiction_checker=contradiction_checker,
-                             tournament_judge=tournament_judge,
-                             meta_reviewer=meta_reviewer,
-                             retrieval_first=retrieval_first, mode=mode,
-                             should_stop=should_stop)
+    # Stage checkpoints (competitive-gap item 16): with a
+    # checkpoint directory, the frame stage and the design
+    # stage persist as they finish; a resumed run with the same
+    # run id and unchanged inputs reuses them and makes no
+    # provider calls for those stages. The guard is a hash of
+    # the frame, so changed inputs invalidate the checkpoint.
+    from .checkpoints import CheckpointStore, payload_hash
+    store = CheckpointStore(checkpoint_dir) if checkpoint_dir else None
+    frame_guard = payload_hash(frame) if store is not None else None
+    frame_bundle = None
+    if store is not None and resume:
+        frame_bundle = store.load(run_id, "frame", guard=frame_guard)
+        if frame_bundle is not None and on_event is not None:
+            on_event({"event": "stage_checkpoint_resumed",
+                      "stage": "frame", "run_id": run_id})
+    if frame_bundle is None:
+        frame_bundle = run_frame(
+            frame, providers, judge_provider=judge_provider,
+            swap_judge_provider=swap_judge_provider,
+            budget_tracker=tracker, run_id=run_id + "-frame",
+            on_event=on_event, resolver=resolver,
+            quote_checker=quote_checker,
+            entailment_checker=entailment_checker,
+            contradiction_checker=contradiction_checker,
+            tournament_judge=tournament_judge,
+            meta_reviewer=meta_reviewer,
+            retrieval_first=retrieval_first, mode=mode,
+            should_stop=should_stop)
+        if store is not None:
+            store.save(run_id, "frame", frame_bundle,
+                       guard=frame_guard)
     record = frame_bundle["record"]
     spec = record["spec"]
     bundle = {
@@ -175,13 +196,24 @@ def run_target(frame: dict, providers, judge_provider=None,
     if record["outcome"] == "locked":
         designer = designer if designer is not None else ModelDesigner(
             providers, budget_tracker=tracker)
-        design_bundle = run_design(
-            spec, "target run " + run_id, designer=designer,
-            budget_tracker=tracker,
-            design_constraints=tuple(design_constraints),
-            target=target_label or frame.get("target") or frame.get("target_name"),
-            disease=disease if disease is not None else frame.get("disease"),
-            use=use, source_check=source_check, on_event=on_event)
+        design_bundle = None
+        if store is not None and resume:
+            design_bundle = store.load(run_id, "design",
+                                       guard=frame_guard)
+            if design_bundle is not None and on_event is not None:
+                on_event({"event": "stage_checkpoint_resumed",
+                          "stage": "design", "run_id": run_id})
+        if design_bundle is None:
+            design_bundle = run_design(
+                spec, "target run " + run_id, designer=designer,
+                budget_tracker=tracker,
+                design_constraints=tuple(design_constraints),
+                target=target_label or frame.get("target") or frame.get("target_name"),
+                disease=disease if disease is not None else frame.get("disease"),
+                use=use, source_check=source_check, on_event=on_event)
+            if store is not None:
+                store.save(run_id, "design", design_bundle,
+                           guard=frame_guard)
         bundle["design"] = design_bundle
         bundle["outcome"] = ("designed"
                              if design_bundle["gate_report"]["result"] == "pass"

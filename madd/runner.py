@@ -225,7 +225,8 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
               on_event=None, max_workers=1, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
               mode=None, should_stop=None, contradiction_checker=None,
-              tournament_judge=None, meta_reviewer=None) -> dict:
+              tournament_judge=None, meta_reviewer=None,
+              checkpoint_dir=None, resume: bool = False) -> dict:
     """Run the full Gate 0 protocol. Returns the run bundle.
 
     baseline_provider is required: the approved thresholds include a
@@ -260,10 +261,27 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
     _emit(on_event, {"event": "run_started", "run_id": run_id,
                      "case_ids": list(case_ids)})
 
+    # Stage checkpoints (competitive-gap item 16): with a
+    # checkpoint directory, each finished case is persisted as
+    # it completes; a resumed run reuses a case's checkpoint
+    # only when its guard (the case pack's hash) still matches.
+    from .checkpoints import CheckpointStore
+    store = CheckpointStore(checkpoint_dir) if checkpoint_dir else None
+
     # Baseline first (run protocol step 3).
     baseline_predictions = {}
     baseline_dossiers = {}
     for case_id in case_ids:
+        if store is not None and resume:
+            saved = store.load(run_id, "baseline-" + case_id,
+                               guard=pack_hashes[case_id])
+            if saved is not None:
+                baseline_dossiers[case_id] = saved["dossier"]
+                baseline_predictions[case_id] = saved["prediction"]
+                _emit(on_event, {"event": "case_checkpoint_resumed",
+                                 "stage": "baseline",
+                                 "case_id": case_id})
+                continue
         frame = frame_for_case(case_id, packs[case_id])
         _charge(tracker, baseline_provider)
         dossier = baseline_provider.research(copy.deepcopy(frame))
@@ -276,6 +294,11 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
         baseline_predictions[case_id] = baseline_prediction(
             dossier, resolver=resolver, quote_checker=quote_checker,
             entailment_checker=entailment_checker, allowed_identifiers=allowed)
+        if store is not None:
+            store.save(run_id, "baseline-" + case_id,
+                       {"dossier": baseline_dossiers[case_id],
+                        "prediction": baseline_predictions[case_id]},
+                       guard=pack_hashes[case_id])
         _emit(on_event, {"event": "baseline_case_done", "case_id": case_id,
                          "prediction": baseline_predictions[case_id]})
 
@@ -286,6 +309,14 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
         progress events; returns (case_id, record, prediction)."""
         if should_stop is not None and should_stop():
             return case_id, None, None
+        if store is not None and resume:
+            saved = store.load(run_id, "case-" + case_id,
+                               guard=pack_hashes[case_id])
+            if saved is not None:
+                _emit(on_event, {"event": "case_checkpoint_resumed",
+                                 "stage": "debate",
+                                 "case_id": case_id})
+                return case_id, saved["record"], saved["prediction"]
         _emit(on_event, {"event": "debate_case_started", "case_id": case_id})
         frame = frame_for_case(case_id, packs[case_id])
         if mode in ("simple", "dual"):
@@ -325,6 +356,10 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                 retrieval_first=retrieval_first,
                                 should_stop=should_stop)
         prediction = "advance" if record["outcome"] == "locked" else "kill"
+        if store is not None:
+            store.save(run_id, "case-" + case_id,
+                       {"record": record, "prediction": prediction},
+                       guard=pack_hashes[case_id])
         _emit(on_event, {"event": "debate_case_done", "case_id": case_id,
                          "prediction": prediction,
                          "outcome": record["outcome"],

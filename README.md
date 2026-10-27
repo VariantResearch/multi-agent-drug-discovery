@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (410 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (414 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -387,6 +387,14 @@ madd/            the package (standard library only)
                      target-run flag and priced in the preflight
                      estimate; no open text means abstract_only,
                      never fabricated text
+  checkpoints.py     stage checkpoints for long runs: Gate 0
+                     persists each finished case (guarded by its
+                     pack hash) and target runs persist their
+                     frame and design stages, so a run resumed
+                     with --checkpoint-dir and --resume reuses
+                     finished stages with no provider calls and
+                     no budget charge; changed inputs invalidate
+                     a checkpoint completely
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score

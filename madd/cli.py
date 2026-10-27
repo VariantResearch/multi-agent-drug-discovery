@@ -665,6 +665,9 @@ def _cmd_run_gate0(args) -> int:
                            meta_reviewer=meta_reviewer_from_config(built, tracker),
                            retrieval_first=bool(built.get("retrieval_first")),
                            max_workers=args.jobs or built["max_workers"],
+                           checkpoint_dir=getattr(args, "checkpoint_dir", None),
+                           resume=bool(getattr(args, "resume", False)),
+                           run_id=getattr(args, "run_id", None),
                            on_event=_print_run_event)
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
         print("run stopped:", exc)
@@ -720,6 +723,9 @@ def _cmd_target_run(args) -> int:
             retrieval_first=retrieval_first,
             design_constraints=tuple(args.constraint or ()),
             source_check=bool(args.source_check),
+            checkpoint_dir=getattr(args, "checkpoint_dir", None),
+            resume=bool(getattr(args, "resume", False)),
+            run_id=getattr(args, "run_id", None),
             on_event=_print_run_event,
             prereg_dir=(None if getattr(args, "no_prereg", False)
                         else args.out))
@@ -996,6 +1002,9 @@ def build_parser() -> argparse.ArgumentParser:
     p10.add_argument("--gate0-dir", default=None)
     p10.add_argument("--dry-run", action="store_true")
     p10.add_argument("--jobs", type=int, default=None)
+    p10.add_argument("--checkpoint-dir", default=None)
+    p10.add_argument("--resume", action="store_true")
+    p10.add_argument("--run-id", default=None)
     p10.set_defaults(fn=_cmd_run_gate0)
     p11 = sub.add_parser("run-frame"); p11.add_argument("frame")
     p11.add_argument("--retrieve", action="store_true")
@@ -1082,6 +1091,9 @@ def build_parser() -> argparse.ArgumentParser:
                      choices=["abstract", "concise", "deep"])
     p21.add_argument("--no-prereg", action="store_true")
     p21.add_argument("--source-check", action="store_true")
+    p21.add_argument("--checkpoint-dir", default=None)
+    p21.add_argument("--resume", action="store_true")
+    p21.add_argument("--run-id", default=None)
     p21.add_argument("--out", default=None)
     p21.set_defaults(fn=_cmd_target_run)
     p18 = sub.add_parser("gui"); p18.add_argument("--port", type=int, default=8765)
