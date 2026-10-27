@@ -87,7 +87,7 @@ def build_target_frame(name: str, kind: str, target: str = None,
 def run_target(frame: dict, providers, judge_provider=None,
                swap_judge_provider=None, mode=None,
                designer=None, budget=None, budget_tracker=None,
-               run_id=None, on_event=None,
+               run_id=None, on_event=None, should_stop=None, prereg_dir=None,
                resolver=None, quote_checker=None, entailment_checker=None,
                retrieval_first: bool = False, design_constraints: tuple = (),
                target_label: str = None, disease: str = None,
@@ -109,13 +109,21 @@ def run_target(frame: dict, providers, judge_provider=None,
     # bound the run's total provider spend.
     tracker = budget_tracker if budget_tracker is not None else (
         BudgetTracker(budget) if budget is not None else None)
+    prereg_ref = None
+    if prereg_dir is not None:
+        from .prereg import (build_preregistration, preregistration_ref,
+                             write_preregistration)
+        prereg_record = build_preregistration(frame, providers, mode=mode)
+        prereg_path = write_preregistration(prereg_record, prereg_dir)
+        prereg_ref = preregistration_ref(prereg_record, prereg_path)
     frame_bundle = run_frame(frame, providers, judge_provider=judge_provider,
                              swap_judge_provider=swap_judge_provider,
                              budget_tracker=tracker, run_id=run_id + "-frame",
                              on_event=on_event, resolver=resolver,
                              quote_checker=quote_checker,
                              entailment_checker=entailment_checker,
-                             retrieval_first=retrieval_first, mode=mode)
+                             retrieval_first=retrieval_first, mode=mode,
+                             should_stop=should_stop)
     record = frame_bundle["record"]
     spec = record["spec"]
     bundle = {
@@ -133,6 +141,10 @@ def run_target(frame: dict, providers, judge_provider=None,
         "design": None,
         "outcome": "no_go",
     }
+    if record.get("outcome") == "stopped":
+        bundle["outcome"] = "stopped"
+    if prereg_ref is not None:
+        bundle["preregistration"] = prereg_ref
     if record["outcome"] == "locked":
         designer = designer if designer is not None else ModelDesigner(
             providers, budget_tracker=tracker)
@@ -142,7 +154,7 @@ def run_target(frame: dict, providers, judge_provider=None,
             design_constraints=tuple(design_constraints),
             target=target_label or frame.get("target") or frame.get("target_name"),
             disease=disease if disease is not None else frame.get("disease"),
-            use=use, source_check=source_check)
+            use=use, source_check=source_check, on_event=on_event)
         bundle["design"] = design_bundle
         bundle["outcome"] = ("designed"
                              if design_bundle["gate_report"]["result"] == "pass"

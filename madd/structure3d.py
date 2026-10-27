@@ -191,7 +191,10 @@ def receptor_for_target(target) -> dict:
     norm = "".join(ch for ch in str(target).upper() if ch.isalnum())
     for key, info in RECEPTORS.items():
         if key in norm:
-            path = Path(__file__).parent / "assets" / info["file"]
+            if info.get("path"):
+                path = Path(info["path"])
+            else:
+                path = Path(__file__).parent / "assets" / info["file"]
             if not path.exists():
                 return None
             out = {k: v for k, v in info.items() if k != "file"}
@@ -201,7 +204,122 @@ def receptor_for_target(target) -> dict:
     return None
 
 
-def candidate_model3d(bundle: dict, candidate_id: str) -> dict:
+UNIPROT_SEARCH = ("https://rest.uniprot.org/uniprotkb/search"
+                  "?query=gene_exact:{symbol}+AND+organism_id:9606"
+                  "+AND+reviewed:true&format=json&fields=accession"
+                  "&size=1")
+ALPHAFOLD_API = "https://alphafold.ebi.ac.uk/api/prediction/"
+
+_ACCESSION_RE = __import__("re").compile(
+    r"\b([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9][A-Z][A-Z0-9]{2}[0-9])\b")
+_GENE_RE = __import__("re").compile(r"^[A-Z][A-Z0-9-]{1,11}$")
+
+
+def _get(fetcher, url):
+    """One GET through a resolve-style fetcher, or None on failure."""
+    try:
+        status, body = fetcher(url)
+    except Exception:
+        return None
+    return body if status == 200 else None
+
+
+def resolve_uniprot_accession(target, fetcher=None):
+    """Resolve a target name to a human UniProt accession, or None.
+
+    An accession written into the target text wins. Otherwise the
+    target's first token is tried as a gene symbol against the
+    UniProt REST search (reviewed human entries only). Anything
+    ambiguous or unresolvable returns None: a wrong structure is
+    worse than none on file.
+    """
+    import json as _json
+
+    from .resolve import default_fetcher
+    fetch = fetcher if fetcher is not None else default_fetcher
+    text = str(target or "")
+    match = _ACCESSION_RE.search(text.upper())
+    if match:
+        return match.group(1)
+    tokens = text.replace("(", " ").replace(")", " ").split()
+    if not tokens or not _GENE_RE.match(tokens[0].upper()):
+        return None
+    body = _get(fetch, UNIPROT_SEARCH.format(
+        symbol=__import__("urllib.parse", fromlist=["quote"]).quote(
+            tokens[0].upper(), safe="")))
+    if not body:
+        return None
+    try:
+        results = _json.loads(body).get("results") or []
+    except Exception:
+        return None
+    if len(results) != 1:
+        return None
+    return results[0].get("primaryAccession")
+
+
+def fetch_receptor(target, fetcher=None, cache_dir=None):
+    """Fetch a target's AlphaFold predicted model on demand.
+
+    Resolves the target to a UniProt accession, asks the
+    AlphaFold API for its predicted model, downloads the PDB,
+    caches it under cache_dir (default ~/.madd/structures), and
+    registers it in RECEPTORS for this process. Returns the
+    receptor payload (metadata plus PDB text) or None when the
+    target cannot be resolved or the services do not answer.
+    The entry is labelled predicted with its source, model
+    version, and mean pLDDT: fetched on demand for the operator's
+    own target, never a prefilled example.
+    """
+    import json as _json
+    from datetime import date
+    from pathlib import Path
+
+    from .resolve import default_fetcher
+    fetch = fetcher if fetcher is not None else default_fetcher
+    existing = receptor_for_target(target)
+    if existing is not None:
+        return existing
+    accession = resolve_uniprot_accession(target, fetcher=fetch)
+    if not accession:
+        return None
+    body = _get(fetch, ALPHAFOLD_API + accession)
+    if not body:
+        return None
+    try:
+        entries = _json.loads(body)
+        entry = entries[0] if isinstance(entries, list) and entries else None
+    except Exception:
+        entry = None
+    if not entry or not entry.get("pdbUrl"):
+        return None
+    pdb_text = _get(fetch, entry["pdbUrl"])
+    if not pdb_text or "ATOM" not in pdb_text:
+        return None
+    folder = Path(cache_dir) if cache_dir else (
+        Path.home() / ".madd" / "structures")
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / (accession + ".pdb")
+    path.write_text(pdb_text, encoding="utf-8")
+    gene = entry.get("gene") or accession
+    RECEPTORS[str(gene).upper()] = {
+        "path": str(path),
+        "label": (str(gene) + " (human, UniProt " + accession + ")"),
+        "kind": "predicted",
+        "detail": ("AlphaFold predicted model "
+                   + str(entry.get("modelEntityId") or accession)
+                   + " v" + str(entry.get("latestVersion") or "?")
+                   + ", mean pLDDT "
+                   + str(entry.get("globalMetricValue") or "?")
+                   + "; fetched " + date.today().isoformat()
+                   + "; not an experimental structure"),
+        "source": "AlphaFold Protein Structure Database (CC BY 4.0)",
+    }
+    return receptor_for_target(target) or receptor_for_target(accession)
+
+
+def candidate_model3d(bundle: dict, candidate_id: str,
+                      fetch_missing: bool = False, cache_dir=None) -> dict:
     """The fully rendered 3D model payload for one candidate: its
     molfile plus the receptor structure on file for the design
     brief's target, when one is shipped.
@@ -226,6 +344,8 @@ def candidate_model3d(bundle: dict, candidate_id: str) -> dict:
         return built
     brief = design.get("brief") or {}
     receptor = receptor_for_target(brief.get("target"))
+    if receptor is None and fetch_missing:
+        receptor = fetch_receptor(brief.get("target"), cache_dir=cache_dir)
     return {"status": "ok", "candidate_id": candidate_id,
             "smiles": structure.get("value"),
             "mol_format": "sdf", "mol": built["sdf"],

@@ -224,7 +224,7 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
               resolver=None, run_id=None,
               on_event=None, max_workers=1, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
-              mode=None) -> dict:
+              mode=None, should_stop=None) -> dict:
     """Run the full Gate 0 protocol. Returns the run bundle.
 
     baseline_provider is required: the approved thresholds include a
@@ -283,6 +283,8 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
     def debate_one(case_id):
         """Run one case under the run's protocol mode, emitting its
         progress events; returns (case_id, record, prediction)."""
+        if should_stop is not None and should_stop():
+            return case_id, None, None
         _emit(on_event, {"event": "debate_case_started", "case_id": case_id})
         frame = frame_for_case(case_id, packs[case_id])
         if mode in ("simple", "dual"):
@@ -293,7 +295,8 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
                                 retrieval_first=retrieval_first,
-                                require_stability=False)
+                                require_stability=False,
+                                should_stop=should_stop)
         elif mode in ("dual_judge", "simple_judge"):
             record = run_debate(frame, providers,
                                 judge_provider=judge_provider,
@@ -301,14 +304,16 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                 budget_tracker=tracker, resolver=resolver,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
-                                retrieval_first=retrieval_first)
+                                retrieval_first=retrieval_first,
+                                should_stop=should_stop)
         else:
             record = run_debate(frame, providers, judge_provider=judge_provider,
                                 swap_judge_provider=swap_judge_provider,
                                 budget_tracker=tracker, resolver=resolver,
                                 quote_checker=quote_checker,
                                 entailment_checker=entailment_checker,
-                                retrieval_first=retrieval_first)
+                                retrieval_first=retrieval_first,
+                                should_stop=should_stop)
         prediction = "advance" if record["outcome"] == "locked" else "kill"
         _emit(on_event, {"event": "debate_case_done", "case_id": case_id,
                          "prediction": prediction,
@@ -323,16 +328,21 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
             futures = [pool.submit(debate_one, cid) for cid in case_ids]
             for future in as_completed(futures):
                 cid, record, prediction = future.result()
-                case_records[cid] = record
-                predictions[cid] = prediction
+                if record is not None:
+                    case_records[cid] = record
+                    predictions[cid] = prediction
     else:
         for case_id in case_ids:
             cid, record, prediction = debate_one(case_id)
-            case_records[cid] = record
-            predictions[cid] = prediction
-    # Assemble in case order regardless of completion order.
-    case_records = {cid: case_records[cid] for cid in case_ids}
-    predictions = {cid: predictions[cid] for cid in case_ids}
+            if record is not None:
+                case_records[cid] = record
+                predictions[cid] = prediction
+    # Assemble in case order regardless of completion order. A
+    # stopped run keeps only its completed cases, in case order.
+    completed_ids = [cid for cid in case_ids if cid in case_records]
+    stopped_run = len(completed_ids) < len(case_ids)
+    case_records = {cid: case_records[cid] for cid in completed_ids}
+    predictions = {cid: predictions[cid] for cid in completed_ids}
 
     debate_score = score_run(predictions, gate0_dir)
     baseline_score = score_run(baseline_predictions, gate0_dir)
@@ -358,9 +368,22 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                     if e["original_outcome"] != e["swapped_outcome"])
     else:
         flips = None
-    thresholds = evaluate_thresholds(debate_score, baseline_score=baseline_score,
-                                   audit_violations=violations,
-                                   judge_swap_flips=flips)
+    if stopped_run:
+        thresholds = {"passed": False, "overall": "not_evaluated",
+                      "checks": [{"threshold": "run completion",
+                                  "status": "not_evaluated",
+                                  "detail": "run stopped by the operator after "
+                                            + str(len(completed_ids)) + " of "
+                                            + str(len(case_ids)) + " cases; "
+                                            "thresholds are not evaluated on a "
+                                            "partial run"}]}
+        _emit(on_event, {"event": "run_stopped",
+                         "completed_cases": len(completed_ids),
+                         "total_cases": len(case_ids)})
+    else:
+        thresholds = evaluate_thresholds(debate_score, baseline_score=baseline_score,
+                                       audit_violations=violations,
+                                       judge_swap_flips=flips)
     bundle = {
         "artifact_type": "gate0_run_bundle",
         "schema_version": "0.1.0",
@@ -393,7 +416,10 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
                                  list(providers)
                                  + ([judge_provider] if judge_provider else [])
                                  + [baseline_provider])},
-        "outcome": "pass" if thresholds["passed"] else "fail",
+        "outcome": ("stopped" if stopped_run
+                    else "pass" if thresholds["passed"] else "fail"),
+        "stopped": ({"completed_cases": len(completed_ids),
+                     "total_cases": len(case_ids)} if stopped_run else None),
     }
     _emit(on_event, {"event": "run_finished", "run_id": run_id,
                      "outcome": bundle["outcome"],
@@ -402,6 +428,45 @@ def run_gate0(providers, judge_provider=None, swap_judge_provider=None,
     bundle["frozen_bundle"] = freeze_artifact(
         {k: v for k, v in bundle.items() if k != "frozen_bundle"})
     return bundle
+
+
+def estimate_target_run(providers, judge_provider=None,
+                        swap_judge_provider=None) -> dict:
+    """Count what one target run will call and cost, without calling.
+
+    A target run is one frame debate plus, when the target locks,
+    one design stage. Debate: one research call per panel
+    provider, one judge call when a judge is configured, one
+    swap-judge call when a swap is configured. Design: one
+    completion per panel provider (the model designer's shape).
+    Entailment checks and live-resolution lookups ride on top,
+    bounded by their own settings and the run budget; they are
+    named in the note, not counted, exactly as the Gate 0
+    estimator treats them.
+    """
+    panel = list(providers)
+
+    def cost(provider):
+        """The configured per-call cost of one provider (0 when none)."""
+        return float(getattr(provider, "cost_per_call_usd", 0.0) or 0.0) \
+            if provider is not None else 0.0
+
+    debate_calls = (len(panel)
+                    + (1 if judge_provider is not None else 0)
+                    + (1 if swap_judge_provider is not None else 0))
+    debate_cost = (sum(cost(p) for p in panel) + cost(judge_provider)
+                   + cost(swap_judge_provider))
+    design_calls = len(panel)
+    design_cost = sum(cost(p) for p in panel)
+    return {
+        "debate_calls": debate_calls,
+        "design_calls": design_calls,
+        "total_calls": debate_calls + design_calls,
+        "estimated_cost_usd": round(debate_cost + design_cost, 4),
+        "note": ("design calls are spent only when the debate locks "
+                 "the target; entailment checks and registry lookups "
+                 "are additional and bounded by the run budget"),
+    }
 
 
 def estimate_gate0_run(providers, judge_provider=None, baseline_provider=None,
@@ -448,7 +513,7 @@ def run_frame(frame, providers, judge_provider=None,
               budget_tracker=None,
               resolver=None, run_id=None, on_event=None, quote_checker=None,
               entailment_checker=None, retrieval_first: bool = False,
-              mode=None) -> dict:
+              mode=None, should_stop=None) -> dict:
     """Run one prospective frame (not a Gate 0 case) under a protocol
     mode: simple (agents all on one model), simple_judge (one model
     plus a judge), dual (agents across two models, no judge),
@@ -469,21 +534,24 @@ def run_frame(frame, providers, judge_provider=None,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
                             retrieval_first=retrieval_first,
-                            require_stability=False)
+                            require_stability=False,
+                            should_stop=should_stop)
     elif mode in ("dual_judge", "simple_judge"):
         record = run_debate(frame, providers, judge_provider=judge_provider,
                             swap_judge_provider=swap_judge_provider,
                             budget_tracker=tracker, resolver=resolver,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
-                            retrieval_first=retrieval_first)
+                            retrieval_first=retrieval_first,
+                            should_stop=should_stop)
     else:
         record = run_debate(frame, providers, judge_provider=judge_provider,
                             swap_judge_provider=swap_judge_provider,
                             budget_tracker=tracker, resolver=resolver,
                             quote_checker=quote_checker,
                             entailment_checker=entailment_checker,
-                            retrieval_first=retrieval_first)
+                            retrieval_first=retrieval_first,
+                            should_stop=should_stop)
     _emit(on_event, {"event": "debate_case_done",
                      "case_id": frame.get("frame_id"),
                      "outcome": record["outcome"],

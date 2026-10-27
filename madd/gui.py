@@ -30,10 +30,12 @@ leaves the machine. One page, six panels:
   a fully rendered 3D structural view: the ranked drug candidate as
   a WebGL model (3Dmol.js, vendored under madd/assets/, geometry
   generated from its SMILES by madd/structure3d.py) beside the
-  receptor structure on file for the target when one is
-  registered - none ships today, so the receptor view states
-  that plainly - shown in its own view because no run docks the
-  candidate and no binding pose is claimed. If the WebGL library
+  receptor structure for the target - none ships with the
+  package, so the console fetches the AlphaFold predicted model
+  on demand and registers it, labelled predicted. Molecule and
+  receptor sit in separate views; an operator-triggered dock
+  (madd/docking.py) adds a computed pose view, labelled as a
+  scoring-function geometry, not evidence of binding. If the WebGL library
   cannot load, the view falls back to a canvas ball-and-stick
   rendering of the same coordinates. Sequence candidates have no
   small-molecule 3D form and say so. The run view also gains a
@@ -74,6 +76,7 @@ from .report_pdf import render_report_pdf
 from .retrieval import retrieve_evidence
 from .smoke import smoke_provider
 from .storage import list_runs, load_bundle, write_bundle
+from .runner import estimate_target_run
 from .target_run import build_target_frame, run_target
 from .transcript import record_to_markdown
 from .production import build_production_sheets
@@ -108,12 +111,36 @@ class RunManager:
         self.events = []
         self.result = None
         self.error = None
+        self.stop_event = None
+        self.started_at = None
+        self.current_tracker = None
 
     def progress(self) -> dict:
-        """Current snapshot for the polling page."""
+        """Current snapshot for the polling page, including the
+        live run header fields: start time, budget consumption,
+        and whether a stop has been requested."""
+        tracker = self.current_tracker
         with self.lock:
             return {"running": self.running, "events": list(self.events),
-                    "result": self.result, "error": self.error}
+                    "result": self.result, "error": self.error,
+                    "started_at": self.started_at,
+                    "calls_made": (tracker.calls_made if tracker else None),
+                    "spent_usd": (tracker.spent_usd if tracker else None),
+                    "max_calls": (tracker.max_calls if tracker else None),
+                    "max_cost_usd": (tracker.max_cost_usd
+                                     if tracker else None),
+                    "stopping": bool(self.stop_event
+                                     and self.stop_event.is_set())}
+
+    def request_stop(self) -> dict:
+        """Ask the active run to stop cooperatively. The run
+        checks the flag at phase boundaries and finishes with a
+        partial bundle marked stopped rather than a verdict."""
+        with self.lock:
+            if not self.running or self.stop_event is None:
+                return {"ok": False, "error": "no run is active"}
+            self.stop_event.set()
+            return {"ok": True, "stopping": True}
 
     def _on_event(self, event):
         """Append one runner progress event (called from the run thread)."""
@@ -293,11 +320,16 @@ class RunManager:
             self.events = []
             self.result = None
             self.error = None
-        threading.Thread(target=self._run_target, args=(payload,),
+            self.stop_event = threading.Event()
+            stop_event = self.stop_event
+            import time as _time
+            self.started_at = _time.time()
+            self.current_tracker = None
+        threading.Thread(target=self._run_target, args=(payload, stop_event),
                          daemon=True).start()
         return {"started": True}
 
-    def _run_target(self, payload):
+    def _run_target(self, payload, stop_event=None):
         """The target run thread body: frame, retrieve, run, write.
 
         The panel comes from the saved setup. A setup with a single
@@ -325,6 +357,7 @@ class RunManager:
                 frame["evidence"] = retrieve_evidence(frame)
                 retrieval_first = True
             tracker = run_budget_tracker(built)
+            self.current_tracker = tracker
             constraints = tuple(
                 line.strip() for line in str(
                     payload.get("constraints") or "").splitlines()
@@ -339,7 +372,9 @@ class RunManager:
                     built, tracker),
                 retrieval_first=retrieval_first,
                 design_constraints=constraints,
-                on_event=self._on_event)
+                on_event=self._on_event,
+                should_stop=(stop_event.is_set if stop_event else None),
+                prereg_dir=self.runs_dir)
             run_dir = write_bundle(bundle, self.runs_dir)
             self.persist_events(run_dir)
             design = bundle.get("design") or {}
@@ -533,7 +568,21 @@ def make_handler(manager: RunManager):
             if parts[3] == "build-guide" and len(parts) == 4:
                 return _json(self, build_guide_payload(bundle))
             if parts[3] == "model3d" and len(parts) == 5:
-                return _json(self, candidate_model3d(bundle, parts[4]))
+                payload = candidate_model3d(
+                    bundle, parts[4], fetch_missing=True,
+                    cache_dir=Path(manager.runs_dir) / "structures")
+                if payload.get("status") == "ok":
+                    from .docking import load_docking_record
+                    record = load_docking_record(
+                        Path(manager.runs_dir) / parts[2], parts[4])
+                    if record and record.get("status") == "completed":
+                        payload["docked_pose"] = {
+                            "pose": record["pose"],
+                            "affinity_kcal_mol": record.get(
+                                "affinity_kcal_mol"),
+                            "note": record["note"],
+                            "box": record.get("box")}
+                return _json(self, payload)
             if parts[3] == "structure3d" and len(parts) == 5:
                 return _json(self, candidate_structure3d(bundle, parts[4]))
             if parts[3] == "events" and len(parts) == 4:
@@ -573,11 +622,88 @@ def make_handler(manager: RunManager):
             if path == "/api/setup/test":
                 return _json(self, manager.test_slot(
                     str(payload.get("slot") or "")))
+            if path == "/api/stop":
+                return _json(self, manager.request_stop())
+            if path == "/api/target-preflight":
+                config = manager._load_setup_config()
+                if config is None:
+                    return _json(self, {"ok": False, "problems": [
+                        "no setup saved yet: assign the model slots first"]})
+                try:
+                    built = build_providers(config)
+                except ConfigError as exc:
+                    return _json(self, {"ok": False,
+                                        "problems": ["setup problem: " + str(exc)]})
+                estimate = estimate_target_run(
+                    built["providers"], built["judge"],
+                    swap_judge_provider=built.get("judge_swap"))
+                budget = config.get("budget") or {}
+                problems = []
+                if budget.get("max_calls") is not None and \
+                        estimate["total_calls"] > budget["max_calls"]:
+                    problems.append(
+                        "the budget call cap (" + str(budget["max_calls"])
+                        + ") is below the estimated calls ("
+                        + str(estimate["total_calls"]) + ")")
+                if budget.get("max_cost_usd") is not None and \
+                        estimate["estimated_cost_usd"] > budget["max_cost_usd"]:
+                    problems.append(
+                        "the budget cost cap is below the estimated cost")
+                return _json(self, {"ok": not problems,
+                                    "estimate": estimate,
+                                    "budget": {"max_calls": budget.get("max_calls"),
+                                               "max_cost_usd": budget.get("max_cost_usd")},
+                                    "problems": problems})
             if path == "/api/target-run":
                 if not payload.get("name") or not payload.get("kind"):
                     return _json(self, {"started": False, "error":
                                         "a target name and kind are required"})
                 return _json(self, manager.start_target(payload))
+            if path.startswith("/api/runs/") and path.endswith("/dock"):
+                run_id = path.split("/")[3]
+                candidate_id = payload.get("candidate_id")
+                if not candidate_id:
+                    return _json(self, {"error": "candidate_id required"}, 400)
+                try:
+                    bundle = load_bundle(manager.runs_dir, run_id)
+                except Exception:
+                    return _json(self, {"error": "no such run"}, 404)
+                from .docking import (dock_candidate,
+                                      docking_record_path)
+                from .structure3d import (_find_candidate, fetch_receptor,
+                                          receptor_for_target)
+                design, candidate = _find_candidate(bundle, candidate_id)
+                if candidate is None:
+                    return _json(self, {"ok": False,
+                                        "error": "no such candidate"})
+                structure = candidate.get("structure") or {}
+                if str(structure.get("format") or "").lower() != "smiles":
+                    return _json(self, {"ok": False, "error":
+                                        "only SMILES candidates can dock"})
+                brief = (design or {}).get("brief") or {}
+                receptor = receptor_for_target(brief.get("target"))
+                if receptor is None:
+                    receptor = fetch_receptor(
+                        brief.get("target"),
+                        cache_dir=Path(manager.runs_dir) / "structures")
+                if receptor is None:
+                    return _json(self, {"ok": False, "error":
+                                        "no receptor on file for this "
+                                        "target and none could be fetched"})
+                run_dir = Path(manager.runs_dir) / run_id
+                record = dock_candidate(
+                    receptor["data"], structure.get("value"),
+                    run_dir / ("dockwork-" + str(candidate_id)))
+                record["candidate_id"] = candidate_id
+                record["receptor_label"] = receptor.get("label")
+                docking_record_path(run_dir, candidate_id).write_text(
+                    json.dumps(record, indent=2), encoding="utf-8")
+                return _json(self, {"ok": record["status"] == "completed",
+                                    "status": record["status"],
+                                    "affinity_kcal_mol": record.get(
+                                        "affinity_kcal_mol"),
+                                    "detail": record.get("detail"),
+                                    "problems": record.get("problems")})
             if path == "/api/design-run":
                 run_id = payload.get("run_id")
                 if not run_id:
@@ -601,10 +727,12 @@ def make_handler(manager: RunManager):
                         tracker = run_budget_tracker(built)
                         designer = ModelDesigner(built["providers"],
                                                  budget_tracker=tracker)
+                    design_events = []
                     bundle = run_design(spec, source, designer=designer,
                                         budget_tracker=tracker,
                                         target=payload.get("target") or None,
-                                        disease=payload.get("disease") or None)
+                                        disease=payload.get("disease") or None,
+                                        on_event=design_events.append)
                 except BudgetExceeded as exc:
                     return _json(self, {"ok": False, "error":
                                         "run stopped: " + str(exc)})
@@ -612,13 +740,25 @@ def make_handler(manager: RunManager):
                     return _json(self, {"ok": False, "error": str(exc)})
                 except Exception:
                     return _json(self, {"error": "no such run"}, 404)
-                write_bundle(bundle, manager.runs_dir)
+                design_dir = write_bundle(bundle, manager.runs_dir)
+                write_events_jsonl(design_dir, design_events)
                 return _json(self, {"ok": True, "run_id": bundle["run_id"],
                                     "gate": bundle["gate_report"]["result"],
                                     "ranked": bundle["ranking"]["ranked"]})
             return _json(self, {"error": "not found"}, 404)
 
     return Handler
+
+
+def write_events_jsonl(run_dir, events):
+    """Write an event stream into a run folder as events.jsonl,
+    one JSON object per line. Shared by the run manager (target
+    runs) and the synchronous design action, so every bundle the
+    console writes carries its recorded activity."""
+    import json as _json
+    path = Path(run_dir) / "events.jsonl"
+    lines = [_json.dumps(event) for event in events]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""))
 
 
 def create_server(host="127.0.0.1", port=8765, runs_dir="runs"):
@@ -715,12 +855,23 @@ PAGE = """<!DOCTYPE html>
   <div style="margin-top:8px">design constraints, one per line
     <textarea id="t-constraints" rows="3" style="width:660px"></textarea></div>
   <p><button class="run" onclick="runTarget()">RUN TARGET</button>
+  <button onclick="preflight()">PREFLIGHT</button>
   <span id="target-msg" class="mut"></span></p>
+  <div id="preflight" class="mut"></div>
 </div>
 <div class="panel"><h2>ACTIVITY</h2>
+  <div style="margin-bottom:6px"><span id="runbar" class="mut">no run active</span>
+  <button id="stopbtn" style="display:none" onclick="stopRun()">STOP RUN</button></div>
   <div id="console">console ready.</div>
 </div>
-<div class="panel"><h2>RUN LIBRARY</h2><div id="library">loading...</div>
+<div class="panel"><h2>RUN LIBRARY</h2>
+  <div style="margin-bottom:8px">
+    <select id="lib-kind"><option value="">all kinds</option><option value="target_run">target runs</option><option value="frame_run">frame runs</option><option value="design_run">design runs</option></select>
+    <select id="lib-outcome"><option value="">all outcomes</option></select>
+    <input id="lib-search" placeholder="search run id or target" style="width:240px">
+    <select id="lib-sort"><option value="new">newest first</option><option value="old">oldest first</option><option value="id">run id</option></select>
+  </div>
+  <div id="library">loading...</div>
   <div id="detail"></div></div>
 <script src="/assets/3Dmol-min.js"></script>
 <script>
@@ -769,12 +920,39 @@ function watchProgress(onEvent, onDone) {
     } catch (e) { startPoll(); }
   } else startPoll();
 }
+let _libRuns = [];
 async function loadLibrary() {
   const out = await (await fetch('/api/runs')).json();
-  if (!out.runs.length) { $('library').innerHTML = "<span class='mut'>no runs yet</span>"; return; }
-  let h = "<table><tr><th>run</th><th>kind</th><th>outcome</th></tr>";
-  for (const r of out.runs) h += "<tr><td class='runlink' data-runid=\\"" + esc(r.run_id) +
-    "\\">" + esc(r.run_id) + "</td><td>" + esc(r.kind) + "</td><td>" + esc(r.outcome) + "</td></tr>";
+  _libRuns = out.runs || [];
+  const outcomes = [...new Set(_libRuns.map(function (r) { return r.outcome; }).filter(Boolean))].sort();
+  const sel = $('lib-outcome');
+  const keep = sel.value;
+  sel.innerHTML = "<option value=''>all outcomes</option>" + outcomes.map(function (o) {
+    return "<option value='" + esc(o) + "'>" + esc(o) + "</option>"; }).join("");
+  sel.value = keep;
+  renderLibrary();
+}
+function renderLibrary() {
+  const kind = $('lib-kind').value, outcome = $('lib-outcome').value;
+  const q = $('lib-search').value.toLowerCase(), sort = $('lib-sort').value;
+  let runs = _libRuns.filter(function (r) {
+    return (!kind || r.kind === kind) && (!outcome || r.outcome === outcome) &&
+      (!q || (r.run_id + " " + (r.target || "")).toLowerCase().includes(q));
+  });
+  runs.sort(function (a, b) {
+    if (sort === "id") return a.run_id < b.run_id ? -1 : 1;
+    const ka = a.created_utc || a.run_id, kb = b.created_utc || b.run_id;
+    return sort === "new" ? (ka < kb ? 1 : -1) : (ka < kb ? -1 : 1);
+  });
+  if (!runs.length) {
+    $('library').innerHTML = "<span class='mut'>" +
+      (_libRuns.length ? "no runs match the filters" : "no runs yet") + "</span>";
+    return;
+  }
+  let h = "<table><tr><th>run</th><th>kind</th><th>target</th><th>outcome</th></tr>";
+  for (const r of runs) h += "<tr><td class='runlink' data-runid='" + esc(r.run_id) +
+    "'>" + esc(r.run_id) + "</td><td>" + esc(r.kind) + "</td><td>" +
+    esc(r.target || "") + "</td><td>" + esc(r.outcome) + "</td></tr>";
   $('library').innerHTML = h + "</table>";
   document.querySelectorAll('.runlink').forEach(function (el) {
     el.addEventListener('click', function () { show(el.dataset.runid); });
@@ -891,7 +1069,12 @@ function viewer3dHtml(design) {
     '<div>style <select id="glrec-style"><option value="cartoon">cartoon</option>' +
     '<option value="stick">sticks</option><option value="sphere">space filling</option></select> ' +
     '<button id="glrec-spin">spin: off</button></div><div id="glrec-cap" class="mut"></div></div>' +
+    '<div id="glpose-pane" style="display:none"><div class="mut">DOCKED POSE (COMPUTED)</div>' +
+    '<div id="glpose" style="width:400px;height:340px;position:relative;background:#07071a;border:1px solid #2a2a4a"></div>' +
+    '<div id="glpose-cap" class="mut"></div></div>' +
     '</div>' +
+    '<div style="margin-top:8px"><button id="dockbtn">DOCK INTO RECEPTOR</button> ' +
+    '<span id="dock-status" class="mut"></span></div>' +
     '<canvas id="v3d" width="520" height="360" style="display:none;max-width:100%;background:#07071a;border:1px solid #2a2a4a"></canvas>' +
     '<div id="v3d-status" class="mut">loading 3D model...</div>';
   return h;
@@ -907,6 +1090,8 @@ function initViewer3d(runId, bundle) {
   div.querySelectorAll('.v3dbtn').forEach(function (el) {
     el.addEventListener('click', function () { loadModel3d(runId, el.dataset.cid); });
   });
+  const dockBtn = div.querySelector('#dockbtn');
+  if (dockBtn) dockBtn.addEventListener('click', function () { dockCurrent(runId); });
   const first = div.querySelector('.v3dbtn:not([disabled])');
   if (first) loadModel3d(runId, first.dataset.cid);
 }
@@ -931,7 +1116,24 @@ function glSpinWire(btnId, viewer) {
     b.textContent = on ? 'spin: on' : 'spin: off';
   };
 }
+let _v3dCid = null;
+async function dockCurrent(runId) {
+  const st = $('dock-status');
+  if (!_v3dCid) { if (st) st.textContent = "pick a candidate first"; return; }
+  if (st) st.textContent = "docking (preparation plus search; can take a minute)...";
+  const out = await post('/api/runs/' + encodeURIComponent(runId) + '/dock',
+                         {candidate_id: _v3dCid});
+  if (!out.ok) {
+    if (st) st.textContent = "docking " + (out.status || "refused") + ": " +
+      (out.error || out.detail || (out.problems || []).join("; ") || "unknown");
+    return;
+  }
+  if (st) st.textContent = "docked | Vina score " + out.affinity_kcal_mol +
+    " kcal/mol (a scoring-function value, not a measured affinity)";
+  loadModel3d(runId, _v3dCid);
+}
 async function loadModel3d(runId, cid) {
+  _v3dCid = cid;
   const st = $('v3d-status');
   if (typeof $3Dmol === 'undefined') {
     const w = $('glwrap'); if (w) w.style.display = 'none';
@@ -975,6 +1177,27 @@ async function loadModel3d(runId, cid) {
   } else {
     if (pane) pane.style.display = 'none';
     if (st) st.textContent = out.note + ' No receptor structure is on file for this target.';
+  }
+  const ppane = $('glpose-pane');
+  if (ppane) {
+    if (out.docked_pose && out.receptor) {
+      ppane.style.display = '';
+      let pv = glViewers.pose;
+      if (!pv) { pv = $3Dmol.createViewer(document.getElementById('glpose'), {backgroundColor: '#07071a'}); glViewers.pose = pv; }
+      pv.removeAllModels();
+      pv.addModel(out.receptor.data, 'pdb');
+      pv.addModel(out.docked_pose.pose, 'pdb');
+      pv.setStyle({}, {cartoon: {color: 'spectrum'}});
+      pv.addStyle({resn: 'LIG'}, {stick: {radius: 0.25}, sphere: {scale: 0.4}});
+      pv.zoomTo(); pv.render();
+      if (st) st.textContent = out.note + ' A computed docked pose is shown in its own view below.';
+      const pcap = $('glpose-cap');
+      if (pcap) pcap.textContent = 'Vina score ' + out.docked_pose.affinity_kcal_mol +
+        ' kcal/mol | ' + out.docked_pose.note + ' | box: ' +
+        ((out.docked_pose.box || {}).source || '');
+    } else {
+      ppane.style.display = 'none';
+    }
   }
 }
 async function loadStructure(runId, cid) {
@@ -1212,6 +1435,56 @@ async function testSlot(slot) {
        ' | ' + out.latency_ms + ' ms')
     : ('failed: ' + (out.error || 'unknown'));
 }
+async function preflight() {
+  const out = await post('/api/target-preflight', {});
+  if (!out.estimate) {
+    $('preflight').textContent = "preflight: " + ((out.problems || ["unknown problem"]).join("; "));
+    return;
+  }
+  const e = out.estimate, b = out.budget || {};
+  let s = "preflight: about " + e.total_calls + " calls (" + e.debate_calls +
+    " debate + " + e.design_calls + " design if it locks), estimated $" +
+    e.estimated_cost_usd.toFixed(4);
+  if (b.max_calls != null) s += " | budget cap " + b.max_calls + " calls";
+  if (b.max_cost_usd != null) s += " / $" + b.max_cost_usd;
+  if (out.problems && out.problems.length) s += " | PROBLEMS: " + out.problems.join("; ");
+  $('preflight').textContent = s;
+}
+let _runStartedAt = null, _runStage = "", _runTimer = null;
+function runbarStart() {
+  _runStartedAt = Date.now(); _runStage = "starting";
+  $('stopbtn').style.display = "";
+  if (_runTimer) clearInterval(_runTimer);
+  _runTimer = setInterval(runbarTick, 1000);
+  runbarTick();
+}
+async function runbarTick() {
+  if (!_runStartedAt) return;
+  const secs = Math.floor((Date.now() - _runStartedAt) / 1000);
+  let calls = "";
+  try {
+    const p = await (await fetch('/api/progress')).json();
+    if (p.calls_made != null) {
+      calls = " | calls " + p.calls_made + (p.max_calls != null ? "/" + p.max_calls : "") +
+        (p.spent_usd != null ? " | spent $" + p.spent_usd.toFixed(4) : "");
+    }
+    if (p.stopping) { $('stopbtn').textContent = "STOPPING..."; $('stopbtn').disabled = true; }
+    if (!p.running && (p.result || p.error)) runbarStop();
+  } catch (e) { /* stream fallback covers the run itself */ }
+  $('runbar').textContent = "running | elapsed " + Math.floor(secs / 60) + ":" +
+    String(secs % 60).padStart(2, "0") + " | stage " + _runStage + calls;
+}
+function runbarStop() {
+  if (_runTimer) clearInterval(_runTimer);
+  _runTimer = null; _runStartedAt = null;
+  $('stopbtn').style.display = "none";
+  $('stopbtn').textContent = "STOP RUN"; $('stopbtn').disabled = false;
+  $('runbar').textContent = "no run active";
+}
+async function stopRun() {
+  const out = await post('/api/stop', {});
+  if (out.ok) { $('stopbtn').textContent = "STOPPING..."; $('stopbtn').disabled = true; }
+}
 async function runTarget() {
   const body = {name: $('t-name').value, kind: $('t-kind').value,
     target: $('t-target').value, disease: $('t-disease').value,
@@ -1223,7 +1496,9 @@ async function runTarget() {
     return;
   }
   log('target run started: ' + body.name);
-  watchProgress(function (e) { log(eventLine(e)); }, function (p) {
+  runbarStart();
+  watchProgress(function (e) { _runStage = e.event; log(eventLine(e)); }, function (p) {
+    runbarStop();
     if (p.error) {
       log('RUN STOPPED: ' + p.error);
       $('target-msg').textContent = 'stopped: ' + p.error;
@@ -1237,6 +1512,9 @@ async function runTarget() {
     }
   });
 }
+for (const id of ['lib-kind', 'lib-outcome', 'lib-sort'])
+  $(id).addEventListener('change', renderLibrary);
+$('lib-search').addEventListener('input', renderLibrary);
 loadLibrary(); loadSetup();
 </script></body></html>
 """

@@ -93,6 +93,9 @@ def write_bundle(bundle: dict, out_dir) -> Path:
     index.append({"run_id": bundle["run_id"], "kind": bundle.get("kind"),
                   "outcome": bundle.get("outcome"),
                   "frame_id": bundle.get("frame_id"),
+                  "target": (bundle.get("target") or {}).get("name")
+                            or (bundle.get("brief") or {}).get("target"),
+                  "created_utc": bundle.get("created_utc"),
                   "case_count": len(bundle.get("case_ids") or []) or None})
     index.sort(key=lambda e: str(e["run_id"]))
     index_path.write_text(json.dumps(index, indent=2, sort_keys=True),

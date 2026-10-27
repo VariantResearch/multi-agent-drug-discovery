@@ -2,6 +2,63 @@
 
 ## [Unreleased]
 
+### Added (the nine-item build, 2026-10-26)
+
+- Cooperative stop: debates, frame runs, Gate 0 runs, and target
+  runs accept a stop flag checked at phase boundaries. The
+  console's stop button ends the active run; a stopped run
+  finishes with its partial bundle marked stopped, its completed
+  cases kept, and thresholds recorded as not evaluated rather
+  than failed.
+- Design-stage candidate source checks now fan out across
+  worker threads (per-candidate verdicts are computed
+  independently and aggregated on the caller thread; the record
+  is unchanged). Measured on a canned registry: six candidates
+  in about 0.66 s against about 1.2 s serial.
+- Every bundle-writing path persists its event stream: design
+  runs through the console now write events.jsonl like target
+  runs do, so the run detail replays the design stage too.
+- Pre-registration (madd/prereg.py): a target run's target,
+  question, panel model identities, and lock criteria are
+  hashed and written before the run starts; the finished bundle
+  carries the hash, and `madd prereg-verify <bundle>` recomputes
+  it and checks the bundle answers the declared question. CLI
+  target runs pre-register by default (`--no-prereg` skips it);
+  console target runs always do. The record states its own
+  limit: it proves declaration-before-execution, not that no
+  undeclared runs happened.
+- AlphaFold fetch on demand (madd/structure3d.py): when no
+  receptor is on file for a design's target, the console resolves
+  the target to a reviewed human UniProt entry, fetches its
+  AlphaFold predicted model, caches it in the runs directory,
+  and registers it, labelled predicted with the model identity,
+  version, and mean pLDDT. Unresolvable targets keep the honest
+  none-on-file state.
+- Docking (madd/docking.py): an operator-triggered dock places
+  the viewed candidate into the on-file receptor with AutoDock
+  Vina via Meeko preparation, persists a docking record in the
+  run folder, and adds a computed-pose view with the Vina score,
+  labelled as a scoring-function geometry, not evidence of
+  binding. It shipped only after a redocking spike passed:
+  indinavir, prepared from its PubChem SMILES as candidates are
+  prepared here, redocked into HIV-1 protease (PDB 1HSG) with
+  its top pose 0.61 A (centroid) from the crystal ligand and
+  every pose atom within 2.5 A of a crystal atom, at -8.5
+  kcal/mol; a replicate run landed 1.26 A away with 40 of 49
+  pose atoms within 2.5 A. Vina is stochastic; both runs
+  reproduce the known pose, which validates the pipeline, not
+  any new pose. Missing tooling reports not_available with the
+  reason.
+- Target-run preflight: the console prices a run against the
+  saved setup before it starts (debate and design call counts,
+  estimated cost, and any budget cap the estimate would break).
+- Live run header: the activity panel shows elapsed time, the
+  current stage, budget consumption, and the stop button while
+  a run is active.
+- The run library is filterable by kind and outcome, searchable
+  by run id or target, and sortable; bundle index entries now
+  carry the target name and creation time to feed it.
+
 ### Changed
 
 - The console is now purely the product interface, at the

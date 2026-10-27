@@ -78,6 +78,15 @@
     },
     {
       "aliases": [
+        "meeko"
+      ],
+      "commercial_allowed": true,
+      "license": "LGPL-2.1",
+      "name": "Meeko",
+      "status": "allowed"
+    },
+    {
+      "aliases": [
         "posebusters"
       ],
       "commercial_allowed": true,

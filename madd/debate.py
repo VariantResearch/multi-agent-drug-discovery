@@ -394,7 +394,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
                resolver=None, quote_checker=None, entailment_checker=None,
                retrieval_first: bool = False,
-               require_stability: bool = True) -> dict:
+               require_stability: bool = True,
+               should_stop=None) -> dict:
     """Run the full debate protocol over a frame. Returns the run record.
 
     providers: at least two Provider objects (see madd/providers.py).
@@ -520,7 +521,12 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     if swap_judge_provider is not None and judge_provider is None:
         raise ValueError("a judge-swap provider requires a judge provider "
                          "to swap")
-    if judge_provider is not None:
+    # Cooperative stop: checked once, before the judge phase (the
+    # run's remaining provider spend). A stopped debate skips the
+    # judge work and records outcome "stopped": its consensus was
+    # never completed, so it must not read as a lock or a no-go.
+    stopped = bool(should_stop is not None and should_stop())
+    if judge_provider is not None and not stopped:
         judge_dossier = research(judge_provider)
         _canonicalize_dossier_focus(judge_dossier, frame)
         judge_audited = audit_dossier(judge_dossier, resolver=resolver,
@@ -550,7 +556,8 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
             }]
     consensus = run_consensus_tests(dossiers, spec, swapped_spec,
                                     stability_required=require_stability)
-    outcome = "locked" if consensus["all_passed"] else "no_go"
+    outcome = ("stopped" if stopped
+               else "locked" if consensus["all_passed"] else "no_go")
     spec["outcome"] = outcome
     swap_experiment = None
     if judge_info is not None:
@@ -664,6 +671,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         "consensus": consensus,
         "spec": spec,
         "outcome": outcome,
+        "stopped": stopped,
         "manifest": manifest,
         "budget": tracker.to_dict() if tracker is not None else None,
     }

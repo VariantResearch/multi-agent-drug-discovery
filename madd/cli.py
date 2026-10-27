@@ -25,6 +25,7 @@ Subcommands:
   report-html <bundle-file>
   report-pdf <bundle-file> --out <file.pdf> [--use research|commercial]
   calibration <bundle-file>... [--gate0-dir <dir>]
+  prereg-verify <bundle-file>
   gui [--port 8765] [--host 127.0.0.1] [--runs-dir runs]
   validate-artifact <schema-name> <file>
 
@@ -482,7 +483,9 @@ def _cmd_target_run(args) -> int:
             retrieval_first=retrieval_first,
             design_constraints=tuple(args.constraint or ()),
             source_check=bool(args.source_check),
-            on_event=_print_run_event)
+            on_event=_print_run_event,
+            prereg_dir=(None if getattr(args, "no_prereg", False)
+                        else args.out))
     except (ConfigError, ProviderError, BudgetExceeded, ValueError) as exc:
         print("run stopped:", exc)
         return 2
@@ -541,6 +544,49 @@ def _cmd_run_frame(args) -> int:
     if args.out:
         run_dir = write_bundle(bundle, args.out)
         print("bundle written to:", run_dir)
+    return 0
+
+
+def _cmd_prereg_verify(args) -> int:
+    """prereg-verify handler: recompute a bundle's pre-registration
+    hash and check the bundle answers the declared question."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from .prereg import verify_preregistration
+    bundle_path = _Path(args.bundle)
+    bundle = _json.loads(bundle_path.read_text(encoding="utf-8"))
+    ref = bundle.get("preregistration")
+    if not ref:
+        print("this bundle carries no pre-registration")
+        return 1
+    prereg_path = (bundle_path.parent.parent / "preregistrations"
+                   / ref["file"])
+    if not prereg_path.exists():
+        print("pre-registration file not found:", prereg_path)
+        return 1
+    record = _json.loads(prereg_path.read_text(encoding="utf-8"))
+    problems = []
+    if not verify_preregistration(record):
+        problems.append("the pre-registration record's hash does not "
+                        "recompute: the record was altered after writing")
+    if record.get("sha256") != ref.get("sha256"):
+        problems.append("the bundle's hash does not match the record's")
+    target = bundle.get("target") or {}
+    declared = record.get("target") or {}
+    for field in ("name", "kind", "target", "disease"):
+        if target.get(field) != declared.get(field):
+            problems.append("bundle target " + field + " differs from "
+                            "the declared " + field)
+    if bundle.get("mode") != record.get("mode"):
+        problems.append("bundle mode differs from the declared mode")
+    if problems:
+        for problem in problems:
+            print("MISMATCH:", problem)
+        return 1
+    print("pre-registration verified: declared", record.get("created_utc"),
+          "| target", declared.get("name"), "| mode", record.get("mode"),
+          "| hash", str(ref.get("sha256"))[:16])
     return 0
 
 
@@ -724,6 +770,8 @@ def build_parser() -> argparse.ArgumentParser:
     p15b.add_argument("--use", default="research")
     p15b.set_defaults(fn=_cmd_report_pdf)
     p15c = sub.add_parser("calibration"); p15c.add_argument("files", nargs="+")
+    p15d = sub.add_parser("prereg-verify"); p15d.add_argument("bundle")
+    p15d.set_defaults(fn=_cmd_prereg_verify)
     p15c.add_argument("--gate0-dir", default=None)
     p15c.set_defaults(fn=_cmd_calibration)
     p16 = sub.add_parser("compare-runs"); p16.add_argument("bundle_a")
@@ -758,6 +806,7 @@ def build_parser() -> argparse.ArgumentParser:
     p21.add_argument("--focus", default=None)
     p21.add_argument("--constraint", action="append", default=None)
     p21.add_argument("--no-retrieve", action="store_true")
+    p21.add_argument("--no-prereg", action="store_true")
     p21.add_argument("--source-check", action="store_true")
     p21.add_argument("--out", default=None)
     p21.set_defaults(fn=_cmd_target_run)

@@ -440,7 +440,8 @@ def run_design(spec: dict, source: str, designer=None,
                target: str = None, disease: str = None,
                use: str = "research", rdkit: bool = True,
                source_check: bool = False, admet: bool = True,
-               retro_config=None, retro_work_dir=None) -> dict:
+               retro_config=None, retro_work_dir=None,
+               on_event=None) -> dict:
     """Run the design stage for a locked spec and freeze the bundle.
 
     The gate passes only when the brief came from a locked spec (which
@@ -453,8 +454,14 @@ def run_design(spec: dict, source: str, designer=None,
     """
     brief = build_brief(spec, source, design_constraints,
                         target=target, disease=disease)
+    if on_event is not None:
+        on_event({"event": "design_started",
+                  "spec_id": spec.get("spec_id")})
     designer = designer or MockDesigner()
     candidates = list(designer.design(brief)) + list(extra_candidates)
+    if on_event is not None:
+        on_event({"event": "candidates_designed",
+                  "count": len(candidates)})
     all_tool_runs = list(tool_runs)
     if rdkit:
         # Real computation before audit: RDKit validates every SMILES
@@ -538,6 +545,8 @@ def run_design(spec: dict, source: str, designer=None,
                                 + ", ".join(str(t.get("tool")) + "=" + str(t.get("status"))
                                             for t in requested_runs))})
     result = "pass" if all(c["status"] == "pass" for c in checks) else "fail"
+    if on_event is not None:
+        on_event({"event": "design_gate_evaluated", "result": result})
     # One execution, one id: the spec slug names the relationship,
     # the suffix makes the execution unique, so a repeated design of
     # the same spec can never land on (and silently replace) the

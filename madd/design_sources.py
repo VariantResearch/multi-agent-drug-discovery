@@ -70,11 +70,43 @@ def chembl_ids_by_inchikey(inchikey: str, fetcher=None):
             if m.get("molecule_chembl_id")]
 
 
-def check_candidates(candidates: list, fetcher=None) -> dict:
+def _check_one_candidate(cand: dict, fetcher=None) -> str:
+    """Run the registry lookups for one candidate, attaching its
+    source_check entry. Returns the outcome token the caller's
+    record counts: skipped, checked_known, checked_no_record, or
+    failed. Independent per candidate, so callers may fan it out."""
+    structure = cand.get("structure") or {}
+    if structure.get("format") != "smiles" or not structure.get("value"):
+        return "skipped"
+    key = design_rdkit.inchikey(structure["value"])
+    if key is None:
+        cand["source_check"] = {"status": "skipped_invalid_structure"}
+        return "skipped"
+    cids = pubchem_cids_by_inchikey(key, fetcher=fetcher)
+    chembl_ids = chembl_ids_by_inchikey(key, fetcher=fetcher)
+    if cids is None or chembl_ids is None:
+        cand["source_check"] = {"status": "lookup_failed",
+                                "inchikey": key,
+                                "pubchem_cids": cids,
+                                "chembl_ids": chembl_ids}
+        return "failed"
+    known = bool(cids or chembl_ids)
+    cand["source_check"] = {"status": "known" if known else "no_record",
+                            "inchikey": key,
+                            "pubchem_cids": cids,
+                            "chembl_ids": chembl_ids,
+                            "known_compound": known}
+    return "checked_known" if known else "checked_no_record"
+
+
+def check_candidates(candidates: list, fetcher=None, max_workers: int = 4) -> dict:
     """Check every SMILES candidate against PubChem and ChEMBL.
 
     Mutates candidates in place, adding a source_check entry, and
-    returns the tool-run record for the design bundle.
+    returns the tool-run record for the design bundle. Candidates
+    are independent, so their lookups fan out over a bounded
+    thread pool (the same shape as the Gate 0 case fan-out);
+    the record's counts are aggregated on the caller's thread.
     """
     record = {"tool": "ChEMBL+PubChem", "kind": "source_lookup",
               "requested": False, "status": "completed",
@@ -85,35 +117,27 @@ def check_candidates(candidates: list, fetcher=None) -> dict:
         record["detail"] = ("RDKit is not installed, so no InChIKey can be "
                             "computed and no registry can be keyed")
         return record
-    for cand in candidates:
-        structure = cand.get("structure") or {}
-        if structure.get("format") != "smiles" or not structure.get("value"):
+    if len(candidates) > 1 and max_workers > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(
+                max_workers=min(max_workers, len(candidates))) as pool:
+            outcomes = list(pool.map(
+                lambda cand: _check_one_candidate(cand, fetcher),
+                candidates))
+    else:
+        outcomes = [_check_one_candidate(cand, fetcher)
+                    for cand in candidates]
+    for outcome in outcomes:
+        if outcome == "skipped":
             record["skipped"] += 1
-            continue
-        key = design_rdkit.inchikey(structure["value"])
-        if key is None:
-            record["skipped"] += 1
-            cand["source_check"] = {"status": "skipped_invalid_structure"}
-            continue
-        cids = pubchem_cids_by_inchikey(key, fetcher=fetcher)
-        chembl_ids = chembl_ids_by_inchikey(key, fetcher=fetcher)
-        record["checked"] += 1
-        if cids is None or chembl_ids is None:
+        elif outcome == "failed":
+            record["checked"] += 1
             record["failures"] += 1
-            cand["source_check"] = {"status": "lookup_failed",
-                                    "inchikey": key,
-                                    "pubchem_cids": cids,
-                                    "chembl_ids": chembl_ids}
-            continue
-        known = bool(cids or chembl_ids)
-        cand["source_check"] = {"status": "known" if known else "no_record",
-                                "inchikey": key,
-                                "pubchem_cids": cids,
-                                "chembl_ids": chembl_ids,
-                                "known_compound": known}
-        if known:
+        elif outcome == "checked_known":
+            record["checked"] += 1
             record["known"] += 1
         else:
+            record["checked"] += 1
             record["no_record"] += 1
     if record["checked"] and record["failures"] == record["checked"]:
         record["status"] = "lookup_error"
