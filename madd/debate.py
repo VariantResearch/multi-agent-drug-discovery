@@ -422,7 +422,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                swap_judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
                resolver=None, quote_checker=None, entailment_checker=None,
-               contradiction_checker=None,
+               contradiction_checker=None, tournament_judge=None,
                retrieval_first: bool = False,
                require_stability: bool = True,
                should_stop=None) -> dict:
@@ -553,6 +553,16 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     cluster_of = cluster_id_by_dossier(clusters)
     for summary in ranking:
         summary["cluster_id"] = cluster_of.get(summary["dossier_id"])
+    # Tournament (when a judge is supplied): judged head-to-head
+    # matches between cluster representatives accumulate advisory
+    # Elo-style ratings on the record. Ratings are preference,
+    # recorded as their own table; nothing downstream reads them,
+    # and no consensus input changes because they exist.
+    tournament = None
+    if tournament_judge is not None and len(clusters) >= 2:
+        from .tournament import run_tournament
+        tournament = run_tournament(clusters, audited, ranking,
+                                    tournament_judge)
     # Step 3: cross-examination record.
     transcript, red_team = _cross_examination(audited, ranking,
                                               disputes=disputes)
@@ -716,6 +726,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         "strike_list": strike_list,
         "ranking": ranking,
         "clusters": clusters,
+        "tournament": tournament,
         "rubric": {"applied": ["tier-weighted audited focus score",
                                "struck claim count"],
                    "not_applied": ["frame coverage: named in the protocol "

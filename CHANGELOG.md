@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 4, 2026-10-26)
+
+- Tournament ratings (madd/tournament.py), the fourth item of
+  the competitive-gap implementation list, in the AI
+  co-scientist's shape: when the tournament switch is on, a
+  run's proposal clusters play judged head-to-head matches
+  between their representatives (round-robin, capped at 45),
+  the judge comparing the proposals on the claims each
+  representative actually survived with. Wins, losses, and
+  ties accumulate into Elo-style ratings (start 1500, K = 32)
+  recorded on the run record with the match list. The ratings
+  are advisory only, and the record says so: they are a
+  preference ordering over the proposals as argued and move
+  no consensus test, lock, spec, or gate. Copies get no extra
+  matches (representatives play, not dossiers), a judge
+  failure records the match unverifiable and changes no
+  rating, and judging calls are budget-reserved like the
+  other judged checks. Enabled by the tournament config
+  switch (CLI and console setup), judged by the config's
+  judge provider.
+
 ### Added (competitive-gap item 3, 2026-10-26)
 
 - Proposal clustering (madd/clustering.py), the third item of

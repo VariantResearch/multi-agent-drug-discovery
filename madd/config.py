@@ -31,6 +31,9 @@ A run is described by a JSON config (see examples/run-config.example.json):
   judged contradictions become named disputes and their claims
   are kept out of the consensus spec as contested. Requires a
   judge provider.
+- tournament: when true, cluster representatives play judged
+  head-to-head matches and Elo-style ratings are recorded on
+  the run, advisory only. Requires a judge provider.
 - retrieval_first: when true, load-bearing claims may cite only
   identifiers present in the evidence the run supplied (the case pack
   or the frame's evidence entries); anything else is struck as
@@ -247,6 +250,7 @@ def build_providers(config, environ=None) -> dict:
         "live_quote_check": bool(config.get("live_quote_check", False)),
         "entailment_check": bool(config.get("entailment_check", False)),
         "contradiction_check": bool(config.get("contradiction_check", False)),
+        "tournament": bool(config.get("tournament", False)),
         "retrieval_first": bool(config.get("retrieval_first", False)),
         "max_workers": int(config.get("parallel_cases", 1)),
     }
@@ -396,3 +400,36 @@ def contradiction_checker_from_config(built: dict, budget_tracker=None):
         return verdict
 
     return contradiction_checker
+
+
+def tournament_judge_from_config(built: dict, budget_tracker=None):
+    """Return the tournament comparator when the config enables
+    the tournament, else None. Matches are judged by the config's
+    judge provider; enabling the tournament without one is a
+    configuration error, raised as ValueError. Budget handling
+    mirrors the other judged checks. The ratings the comparator
+    feeds are advisory: they never move a consensus outcome."""
+    if not built.get("tournament"):
+        return None
+    judge = built.get("judge")
+    if judge is None:
+        raise ValueError("tournament is on but the config names no "
+                         "judge provider to judge matches with")
+
+    def tournament_comparator(summary_a, summary_b):
+        """Judge one head-to-head between two proposal summaries
+        and return the result string madd.tournament expects."""
+        from .tournament import compare_proposals
+        cost = float(getattr(judge, "cost_per_call_usd", 0.0) or 0.0)
+        if budget_tracker is not None:
+            budget_tracker.reserve(
+                cost, note="tournament:"
+                + str(getattr(judge, "name", "?")))
+        result = compare_proposals(summary_a, summary_b, judge)
+        settle_transport_retries(
+            budget_tracker, judge, cost,
+            "transport retries:tournament:"
+            + str(getattr(judge, "name", "?")))
+        return result
+
+    return tournament_comparator
