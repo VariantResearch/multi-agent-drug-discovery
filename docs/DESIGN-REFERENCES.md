@@ -102,3 +102,46 @@ routing a scored run through Swarms; the entry is a
 reference for panel-composition decisions, and any
 adoption belongs in a phase spec with the audit
 guarantees re-proven against it first.
+
+## Carbon-X - conversational DNA model
+
+Recorded 2026-10-26 at the owner's direction, parked for
+later relevance.
+Source: Hugging Face release, 2026-10-22 (Zhongguancun
+Academy and University of Naples Federico II / Telethon
+Institute of Genetics and Medicine collaborators);
+Apache-2.0, 14.8B parameters, downloadable weights.
+
+Carbon-X is a DNA language model: DNA and English share
+one token stream (DNA read as 6-mers), so a researcher
+pastes a sequence (up to about 50 kb per call) and asks
+questions in plain language. Its stated tasks are variant
+pathogenicity prediction, identifying regions that
+control gene activity, sequence classification, and
+next-base prediction, with natural-language explanations.
+
+The pattern that could transfer to MADD is narrow and
+specific: as a registry-gated prediction tool in the
+design stage, in the slot ADMET-AI already occupies, for
+sequence-shaped work - variant-effect reads on
+genetic-disorder targets (a frame kind the target form
+already supports) and locus context for antisense
+designs. Its predictions would be recorded exactly the
+way ADMET-AI's are: basis labelled, verified: false,
+information for the panel, never evidence.
+
+Boundary: it is not a provider candidate. Its outputs
+are unverified model predictions by its own creators'
+description (no laboratory validation at release, and
+early independent coverage flags unreliable sequence
+operations and inconsistent deployment documentation),
+so it cannot carry claims in an audit that strikes
+anything without a verified primary source. Practical
+blockers today: 14.8B parameters need GPU infrastructure
+the run setup does not have, the 50 kb window cannot hold
+large loci whole (the CFTR gene spans roughly 250 kb),
+and the model was four days old at recording. Revisit
+when a genetic-disorder target run is actually on the
+table; adoption would belong in a phase spec, behind the
+license registry, with its prediction labels settled
+first.
