@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 11, 2026-10-27)
+
+- Assay results ingestion (madd/assay_results.py, `madd
+  assay-grade <plan bundle> <results.json>`), the second
+  wave-3 item of the competitive-gap implementation list,
+  closing the design loop. Assay plan criteria now also
+  carry a machine-checkable form (metric, comparison,
+  threshold) beside their prose rule, and returned
+  measurements are graded against exactly those checks:
+  met, not_met, or not_reported, where a missing measurement
+  is named as outstanding and never counted as met.
+  Recommendations follow the plan's own decision rule:
+  advance when every criterion is met, retire when the hit
+  call or a counterscreen-class criterion failed, revise
+  otherwise with the gaps named. Results for candidates the
+  plan never named are recorded as unplanned and not graded;
+  planned candidates without results are recorded as
+  outstanding. A plan_id mismatch between the results file
+  and the plan is recorded on the report, and the report
+  states that grading operator-supplied measurements is not
+  verification the assay was run as planned.
+
 ### Added (competitive-gap item 10, 2026-10-27)
 
 - Assay design output (madd/assay.py, `madd assay-plan

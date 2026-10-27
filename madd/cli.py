@@ -267,6 +267,44 @@ def _cmd_assay_plan(args) -> int:
     return 0
 
 
+def _cmd_assay_grade(args) -> int:
+    """Grade returned assay measurements against an assay plan."""
+    from datetime import datetime, timezone
+
+    from .assay_results import grade_results
+    from .compare import load_bundle_anywhere
+    try:
+        plan_bundle = load_bundle_anywhere(args.plan_bundle)
+        results = _load(args.results)
+    except Exception as exc:
+        print("assay-grade failed: cannot load the inputs: "
+              + str(exc), file=sys.stderr)
+        return 2
+    plan = plan_bundle.get("plan") or plan_bundle
+    report = grade_results(plan, results)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = "assay-results-" + stamp
+    out_bundle = {"kind": "assay_results", "run_id": run_id,
+                  "outcome": ("advance " + str(report["summary"]["advance"])
+                              + " / revise " + str(report["summary"]["revise"])
+                              + " / retire " + str(report["summary"]["retire"])),
+                  "created_utc": stamp, "report": report}
+    run_dir = write_bundle(out_bundle, args.out)
+    print("assay results " + run_id + " written to " + str(run_dir))
+    print("plan: " + str(report["plan_id"]) + " (id match: "
+          + str(report["plan_id_match"]) + ")")
+    for graded in report["graded"]:
+        print("  " + str(graded["candidate_id"]) + ": "
+              + graded["recommendation"])
+    if report["outstanding_candidates"]:
+        print("  outstanding (no results): "
+              + ", ".join(report["outstanding_candidates"]))
+    if report["unplanned_candidates"]:
+        print("  unplanned results (not graded): "
+              + ", ".join(report["unplanned_candidates"]))
+    return 0
+
+
 def _cmd_audit_claims(args) -> int:
     """audit-claims handler: print the claim and citation audits of a
     document; exit 1 when either audit finds errors."""
@@ -919,6 +957,10 @@ def build_parser() -> argparse.ArgumentParser:
     p28.add_argument("--top", type=int, default=3)
     p28.add_argument("--out", default="runs")
     p28.set_defaults(fn=_cmd_assay_plan)
+    p29 = sub.add_parser("assay-grade"); p29.add_argument("plan_bundle")
+    p29.add_argument("results")
+    p29.add_argument("--out", default="runs")
+    p29.set_defaults(fn=_cmd_assay_grade)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

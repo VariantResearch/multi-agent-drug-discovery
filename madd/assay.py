@@ -38,10 +38,17 @@ PLAN_NOTE = ("This plan is a design artifact. Every assay, "
              "written.")
 
 
-def _criterion(name: str, rule: str) -> dict:
-    """One acceptance criterion, labelled as a convention."""
-    return {"criterion": name, "rule": rule,
-            "basis": "assay-design convention (recorded default)"}
+def _criterion(name: str, rule: str, check: dict = None) -> dict:
+    """One acceptance criterion, labelled as a convention. The
+    check, when present, is the machine-gradable form of the
+    same rule: the metric a results file reports, the
+    comparison, and the threshold, so results ingestion grades
+    the plan exactly as written."""
+    out = {"criterion": name, "rule": rule,
+           "basis": "assay-design convention (recorded default)"}
+    if check is not None:
+        out["check"] = check
+    return out
 
 
 def _small_molecule_block(target: str) -> dict:
@@ -82,14 +89,22 @@ def _small_molecule_block(target: str) -> dict:
                          "recorded at execution time"),
         },
         "acceptance_criteria": [
-            _criterion("plate quality", "Z' >= 0.5 on every plate"),
+            _criterion("plate quality", "Z' >= 0.5 on every plate",
+                       {"metric": "z_prime", "op": ">=",
+                        "value": 0.5}),
             _criterion("curve quality",
                        "dose-response fit R^2 >= 0.9 with a "
-                       "defined top and bottom plateau"),
+                       "defined top and bottom plateau",
+                       {"metric": "curve_r2", "op": ">=",
+                        "value": 0.9}),
             _criterion("hit call",
                        "IC50/EC50 at or below 10 uM in the "
                        "primary assay with the counterscreens "
-                       "clean at that concentration"),
+                       "clean at that concentration",
+                       {"metric": "ic50_um", "op": "<=",
+                        "value": 10.0, "also": {
+                            "metric": "counterscreen_clean",
+                            "op": "==", "value": True}}),
         ],
     }
 
@@ -132,13 +147,21 @@ def _sequence_block(target: str) -> dict:
             _criterion("hit call",
                        ">= 70% mRNA knockdown at the top "
                        "tolerated dose, with protein reduced "
-                       "in the same direction"),
+                       "in the same direction",
+                       {"metric": "knockdown_percent", "op": ">=",
+                        "value": 70.0, "also": {
+                            "metric": "protein_reduced",
+                            "op": "==", "value": True}}),
             _criterion("viability",
                        ">= 80% viability at every dose counted "
-                       "toward the hit call"),
+                       "toward the hit call",
+                       {"metric": "viability_percent", "op": ">=",
+                        "value": 80.0}),
             _criterion("specificity",
                        "no non-target transcript in the panel "
-                       "reduced by more than 30%"),
+                       "reduced by more than 30%",
+                       {"metric": "max_offtarget_reduction_percent",
+                        "op": "<=", "value": 30.0}),
         ],
     }
 
@@ -175,9 +198,15 @@ def _generic_block(modality: str, target: str) -> dict:
                        "a saturable, dose-dependent binding "
                        "signal clearly separated from the "
                        "negative control, with functional "
-                       "activity in the same direction"),
+                       "activity in the same direction",
+                       {"metric": "binding_saturable", "op": "==",
+                        "value": True, "also": {
+                            "metric": "functional_activity",
+                            "op": "==", "value": True}}),
             _criterion("curve quality",
-                       "dilution-series fit R^2 >= 0.9"),
+                       "dilution-series fit R^2 >= 0.9",
+                       {"metric": "curve_r2", "op": ">=",
+                        "value": 0.9}),
         ],
     }
 
