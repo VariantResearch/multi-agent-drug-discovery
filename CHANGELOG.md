@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 8, 2026-10-27)
+
+- Generative designer seat (madd/design_generative.py), the
+  eighth item of the competitive-gap implementation list. A
+  generative chemistry endpoint named by MADD_GENERATIVE_URL
+  (MADD_GENERATIVE_MODEL names the model for provenance,
+  MADD_GENERATIVE_N the sample count, MADD_GENERATIVE_TOKEN
+  an optional bearer token) fills one seat in the design
+  panel beside the language models: run_design composes it
+  in automatically when the environment configures one, for
+  design runs and target runs alike. Sampled molecules enter
+  as ordinary candidates stamped design_tool
+  "generative:<model>" with no claims (a sampler asserts
+  nothing), and pass through the same RDKit validation,
+  candidate audit, ranking, and design gate as any proposed
+  candidate. With no endpoint configured the seat is simply
+  absent; a configured endpoint that fails contributes no
+  candidates and records the failure in the designer notes.
+  Endpoint calls are metered outside the run budget, and the
+  seat's note in the bundle says so.
+
 ### Added (competitive-gap item 7, 2026-10-27)
 
 - TxGemma property predictions (madd/design_txgemma.py), the

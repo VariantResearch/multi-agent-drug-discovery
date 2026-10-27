@@ -441,7 +441,7 @@ def run_design(spec: dict, source: str, designer=None,
                target: str = None, disease: str = None,
                use: str = "research", rdkit: bool = True,
                source_check: bool = False, admet: bool = True,
-               txgemma: bool = False,
+               txgemma: bool = False, generative_seat: bool = True,
                retro_config=None, retro_work_dir=None,
                on_event=None) -> dict:
     """Run the design stage for a locked spec and freeze the bundle.
@@ -460,6 +460,13 @@ def run_design(spec: dict, source: str, designer=None,
         on_event({"event": "design_started",
                   "spec_id": spec.get("spec_id")})
     designer = designer or MockDesigner()
+    if generative_seat:
+        # A configured generative endpoint fills one panel seat
+        # beside the designer; with nothing configured this is a
+        # no-op and the seat's absence is not recorded anywhere,
+        # because no seat was ever offered.
+        from .design_generative import with_generative_seat
+        designer = with_generative_seat(designer)
     candidates = list(designer.design(brief)) + list(extra_candidates)
     if on_event is not None:
         on_event({"event": "candidates_designed",
