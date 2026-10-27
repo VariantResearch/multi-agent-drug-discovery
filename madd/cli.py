@@ -232,6 +232,41 @@ def _cmd_optimize(args) -> int:
     return 0 if record["status"] == "completed" else 1
 
 
+def _cmd_assay_plan(args) -> int:
+    """Build an assay plan from a design bundle: readouts,
+    controls, and acceptance criteria per top candidate."""
+    from datetime import datetime, timezone
+
+    from .assay import plan_assays
+    from .compare import load_bundle_anywhere
+    try:
+        bundle = load_bundle_anywhere(args.design_bundle)
+    except Exception as exc:
+        print("assay-plan failed: cannot load the design bundle: "
+              + str(exc), file=sys.stderr)
+        return 2
+    try:
+        plan = plan_assays(bundle, top_n=args.top)
+    except ValueError as exc:
+        print("assay-plan failed: " + str(exc), file=sys.stderr)
+        return 2
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = str(plan["plan_id"]) + "-" + stamp
+    out_bundle = {"kind": "assay_plan", "run_id": run_id,
+                  "outcome": "planned", "created_utc": stamp,
+                  "plan": plan}
+    run_dir = write_bundle(out_bundle, args.out)
+    print("assay plan " + run_id + " written to " + str(run_dir))
+    print("target: " + str(plan.get("target"))
+          + " | candidates planned: " + str(plan["candidates_planned"])
+          + " of " + str(plan["candidates_total"]))
+    for entry in plan["candidates"]:
+        print("  " + str(entry["candidate_id"]) + " ("
+              + str(entry["modality"]) + "): "
+              + entry["assay_block"]["primary_assay"]["name"])
+    return 0
+
+
 def _cmd_audit_claims(args) -> int:
     """audit-claims handler: print the claim and citation audits of a
     document; exit 1 when either audit finds errors."""
@@ -880,6 +915,10 @@ def build_parser() -> argparse.ArgumentParser:
     p27.add_argument("--source-check", action="store_true")
     p27.add_argument("--out", default="runs")
     p27.set_defaults(fn=_cmd_optimize)
+    p28 = sub.add_parser("assay-plan"); p28.add_argument("design_bundle")
+    p28.add_argument("--top", type=int, default=3)
+    p28.add_argument("--out", default="runs")
+    p28.set_defaults(fn=_cmd_assay_plan)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

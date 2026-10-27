@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 10, 2026-10-27)
+
+- Assay design output (madd/assay.py, `madd assay-plan
+  <design bundle>`), the first wave-3 item of the
+  competitive-gap implementation list. From a design run (or
+  a target bundle's design section), the top candidates in
+  ranking order each get a concrete assay plan: the
+  hypotheses under test are the design brief's surviving
+  evidence constraints; the assay blocks are matched to each
+  candidate's modality (small molecule: biochemical
+  dose-response plus a cell-based functional assay and
+  counterscreens; sequence: knockdown with mRNA and protein
+  readouts; other modalities: binding plus functional), with
+  named controls, dose layouts, and acceptance criteria.
+  Every criterion is recorded in the plan as an assay-design
+  convention chosen before any data exists, and the plan
+  states plainly that executing it is laboratory work
+  outside this system. Returned results (next item) will be
+  graded against these criteria as written.
+
 ### Added (competitive-gap item 9, 2026-10-27)
 
 - DiffDock pose cross-check (madd/diffdock.py), the ninth and
