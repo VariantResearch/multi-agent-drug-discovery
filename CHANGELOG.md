@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 19, 2026-10-27)
+
+- Figure and table evidence extraction (madd/figure_table.py,
+  `madd extract-evidence --pmcid <id>`), the last item of the
+  competitive-gap implementation list, built only after its
+  spike held. The spike (live, 2026-10-27) sampled Europe PMC
+  full texts: clinical articles carried structured JATS
+  tables whose cell grids extract mechanically and verbatim
+  with the standard library (5 of 6 articles, 12 tables),
+  figures carried rich captions, and cell-biology articles
+  carried no tables at all. The build covers exactly what
+  held: tables as label, caption, and full cell grid;
+  figures as label and caption. Figure graphics are images:
+  counted, flagged graphic_extracted False, never read -
+  values are not lifted off chart images by a tool this
+  system does not have. Each table and caption becomes an
+  evidence entry named by its source (PMCID:Table 1), its
+  text the verbatim lines a claim may quote. An article
+  without tables yields no entries rather than an error.
+
 ### Added (competitive-gap item 18, 2026-10-27)
 
 - Bundle-faithful manuscript draft (madd/manuscript.py,

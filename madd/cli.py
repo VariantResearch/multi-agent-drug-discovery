@@ -398,6 +398,41 @@ def _cmd_trials(args) -> int:
     return 0
 
 
+def _cmd_extract_evidence(args) -> int:
+    """Extract table and figure-caption evidence from an
+    article's full-text XML (fetched, or a local file)."""
+    import urllib.request
+    from .figure_table import evidence_entries
+    if args.xml:
+        xml_text = Path(args.xml).read_text(encoding="utf-8")
+        pmcid = args.pmcid or Path(args.xml).stem
+    else:
+        url = ("https://www.ebi.ac.uk/europepmc/webservices/rest/"
+               + str(args.pmcid) + "/fullTextXML")
+        request = urllib.request.Request(
+            url, headers={"User-Agent": "madd-extract-evidence"})
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                xml_text = response.read().decode("utf-8", "replace")
+        except Exception as exc:
+            print("full text fetch failed:", exc)
+            return 2
+        pmcid = args.pmcid
+    entries = evidence_entries(pmcid, xml_text)
+    if args.out:
+        import json as _json
+        Path(args.out).write_text(
+            _json.dumps(entries, indent=2), encoding="utf-8")
+        print("evidence entries written:", args.out, "|", len(entries))
+    else:
+        for entry in entries:
+            print(entry["source_id"], "(" + entry["kind"] + ")")
+            print(" ", entry["text"][:200].replace("\n", " "))
+    if not entries:
+        print("no tables or figure captions found in this article")
+    return 0
+
+
 def _cmd_manuscript(args) -> int:
     """Render a bundle-faithful manuscript draft from a bundle."""
     from .compare import load_bundle_anywhere
@@ -1128,6 +1163,11 @@ def build_parser() -> argparse.ArgumentParser:
     p34 = sub.add_parser("manuscript"); p34.add_argument("bundle")
     p34.add_argument("--out", default=None)
     p34.set_defaults(fn=_cmd_manuscript)
+    p35 = sub.add_parser("extract-evidence")
+    p35.add_argument("--pmcid", default=None)
+    p35.add_argument("--xml", default=None)
+    p35.add_argument("--out", default=None)
+    p35.set_defaults(fn=_cmd_extract_evidence)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))
