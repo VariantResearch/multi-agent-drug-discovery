@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Fixed (README audit, 2026-10-27)
+
+- A full audit of the README against the code found the
+  module map exact (64 of 64 modules, none missing or
+  extra) and the code documentation complete (every module
+  and every definition carries a docstring, AST-verified),
+  but the prose had drifted in four places, now corrected:
+  the protocol-modes paragraph still said three modes and
+  never described simple_judge; the All commands list was
+  missing 14 commands (target-run, prereg-verify, presets,
+  optimize, assay-plan, assay-grade, protocol-export,
+  scout, trials, run-memory, manuscript, extract-evidence,
+  proposal, candidate-proposal) and the checkpoint and
+  resume flags; the run configuration reference did not
+  document the retrieval_tier key; and the judge field's
+  description claimed debates end in no-go without one,
+  which is true only for modeless configurations and now
+  says so. The console section's preflight description now
+  includes the retrieval tier it prices.
+
 ### Added (panel presets, 2026-10-27)
 
 - Panel presets (madd/presets.py, `madd presets`), a setup
