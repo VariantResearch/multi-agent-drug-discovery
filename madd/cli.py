@@ -398,6 +398,25 @@ def _cmd_trials(args) -> int:
     return 0
 
 
+def _cmd_manuscript(args) -> int:
+    """Render a bundle-faithful manuscript draft from a bundle."""
+    from .compare import load_bundle_anywhere
+    from .manuscript import build_manuscript
+    bundle = load_bundle_anywhere(args.bundle)
+    if (bundle.get("kind") or "") != "target_run":
+        print("manuscript drafts are built from target-run bundles; "
+              "this bundle's kind is", bundle.get("kind"))
+        return 2
+    draft = build_manuscript(bundle)
+    if args.out:
+        Path(args.out).write_text(draft["markdown"], encoding="utf-8")
+        print("manuscript written:", args.out,
+              "| statements:", len(draft["statements"]))
+    else:
+        print(draft["markdown"])
+    return 0
+
+
 def _cmd_run_memory(args) -> int:
     """Print the fenced run-memory digest for a runs directory."""
     from .run_memory import build_memory
@@ -1106,6 +1125,9 @@ def build_parser() -> argparse.ArgumentParser:
     p32.set_defaults(fn=_cmd_trials)
     p33 = sub.add_parser("run-memory"); p33.add_argument("--runs", default="runs")
     p33.set_defaults(fn=_cmd_run_memory)
+    p34 = sub.add_parser("manuscript"); p34.add_argument("bundle")
+    p34.add_argument("--out", default=None)
+    p34.set_defaults(fn=_cmd_manuscript)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

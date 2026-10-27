@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 18, 2026-10-27)
+
+- Bundle-faithful manuscript draft (madd/manuscript.py,
+  `madd manuscript <bundle>`), the fourth wave-4 item of the
+  competitive-gap implementation list. The draft has the
+  shape of a short computational paper and is assembled
+  from statements: each sentence is rendered from a named
+  bundle field and carries that field path in the draft's
+  statement list, so a reader can trace every number to its
+  source and nothing enters the text that the bundle does
+  not contain. References are the surviving claims' sources,
+  deduplicated; a struck claim's source stays out (verified
+  against the frozen MTCH2 inhibition bundle, whose struck
+  EMBO source is absent from its draft). The limitations
+  section states the bundle's scope as a fact: computational
+  only, no synthesis, assay, or clinical results recorded,
+  no candidate made or tested.
+
 ### Added (competitive-gap item 17, 2026-10-27)
 
 - Fenced run memory (madd/run_memory.py, `madd run-memory`),
