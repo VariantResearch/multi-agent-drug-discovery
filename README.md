@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (426 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (429 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -433,6 +433,21 @@ madd/            the package (standard library only)
                      conventions, SVG charts of the same
                      numbers, and Markdown, HTML, and JSON
                      renders; no target is locked in by it
+  candidate_proposal.py
+                     designed-candidate proposal pack: from one
+                     designed target-run bundle, the case for
+                     the target (brief, constraints, the debate
+                     record, surviving claims with quotes and
+                     sources, and the selection pack's context
+                     when supplied), the design run as recorded
+                     (notes, tool runs, gate checks, audits),
+                     and a full section per ranked candidate:
+                     computed production identity, readiness
+                     with everything not yet specified, every
+                     constraint result with its basis, the
+                     designer's predicted properties beside the
+                     computed ones, structure depictions, and
+                     the proposed validation assay plan
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score

@@ -398,6 +398,37 @@ def _cmd_trials(args) -> int:
     return 0
 
 
+def _cmd_candidate_proposal(args) -> int:
+    """Assemble the designed-candidate proposal pack from a
+    target-run bundle."""
+    import json as _json
+    from .candidate_proposal import (build_candidate_proposal,
+                                     write_pack)
+    from .compare import load_bundle_anywhere
+    bundle = load_bundle_anywhere(args.bundle)
+    if (bundle.get("kind") or "") != "target_run" \
+            or not bundle.get("design"):
+        print("candidate proposals are built from designed "
+              "target-run bundles; this bundle has kind",
+              bundle.get("kind"), "and design:",
+              bool(bundle.get("design")))
+        return 2
+    selection = None
+    if args.proposal:
+        selection = _json.loads(
+            Path(args.proposal).read_text(encoding="utf-8"))
+    proposal = build_candidate_proposal(
+        bundle, selection=selection,
+        include_assay_plan=not args.no_assay)
+    written = write_pack(proposal, args.out)
+    for section in proposal["candidates"]:
+        sheet = section["sheet"]
+        print(" ", sheet["rank"], sheet["candidate_id"],
+              "| ready:", sheet["production_ready"])
+    print("pack written:", args.out, "| files:", len(written))
+    return 0
+
+
 def _cmd_proposal(args) -> int:
     """Assemble the target-selection proposal pack."""
     import datetime
@@ -1194,6 +1225,12 @@ def build_parser() -> argparse.ArgumentParser:
     p36.add_argument("--runs", default="runs")
     p36.add_argument("--out", default="proposal-pack")
     p36.set_defaults(fn=_cmd_proposal)
+    p37 = sub.add_parser("candidate-proposal")
+    p37.add_argument("bundle")
+    p37.add_argument("--proposal", default=None)
+    p37.add_argument("--no-assay", action="store_true")
+    p37.add_argument("--out", default="candidate-proposal-pack")
+    p37.set_defaults(fn=_cmd_candidate_proposal)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

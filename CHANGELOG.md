@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Added (designed-candidate proposal pack, 2026-10-27)
+
+- Designed-candidate proposal pack (madd/candidate_proposal.py,
+  `madd candidate-proposal <bundle> [--proposal <selection
+  pack json>]`), the companion to the target-selection pack,
+  built at the owner's request. From one designed target-run
+  bundle it assembles the case for the target inside the
+  document (the locked brief and its design constraint, the
+  debate outcome and strike tally, the surviving claims with
+  their supporting quotes and sources, the evidence
+  constraints, and the selection pack's signals and verdict
+  when one is supplied), the design run exactly as recorded
+  (designer notes including failures, tool runs with
+  licences, gate checks, per-candidate audits), and a full
+  section per ranked candidate: the production sheet's
+  computed identity (canonical structure, formula, weight,
+  InChIKey, or sequence composition), production readiness
+  with every not-specified item named, every constraint
+  result with its basis, predicted properties carried with
+  their recorded basis so designer predictions and computed
+  values sit side by side (they disagree in the first real
+  pack: logP 4.0 predicted, 5.081 computed), a structure
+  depiction per small molecule, and the assay planner's
+  proposed validation for the slate. The standing note
+  rides in every pack: computational proposals only, none
+  synthesised or assayed.
+
 ### Added (target-selection proposal pack, 2026-10-27)
 
 - Target-selection proposal pack (madd/proposal.py, `madd
