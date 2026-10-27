@@ -90,6 +90,7 @@ def run_target(frame: dict, providers, judge_provider=None,
                run_id=None, on_event=None, should_stop=None, prereg_dir=None,
                resolver=None, quote_checker=None, entailment_checker=None,
                contradiction_checker=None, tournament_judge=None,
+               meta_reviewer=None,
                retrieval_first: bool = False, design_constraints: tuple = (),
                target_label: str = None, disease: str = None,
                use: str = "research", source_check: bool = False) -> dict:
@@ -125,6 +126,7 @@ def run_target(frame: dict, providers, judge_provider=None,
                              entailment_checker=entailment_checker,
                              contradiction_checker=contradiction_checker,
                              tournament_judge=tournament_judge,
+                             meta_reviewer=meta_reviewer,
                              retrieval_first=retrieval_first, mode=mode,
                              should_stop=should_stop)
     record = frame_bundle["record"]

@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 5, 2026-10-26)
+
+- Meta-review (madd/meta_review.py), the fifth item of the
+  competitive-gap implementation list, completing wave 1.
+  After each debate, deterministic signals are computed from
+  the finished record (strikes by agent and their
+  concentration, surviving load-bearing claims and their
+  distinct sources, disputes, cluster shape, tournament
+  divergence from the mechanical ranking, failed consensus
+  tests, red-team and judge-swap state) and the config's
+  judge provider writes a structured critique over those
+  signals only, choosing findings from a closed pattern
+  vocabulary (strike_concentration, single_source_dependence,
+  unresolved_disputes, preference_divergence,
+  cluster_collapse, thin_evidence, consensus_failure,
+  judge_instability) with note, concern, or serious severity.
+  Findings outside the vocabulary are dropped, an empty
+  findings list is a valid clean review, and a reviewer that
+  cannot answer records the review as unavailable instead of
+  fabricating one. The review and its signals are recorded on
+  the run, advisory only. Enabled by the meta_review config
+  switch (CLI and console setup).
+
 ### Added (competitive-gap item 4, 2026-10-26)
 
 - Tournament ratings (madd/tournament.py), the fourth item of

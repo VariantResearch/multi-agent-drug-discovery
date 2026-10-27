@@ -423,6 +423,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                budget: dict | None = None, budget_tracker=None,
                resolver=None, quote_checker=None, entailment_checker=None,
                contradiction_checker=None, tournament_judge=None,
+               meta_reviewer=None,
                retrieval_first: bool = False,
                require_stability: bool = True,
                should_stop=None) -> dict:
@@ -714,6 +715,19 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         budget=tracker.to_dict() if tracker is not None else {},
         declared_use="research")
     manifest["calls"] = calls
+    # Meta-review (when a reviewer is supplied): deterministic
+    # signals computed from the finished debate, then a judged
+    # structured critique over those signals only. Recorded on
+    # the run; it reads the outcome, it never feeds one.
+    meta_review = None
+    if meta_reviewer is not None:
+        from .meta_review import compute_signals, review_run
+        signals = compute_signals(
+            audited, strike_list, disputes, clusters, tournament,
+            ranking, consensus, outcome, red_team,
+            judge_swap=judge_info)
+        meta_review = {"signals": signals,
+                       **review_run(signals, meta_reviewer)}
     record = {
         "artifact_type": "debate_record",
         "schema_version": "0.1.0",
@@ -727,6 +741,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         "ranking": ranking,
         "clusters": clusters,
         "tournament": tournament,
+        "meta_review": meta_review,
         "rubric": {"applied": ["tier-weighted audited focus score",
                                "struck claim count"],
                    "not_applied": ["frame coverage: named in the protocol "

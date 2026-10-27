@@ -34,6 +34,10 @@ A run is described by a JSON config (see examples/run-config.example.json):
 - tournament: when true, cluster representatives play judged
   head-to-head matches and Elo-style ratings are recorded on
   the run, advisory only. Requires a judge provider.
+- meta_review: when true, a reviewer pass writes a structured
+  critique of the finished run from its computed signals,
+  recorded on the run, advisory only. The reviewer is the
+  config's judge provider.
 - retrieval_first: when true, load-bearing claims may cite only
   identifiers present in the evidence the run supplied (the case pack
   or the frame's evidence entries); anything else is struck as
@@ -251,6 +255,7 @@ def build_providers(config, environ=None) -> dict:
         "entailment_check": bool(config.get("entailment_check", False)),
         "contradiction_check": bool(config.get("contradiction_check", False)),
         "tournament": bool(config.get("tournament", False)),
+        "meta_review": bool(config.get("meta_review", False)),
         "retrieval_first": bool(config.get("retrieval_first", False)),
         "max_workers": int(config.get("parallel_cases", 1)),
     }
@@ -433,3 +438,42 @@ def tournament_judge_from_config(built: dict, budget_tracker=None):
         return result
 
     return tournament_comparator
+
+
+def meta_reviewer_from_config(built: dict, budget_tracker=None):
+    """Return the meta-review reviewer provider when the config
+    enables the meta-review, else None. The reviewer is the
+    config's judge provider, called once per debate with the
+    run's computed signals; enabling the review without a judge
+    is a configuration error, raised as ValueError. The call is
+    reserved against the budget tracker when one is given,
+    through a thin provider-shaped wrapper so the reserve and
+    the transport-retry settlement wrap the single completion."""
+    if not built.get("meta_review"):
+        return None
+    judge = built.get("judge")
+    if judge is None:
+        raise ValueError("meta_review is on but the config names no "
+                         "judge provider to review with")
+
+    class _Reviewer:
+        """Provider-shaped wrapper reserving budget per review."""
+
+        name = getattr(judge, "name", "?")
+        model_version = getattr(judge, "model_version", None)
+
+        def complete(self, system, user):
+            """Reserve, delegate to the judge, settle retries."""
+            cost = float(getattr(judge, "cost_per_call_usd", 0.0) or 0.0)
+            if budget_tracker is not None:
+                budget_tracker.reserve(
+                    cost, note="meta_review:"
+                    + str(getattr(judge, "name", "?")))
+            answer = judge.complete(system, user)
+            settle_transport_retries(
+                budget_tracker, judge, cost,
+                "transport retries:meta_review:"
+                + str(getattr(judge, "name", "?")))
+            return answer
+
+    return _Reviewer()

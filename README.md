@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (364 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (369 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -182,6 +182,7 @@ Top-level fields:
 - entailment_check (optional, default false): when true, the evidence call asks the config's judge provider whether each surviving quote_checked claim is supported by the passage it cites, and strikes claims the judge finds refuted by their own quote (reason claim_refuted_by_its_quote). Partial support is recorded nowhere as a strike: it is a warning grade, not a contradiction. A judge that cannot answer strikes nothing.
 - contradiction_check (optional, default false): when true, surviving load-bearing claims from different dossiers are compared pairwise (same-source and high-overlap pairs first, capped) and the config's judge provider rules on each pair. A pair judged contradictory becomes a named dispute in the run record and the cross-examination; both claims survive, but neither enters the consensus spec while the dispute stands (they are recorded there as contested claims). A judge that cannot answer creates no dispute. Requires a judge provider.
 - tournament (optional, default false): when true and a run produces at least two proposal clusters, the config's judge provider plays judged head-to-head matches between cluster representatives (round-robin, capped) and the results accumulate as Elo-style ratings recorded on the run. The ratings are advisory only: a preference ordering over the proposals as argued, which moves no consensus test, lock, or spec. A judge that cannot answer plays no match. Requires a judge provider.
+- meta_review (optional, default false): when true, each debate's finished record is critiqued by the config's judge provider. The critique is written over deterministic signals computed from the record itself (strike concentration, distinct surviving sources, disputes, cluster shape, tournament divergence, failed consensus tests) and must choose findings from a closed pattern vocabulary, each citing the signal values; findings outside the vocabulary are dropped. The review is recorded on the run, advisory only. A reviewer that cannot answer records the review as unavailable rather than fabricating findings. Requires a judge provider.
 - retrieval_first (optional, default false): when true, load-bearing claims may cite only identifiers present in the evidence the run supplied - the Gate 0 case pack, or a prospective frame's evidence entries (run-frame --retrieve builds that set live from Europe PMC). Anything else is struck as citation_not_in_evidence, however real the outside source is: the run's evidence, not the model's memory, is what may be cited.
 - Retractions: when live_resolution is on, a DOI whose Crossref record carries a retraction or withdrawal notice is struck as citation_retracted_live. The record still resolves; it is flagged, and flagged sources cannot carry claims.
 - parallel_cases (optional, default 1): how many case debates may run at once. The bundle is assembled in case order either way; only wall time changes. run-gate0 --jobs overrides it.
@@ -315,6 +316,10 @@ madd/            the package (standard library only)
                      representatives with Elo-style ratings, recorded
                      on the run as an advisory table that moves no
                      consensus outcome
+  meta_review.py     a structured critique of the finished run:
+                     deterministic signals computed from the record,
+                     then judged findings over a closed pattern
+                     vocabulary, recorded advisory on the run
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score
