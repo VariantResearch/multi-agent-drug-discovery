@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 6, 2026-10-27)
+
+- Lead optimization loop (madd/optimize.py, CLI command
+  `madd optimize`), the sixth item of the competitive-gap
+  implementation list and the first of wave 2. Given a design
+  bundle and one of its SMILES candidates (the top-ranked by
+  default), the config's designer panel proposes analogs in
+  bounded rounds (default 2). Every analog is computed on
+  with RDKit; it is kept only when it Pareto-improves on its
+  parent across the computed objectives (QED up, SA score
+  down, structural alert count down), and dropped with its
+  reason otherwise: duplicate or parent itself, invalid
+  structure, logP drift beyond 1.0 from the original lead, or
+  no Pareto improvement. Kept analogs chain, the round's best
+  becoming the next round's parent, and the full lineage,
+  every proposal with its computed values, deltas, and
+  verdict, is stored as an optimization bundle. An optional
+  registry source check runs over kept analogs, recorded,
+  never excluding. The record states its standing in itself:
+  in-silico iteration on computed objectives, not a potency,
+  binding, or efficacy claim. Sequence leads return
+  not_applicable; a missing RDKit returns not_available.
+
 ### Added (competitive-gap item 5, 2026-10-26)
 
 - Meta-review (madd/meta_review.py), the fifth item of the

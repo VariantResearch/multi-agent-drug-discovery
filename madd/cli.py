@@ -175,6 +175,62 @@ def _cmd_design_run(args) -> int:
     return 0 if bundle["gate_report"]["result"] == "pass" else 1
 
 
+def _cmd_optimize(args) -> int:
+    """Run the lead optimization loop around one designed candidate."""
+    from datetime import datetime, timezone
+
+    from .compare import load_bundle_anywhere
+    from .optimize import run_optimization
+    try:
+        bundle = load_bundle_anywhere(args.design_bundle)
+    except Exception as exc:
+        print("optimize failed: cannot load the design bundle: "
+              + str(exc), file=sys.stderr)
+        return 2
+    if bundle.get("kind") != "design_run":
+        print("optimize failed: " + str(args.design_bundle)
+              + " is not a design bundle", file=sys.stderr)
+        return 2
+    candidates = {c.get("candidate_id"): c
+                  for c in bundle.get("candidates") or []}
+    lead_id = args.candidate
+    if lead_id is None:
+        ranked = (bundle.get("ranking") or {}).get("ranked") or []
+        lead_id = ranked[0] if ranked else None
+    lead = candidates.get(lead_id)
+    if lead is None:
+        print("optimize failed: candidate " + str(lead_id)
+              + " not found in the design bundle", file=sys.stderr)
+        return 2
+    built = build_providers(load_config(args.config))
+    tracker = run_budget_tracker(built)
+    designer = ModelDesigner(built["providers"], budget_tracker=tracker)
+    print("optimizer: model panel from " + args.config + " ("
+          + ", ".join(getattr(p, "name", "?")
+                      for p in built["providers"]) + ")")
+    record = run_optimization(lead, designer, rounds=args.rounds,
+                              source_check=args.source_check,
+                              budget_tracker=tracker)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_id = "opt-" + str(lead_id).replace("/", "-") + "-" + stamp
+    out_bundle = {"kind": "optimization_run", "run_id": run_id,
+                  "outcome": record["status"],
+                  "created_utc": stamp,
+                  "design_bundle": bundle.get("run_id"),
+                  "record": record,
+                  "budget": tracker.to_dict() if tracker is not None
+                  else None}
+    run_dir = write_bundle(out_bundle, args.out)
+    print("optimization run " + run_id + " written to " + str(run_dir))
+    print("status: " + record["status"]
+          + " | proposed: " + str(record.get("proposed_total"))
+          + " | kept: " + str(record.get("kept_total")))
+    best = record.get("best") or {}
+    print("best: " + str(best.get("candidate_id"))
+          + " | objectives: " + str(best.get("objectives")))
+    return 0 if record["status"] == "completed" else 1
+
+
 def _cmd_audit_claims(args) -> int:
     """audit-claims handler: print the claim and citation audits of a
     document; exit 1 when either audit finds errors."""
@@ -815,6 +871,13 @@ def build_parser() -> argparse.ArgumentParser:
     p20.add_argument("--use", default="research", choices=["research", "commercial"])
     p20.add_argument("--tool-input", default=None)
     p20.set_defaults(fn=_cmd_design_run)
+    p27 = sub.add_parser("optimize"); p27.add_argument("design_bundle")
+    p27.add_argument("--candidate", default=None)
+    p27.add_argument("--config", required=True)
+    p27.add_argument("--rounds", type=int, default=2)
+    p27.add_argument("--source-check", action="store_true")
+    p27.add_argument("--out", default="runs")
+    p27.set_defaults(fn=_cmd_optimize)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

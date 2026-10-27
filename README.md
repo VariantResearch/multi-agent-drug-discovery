@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (369 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (373 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -239,6 +239,8 @@ A predictions file for gate0-report maps case ids (see gate0-list) to "advance" 
 
 Phase 2 starts where a debate ends. design-run takes a locked consensus spec - from a spec file, a frame run bundle, or a Gate 0 bundle with --case naming the case - and refuses anything that is not locked. It builds a design brief (the target from the spec's focus, the surviving load-bearing claims as evidence constraints, plus any --constraint you add; specs record no disease, so pass --disease when it matters), generates candidates, audits them, ranks them, and stores a design bundle with a gate report, next to the run bundles.
 
+A ranked lead can then be iterated with the optimize command: `madd optimize <design bundle> --config <run config> [--candidate <id>] [--rounds 2]`. The config's designer panel proposes analogs of the lead (the top-ranked candidate by default) in bounded rounds; every analog is computed on with RDKit and kept only when it Pareto-improves on its parent across the computed objectives (QED up, SA score down, structural alerts down), with duplicates, invalid structures, and analogs whose logP drifts more than 1.0 from the original lead dropped with reasons. Kept analogs chain - the round's best becomes the next round's parent - and the full lineage is stored as an optimization bundle. Kept means better on computed objectives only: the loop is in-silico iteration, not a potency or binding claim, and it covers SMILES leads only.
+
 ```
 python3 -m madd design-run runs/<frame-run>/bundle.json --disease "Cardiovascular disease"
 python3 -m madd design-run runs/<gate0-run>/bundle.json --case evolocumab-pcsk9-cvd
@@ -320,6 +322,10 @@ madd/            the package (standard library only)
                      deterministic signals computed from the record,
                      then judged findings over a closed pattern
                      vocabulary, recorded advisory on the run
+  optimize.py        the lead optimization loop: bounded analog
+                     rounds around one SMILES lead, RDKit-computed
+                     objectives, Pareto improvement, full lineage
+                     recorded as an optimization bundle
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score
