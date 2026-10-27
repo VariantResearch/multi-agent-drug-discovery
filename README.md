@@ -24,7 +24,7 @@ A target run (`madd target-run`) takes one named target through the whole pipeli
 1. Frames the target. Evidence is retrieved for it from Europe PMC, plus its Open Targets target-disease association when the target and disease resolve there, and the frame carries those sources as the evidence set the panel may cite.
 2. Sends the frame to several research agents at once. Each works blind, without seeing the others, and returns a structured dossier of claims. Every claim names its source (a registry identifier: PubMed, DOI, ClinicalTrials.gov, Europe PMC, GWAS Catalog, ChEMBL, PubChem, UniProt, or an Open Targets target-disease association), its evidence tier, and a supporting quote.
 3. Runs an evidence call. A claim ledger audit and a citation audit strike any claim that is unsourced, sourced to model opinion, malformed, or - when live resolution is switched on - pointing at a registry record that does not exist. Struck claims take no further part.
-4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, and one evolution round that merges the best material.
+4. Debates the surviving dossiers: structured cross-examination, a red-team round whenever the agents agree too quickly, pairwise ranking on audited evidence scores only, one evolution round that merges the best material, and a deterministic clustering of the dossiers into proposals (same focus and direction, or the same direction standing on substantially overlapping sources), recorded on the run so near-duplicate proposals are visible as one cluster rather than several endorsements.
 5. Applies the consensus tests (agreement, survival, evidence floor, and stability under a judge swap where the run's protocol mode has a judge). Only when every applied test passes does the run lock a design specification for the target. Otherwise it ends in a no-go, with the disagreements preserved in a dissent log instead of averaged away, and no design work starts.
 6. Designs candidates against the locked specification. Designer models propose candidate compounds; a real candidate must carry a structure (a SMILES string or a sequence). RDKit validates structures and computes descriptors, ADMET-AI adds predicted endpoints labelled as predictions, every candidate's claims pass the same audit as the research claims, and the candidates are ranked deterministically. The design gate passes only when at least one real candidate is ranked.
 7. Issues production targets. Each ranked candidate gets a production sheet: the structure exactly as proposed plus its computed identity (canonical SMILES, formula, molecular weight, InChIKey for small molecules; length and composition for sequences), the production route its modality implies (chemical synthesis, solid-phase peptide synthesis, biologic production), the targeted process it serves, and a not_specified list naming the production-critical details the designer did not supply, such as a sequence candidate's modification pattern or the confirmation assay. A sheet is marked production-ready only when the thing to make is fully determined.
@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (354 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (359 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -306,6 +306,10 @@ madd/            the package (standard library only)
                      claims: named disputes in the record and the
                      cross-examination, contested claims kept out of
                      the consensus spec
+  clustering.py      deterministic proposal clustering of the audited
+                     dossiers (same focus and direction, or overlapping
+                     sources), recorded on the debate record and
+                     cross-referenced from the ranking
   retrieval.py       Europe PMC retrieval that builds a frame's evidence set
   consensus.py       the four consensus tests
   focus.py           the deterministic focus score

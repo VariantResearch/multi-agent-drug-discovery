@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added (competitive-gap item 3, 2026-10-26)
+
+- Proposal clustering (madd/clustering.py), the third item of
+  the competitive-gap implementation list. After ranking, the
+  audited dossiers are grouped deterministically (no model
+  calls) into proposal clusters: two dossiers merge when they
+  propose the same focus in the same direction, or argue the
+  same direction on substantially overlapping sources (Jaccard
+  similarity of cited identifiers at or above 0.5); direction
+  is never merged across. Each cluster is recorded on the
+  debate record with its members in ranking order, its
+  top-ranked representative, the rules that fired, and the
+  sources at least two members share; ranking entries name
+  their cluster. Near-duplicate proposals are thus visible as
+  one cluster instead of several apparent endorsements, and
+  the tournament ratings (item 4) will rate clusters rather
+  than copies. Clustering is descriptive in this item: it
+  changes no consensus outcome.
+
 ### Added (competitive-gap item 2, 2026-10-26)
 
 - Contradiction detection (madd/contradictions.py), the second

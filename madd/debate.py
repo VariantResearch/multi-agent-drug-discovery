@@ -542,6 +542,17 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     # disjoint inputs (audited claims; dossier focuses), so the order
     # changes nothing in either result.
     ranking = rank_dossiers(audited)
+    # Proposal clusters: which dossiers are arguing the same
+    # proposal (same focus and direction, or the same direction
+    # standing on substantially overlapping sources). Recorded on
+    # the run and cross-referenced from the ranking; the
+    # tournament, when it runs, rates clusters rather than
+    # copies. Clustering changes nothing about consensus here.
+    from .clustering import cluster_dossiers, cluster_id_by_dossier
+    clusters = cluster_dossiers(audited, ranking)
+    cluster_of = cluster_id_by_dossier(clusters)
+    for summary in ranking:
+        summary["cluster_id"] = cluster_of.get(summary["dossier_id"])
     # Step 3: cross-examination record.
     transcript, red_team = _cross_examination(audited, ranking,
                                               disputes=disputes)
@@ -704,6 +715,7 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
                       for p, a in zip(providers, audited)],
         "strike_list": strike_list,
         "ranking": ranking,
+        "clusters": clusters,
         "rubric": {"applied": ["tier-weighted audited focus score",
                                "struck claim count"],
                    "not_applied": ["frame coverage: named in the protocol "
