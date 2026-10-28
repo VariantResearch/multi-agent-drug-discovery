@@ -181,6 +181,19 @@ def build_workbench(bundle):
                                name, str(prop.get("basis") or "")),
                            "value": prop.get("value"),
                            "basis": prop.get("basis")}
+        if identity.get("format") == "smiles":
+            from .structural_alerts import (alerts_for_smiles,
+                                            format_alerts)
+            result = alerts_for_smiles(
+                identity.get("canonical_smiles")
+                or identity.get("value_as_proposed"))
+            if result["status"] == "ok":
+                cells["structural_alerts"] = {
+                    "name": "structural alerts",
+                    "group": "Structural alerts (computed)",
+                    "value": format_alerts(result["alerts"]),
+                    "basis": ("computed:RDKit FilterCatalog "
+                              "(PAINS, Brenk, NIH)")}
         columns.append({
             "candidate_id": candidate_id,
             "modality": candidate.get("modality"),
@@ -205,6 +218,7 @@ def build_workbench(bundle):
     order = ["Identity (from the structure)",
              "RDKit descriptors (computed)",
              "ADMET-AI endpoints (predicted)",
+             "Structural alerts (computed)",
              "Designer predictions (as proposed)"]
     groups.sort(key=lambda g: order.index(g) if g in order else 99)
     rows = []
@@ -258,7 +272,10 @@ def build_workbench(bundle):
                  "higher) and are conventions of this view, not "
                  "findings. No composite score is computed. Docking "
                  "poses are not stored in bundles, so no pose "
-                 "overlay is shown."),
+                 "overlay is shown. Structural alerts are computed "
+                 "from the recorded structures with RDKit's PAINS, "
+                 "Brenk, and NIH catalogs and are advisory flags "
+                 "for a chemist's eye, not verdicts."),
     }
 
 

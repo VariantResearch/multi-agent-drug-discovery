@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (463 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (468 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -247,6 +247,7 @@ python3 -m madd trials --disease <d> [--focus <a,b,...>] [--out <dir>]
 python3 -m madd run-memory [--runs <dir>]
 python3 -m madd retraction-watch [--runs <dir>] [--out <overlay.json>]
 python3 -m madd export-library [--runs <dir>] [--out <library.csv>]
+python3 -m madd alerts <run directory or bundle.json>
 python3 -m madd manuscript <target-bundle> [--out <file.md>]
 python3 -m madd extract-evidence [--pmcid <id>] [--xml <file>] [--out <file>]
 python3 -m madd proposal --disease <d> --outcome <text> --targets <a,b,...>
@@ -406,6 +407,12 @@ madd/            the package (standard library only)
                      recorded computed property; designer
                      predictions are not matrix material and empty
                      cells stay empty)
+  structural_alerts.py  curated liability patterns computed from
+                     a candidate's recorded structure with RDKit's
+                     FilterCatalog sets (PAINS, Brenk, NIH);
+                     advisory flags only, never exclusions and
+                     never rank changes; exposed as the madd
+                     alerts command and a workbench row
   claim_graph.py     the console's claim graph: sources, claims
                      (in spec, contested, struck) and the
                      specification as Cytoscape.js elements built

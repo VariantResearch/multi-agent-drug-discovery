@@ -504,6 +504,29 @@ def _cmd_manuscript(args) -> int:
     return 0
 
 
+def _cmd_alerts(args) -> int:
+    """Print the structural alerts of one designed run's candidates."""
+    from .compare import load_bundle_anywhere
+    from .structural_alerts import alerts_for_bundle, format_alerts
+    bundle = load_bundle_anywhere(args.bundle)
+    results = alerts_for_bundle(bundle)
+    if results is None:
+        print("structural alerts are computed for designed runs; "
+              "this bundle's kind is", bundle.get("kind"))
+        return 2
+    for result in results:
+        if result["status"] == "ok":
+            print(f"  {result['candidate_id']}: "
+                  f"{format_alerts(result['alerts'])}")
+        elif result["status"] == "not_applicable":
+            print(f"  {result['candidate_id']}: not applicable "
+                  "(no small-molecule structure)")
+        else:
+            print(f"  {result['candidate_id']}: {result['status']} "
+                  "(alerts not computed)")
+    return 0
+
+
 def _cmd_export_library(args) -> int:
     """Export every designed run's candidates as one CSV table."""
     from .library_export import write_library_csv
@@ -1284,6 +1307,8 @@ def build_parser() -> argparse.ArgumentParser:
     p40.add_argument("--runs", default="runs")
     p40.add_argument("--out", default="library-export.csv")
     p40.set_defaults(fn=_cmd_export_library)
+    p41 = sub.add_parser("alerts"); p41.add_argument("bundle")
+    p41.set_defaults(fn=_cmd_alerts)
     p21 = sub.add_parser("target-run"); p21.add_argument("--config", required=True)
     p21.add_argument("--name", required=True)
     p21.add_argument("--kind", required=True, choices=list(TARGET_KINDS))

@@ -4,6 +4,15 @@
 
 ### Added
 
+- Structural alerts (`madd alerts`, madd/structural_alerts.py),
+  the second Gcloud-variant port rebuilt to this project's rules:
+  the variant's four SMILES substring checks are replaced by
+  RDKit's curated FilterCatalog sets (PAINS, Brenk, NIH) computed
+  from each candidate's recorded production-sheet structure. The
+  alerts also appear as a computed row in the console's candidate
+  workbench. They are advisory flags for a chemist's eye, never
+  exclusions and never rank changes, and sequence candidates
+  report not-applicable rather than a manufactured pass.
 - Cross-run candidate library export (`madd export-library`,
   madd/library_export.py), ported from the Gcloud variant's bulk
   export and rebuilt to this project's rules: one CSV over every
