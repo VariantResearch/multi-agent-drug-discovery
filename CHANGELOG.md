@@ -4,6 +4,22 @@
 
 ### Added
 
+- Operator-side failure memory (`madd failures`, madd/failure_memory.py),
+  the TradeMemory-style failure log scoped on 2026-10-27: it records
+  what failed in finished runs and why (Gate 0 threshold failures,
+  no_go debates with their failed consensus tests, design gate
+  refusals, recorded audit violations and strikes) into a local
+  EverOS memory server (REST API v2, keyword search), so the operator
+  can learn across runs. It is opt-in (MADD_FAILURE_MEMORY=everos),
+  off by default, and strictly operator-side: recording happens only
+  when the operator runs `madd failures record <bundle>` on a
+  finished bundle, reading happens only through `madd failures list`
+  and `madd failures search`, and no blinded run path (debate,
+  gate0, target_run, design, providers, audits) imports or reads it;
+  a source-scanning isolation test enforces that only the CLI may
+  import the module. When the feature is off or the server is
+  unreachable, recording and reading are quiet no-ops that report
+  their status and can never affect a run.
 - Production packaging: the package version now has a single
   source (`madd.__version__`, read dynamically by the build), the
   CLI reports it as `madd --version`, and the optional compute

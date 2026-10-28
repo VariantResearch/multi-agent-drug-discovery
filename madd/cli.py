@@ -10,6 +10,9 @@ Subcommands:
                [--audit-violations <n>] [--judge-swap-flips <n>]
   gate0-validate [--gate0-dir <dir>]
   gate0-new-case <case-id> [--gate0-dir <dir>]
+  failures list [--top-k <n>]
+  failures search <query> [--top-k <n>]
+  failures record <bundle>
   presets
   providers-check --config <file>
   providers-smoke --config <file>
@@ -574,6 +577,48 @@ def _cmd_run_memory(args) -> int:
               + str(slot["debate_outcomes"]))
     print("fence:", memory["fence"])
     return 0
+
+
+def _print_failure_search(report) -> int:
+    """Render one failure-memory search report for the operator;
+    exit 0 when the memory answered or the feature is off, 1
+    when it was enabled but unreachable."""
+    print("failure memory:", report["status"], "-", report["detail"])
+    if report["status"] != "ok":
+        return 0 if report["status"] == "disabled" else 1
+    result = report["result"] or {}
+    hits = result.get("results") or result.get("memories") or []
+    if not hits:
+        print("no matching failure records")
+        return 0
+    for hit in hits:
+        text = hit.get("content") or hit.get("text") \
+            or json.dumps(hit, sort_keys=True)
+        print("-")
+        print(text)
+    return 0
+
+
+def _cmd_failures(args) -> int:
+    """failures handler: the operator's only door into the
+    failure memory. `record <bundle>` stores a finished run's
+    failure entry; `list` and `search` read the log back. The
+    feature is opt-in (MADD_FAILURE_MEMORY=everos) and off by
+    default; run code never calls any of this."""
+    from .failure_memory import record_bundle_file, search_failures
+    if args.failures_action == "record":
+        report = record_bundle_file(args.bundle)
+        print("failure memory:", report["status"], "-", report["detail"])
+        entry = report.get("entry")
+        if entry is not None:
+            from .failure_memory import entry_text
+            print(entry_text(entry))
+        return 0 if report["status"] != "unreadable" else 2
+    if args.failures_action == "search":
+        return _print_failure_search(
+            search_failures(args.query, top_k=args.top_k))
+    return _print_failure_search(
+        search_failures("failure", top_k=args.top_k))
 
 
 def _cmd_presets(args) -> int:
@@ -1279,6 +1324,16 @@ def build_parser() -> argparse.ArgumentParser:
     p32.set_defaults(fn=_cmd_trials)
     p33 = sub.add_parser("run-memory"); p33.add_argument("--runs", default="runs")
     p33.set_defaults(fn=_cmd_run_memory)
+    p33b = sub.add_parser("failures")
+    fsub = p33b.add_subparsers(dest="failures_action", required=True)
+    pf_list = fsub.add_parser("list")
+    pf_list.add_argument("--top-k", type=int, default=10)
+    pf_search = fsub.add_parser("search")
+    pf_search.add_argument("query")
+    pf_search.add_argument("--top-k", type=int, default=10)
+    pf_record = fsub.add_parser("record")
+    pf_record.add_argument("bundle")
+    p33b.set_defaults(fn=_cmd_failures)
     p34 = sub.add_parser("manuscript"); p34.add_argument("bundle")
     p34.add_argument("--out", default=None)
     p34.set_defaults(fn=_cmd_manuscript)

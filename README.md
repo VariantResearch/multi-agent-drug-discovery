@@ -485,6 +485,18 @@ madd/            the package (standard library only)
                      history; claim text, quotes, and structures
                      never cross the fence, and the memory is
                      never evidence in a run
+  failure_memory.py  operator-side failure log (the
+                     TradeMemory pattern): records what failed
+                     in finished runs and why (threshold
+                     failures, no_go debates, design gate
+                     refusals, audit strikes), backed by a
+                     local EverOS memory server and read back
+                     only through the failures command. Opt-in
+                     via MADD_FAILURE_MEMORY=everos and off by
+                     default; it is never imported by, read by,
+                     or fed into any blinded run path, and a
+                     test scans the pipeline sources to keep
+                     that true
   manuscript.py      bundle-faithful manuscript drafts: a
                      publication-shaped draft (title, abstract,
                      background, methods, results, limitations,
