@@ -4,6 +4,15 @@
 
 ### Added
 
+- Cross-run candidate library export (`madd export-library`,
+  madd/library_export.py), ported from the Gcloud variant's bulk
+  export and rebuilt to this project's rules: one CSV over every
+  designed run in a runs directory, ranked and excluded candidates
+  alike, identity from the production sheets and one column per
+  computed property recorded anywhere in those runs. Only values
+  whose recorded basis is a computation (RDKit, ADMET-AI) become
+  columns; designer predictions are excluded as matrix material,
+  and a candidate with no recorded value gets an empty cell.
 - Security hardening for the console and the prompt path, with
   the trust model written down in SECURITY.md. The console now
   refuses any Host outside its allowlist (loopback names plus the
