@@ -4,6 +4,16 @@
 
 ### Added
 
+- Production packaging: the package version now has a single
+  source (`madd.__version__`, read dynamically by the build), the
+  CLI reports it as `madd --version`, and the optional compute
+  stack is declared as pyproject extras (`design`, `pdf`, `all`)
+  with floors at the versions the recorded computations were
+  produced with, so an installed deployment reproduces the
+  compute environment declaratively. docs/PRODUCTION_READINESS.md
+  records what is verified ready, the owner gates that remain
+  (roster, budget figure, API keys, scored run, target lock), and
+  the console-access operations gate.
 - Structural alerts (`madd alerts`, madd/structural_alerts.py),
   the second Gcloud-variant port rebuilt to this project's rules:
   the variant's four SMILES substring checks are replaced by

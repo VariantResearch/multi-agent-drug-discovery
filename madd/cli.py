@@ -1168,6 +1168,9 @@ def _cmd_debate_mock(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser with one subcommand per operation."""
     parser = argparse.ArgumentParser(prog="madd", description="MADD command line interface")
+    from . import __version__
+    parser.add_argument("--version", action="version",
+                        version=f"madd {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     p1 = sub.add_parser("audit-claims"); p1.add_argument("file"); p1.set_defaults(fn=_cmd_audit_claims)
     p2 = sub.add_parser("check-tool"); p2.add_argument("tool")

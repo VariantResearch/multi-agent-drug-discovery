@@ -4,15 +4,29 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "madd"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Provider-neutral multi-agent drug discovery system: blinded independent research agents, a structured debate engine, mechanical claim and citation auditing, live citation resolution, consensus tests, budget enforcement, provider adapters for live models, run orchestration, and the Gate 0 retrospective test set, with a CLI."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 dependencies = []
 
+[project.optional-dependencies]
+design = ["rdkit>=2026.3.6", "admet-ai>=2.0.1", "posebusters>=0.6.5",
+          "meeko>=0.8.0"]
+pdf = ["weasyprint"]
+all = ["rdkit>=2026.3.6", "admet-ai>=2.0.1", "posebusters>=0.6.5",
+       "meeko>=0.8.0", "weasyprint"]
+
+[project.urls]
+Homepage = "https://github.com/VariantResearch/multi-agent-drug-discovery"
+Repository = "https://github.com/VariantResearch/multi-agent-drug-discovery"
+
 [project.scripts]
 madd = "madd.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "madd.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["madd*"]

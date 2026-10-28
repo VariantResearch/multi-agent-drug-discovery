@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (468 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (471 tests), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -282,7 +282,10 @@ Installing the package instead of running it from the checkout also works, and p
 ```
 pip install .
 madd gate0-validate
+madd --version
 ```
+
+The core has no required dependencies. The optional compute stack is declared as extras with floors at the versions the recorded computations were produced with: `pip install ".[design]"` for RDKit, ADMET-AI, PoseBusters, and Meeko, `pip install ".[pdf]"` for WeasyPrint PDF export, and `pip install ".[all]"` for both. docs/PRODUCTION_READINESS.md lists what is verified ready, what remains an owner decision, and what remains an operations gate.
 
 ## Gate 0: the retrospective test set
 
