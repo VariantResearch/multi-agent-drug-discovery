@@ -1285,8 +1285,9 @@ PAGE = """<!DOCTYPE html>
   <p><button class="run" onclick="saveSetup()">SAVE SETUP</button>
   <span id="setup-msg" class="mut"></span></p>
   <div class="mut">Keys are never typed here: each slot names the environment variable that
-  holds its API key on the machine running the console. Test buttons make one small
-  research call against the SAVED setup, so save first after changing a slot.</div>
+  holds its API key on the machine running the console. TEST SAVED SLOT makes one small
+  research call against the saved setup; TEST AS ENTERED makes the same call against the
+  values typed above, without saving them.</div>
 </div>
 <div class="panel" id="panel-target" data-panel="target"><h2>TARGET RUN</h2>
   <div id="target-gate" class="mut"></div>
