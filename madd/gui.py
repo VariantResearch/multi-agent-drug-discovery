@@ -11,7 +11,10 @@ leaves the machine. One page, six panels:
   loads to this panel until at least the Primary slot is assigned,
   each slot shows whether its key variable is present in the
   server's environment, and a per-slot Test button makes one small
-  smoke call. The saved setup is a run config at
+  smoke call. A second button, Test as entered, smoke-tests the
+  slot exactly as typed in the form without saving it first, so a
+  model name or key variable can be verified before it replaces
+  the saved setup. The saved setup is a run config at
   runs/console-config.json, in the same format the CLI reads.
 - TARGET RUN: the target-first form. Name the thing to aim at,
   pick its kind (disease, receptor, genetic disorder, molecular
@@ -44,6 +47,20 @@ leaves the machine. One page, six panels:
   route, confirm identity against the sheet, run the confirmation
   assay), naming anything the sheet records as unspecified rather
   than inventing it.
+
+The panel layout is customizable: a toolbar above the panels
+(which is not itself a panel and cannot be hidden) opens a layout
+editor that shows or hides each panel and reorders them; the
+layout is saved server-side at runs/console-layout.json and
+applied by every browser that opens the console, with the
+built-in order as the default and a reset always available from
+that same toolbar. The console is also an installable PWA: it
+serves a manifest and a service worker that caches only the app
+shell (the page, the vendored viewer libraries, the icons), so
+the console can be installed on a phone or desktop home screen;
+API responses and run files are network-only in the worker and
+are never cached, so an installed console shows live server state
+or nothing.
 
 Theme is the synthwave palette of the owner's other tools (near-black
 #0a0a16, neon pink #ff71ce, purple #b967ff, cyan #01cdfe), laser
@@ -85,6 +102,90 @@ from .transcript import record_to_markdown
 from .production import build_production_sheets
 from .structure3d import candidate_model3d, candidate_structure3d
 
+# The console's top-level panels, in their default order. The
+# operator can reorder and hide panels (see RunManager.save_layout);
+# the page's panels carry these ids, and a saved layout is validated
+# against this list, so a panel id the server does not know can
+# never enter a saved layout.
+PANEL_IDS = ("setup", "target", "activity", "library")
+
+# The installable-app manifest for the console's PWA shell. The
+# shell is the page and its vendored assets only: run data and API
+# responses are never cached by the service worker (see
+# SERVICE_WORKER_JS), so an installed console still shows live
+# server state or nothing.
+MANIFEST_JSON = json.dumps({
+    "name": "MADD Console",
+    "short_name": "MADD",
+    "description": "Multi-Agent Drug Discovery console",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#0a0a16",
+    "theme_color": "#0a0a16",
+    "icons": [
+        {"src": "/assets/icon-192.png", "sizes": "192x192",
+         "type": "image/png"},
+        {"src": "/assets/icon-512.png", "sizes": "512x512",
+         "type": "image/png"},
+        {"src": "/assets/icon-maskable-512.png", "sizes": "512x512",
+         "type": "image/png", "purpose": "maskable"},
+    ],
+}, indent=2)
+
+# The service worker for the PWA shell. It caches ONLY the app
+# shell (the page, the manifest, the vendored viewer libraries, and
+# the icons) so the console installs and opens quickly; /api/ paths
+# and run files are network-only and are never stored, and a failed
+# navigation falls back to the cached shell page, which then loads
+# its data live or shows its own connection errors.
+SERVICE_WORKER_JS = """// MADD Console service worker: app shell only, never data.
+const CACHE = 'madd-console-shell-v1';
+const SHELL = ['/', '/manifest.webmanifest',
+  '/assets/3Dmol-min.js', '/assets/cytoscape.min.js',
+  '/assets/icon-192.png', '/assets/icon-512.png',
+  '/assets/apple-touch-icon.png'];
+self.addEventListener('install', function (event) {
+  event.waitUntil(caches.open(CACHE)
+    .then(function (cache) { return cache.addAll(SHELL); })
+    .then(function () { return self.skipWaiting(); }));
+});
+self.addEventListener('activate', function (event) {
+  event.waitUntil(caches.keys().then(function (keys) {
+    return Promise.all(keys.filter(function (k) { return k !== CACHE; })
+      .map(function (k) { return caches.delete(k); }));
+  }).then(function () { return self.clients.claim(); }));
+});
+self.addEventListener('fetch', function (event) {
+  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+  if (url.pathname.indexOf('/api/') === 0) {
+    return; // API responses are live state: network only, never cached.
+  }
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(function () {
+      return caches.match('/');
+    }));
+    return;
+  }
+  if (url.pathname.indexOf('/assets/') === 0) {
+    event.respondWith(caches.match(event.request).then(function (hit) {
+      return hit || fetch(event.request).then(function (resp) {
+        if (resp.ok) {
+          const copy = resp.clone();
+          caches.open(CACHE).then(function (cache) {
+            cache.put(event.request, copy);
+          });
+        }
+        return resp;
+      });
+    }));
+  }
+});
+"""
+
 
 class RunManager:
     """State of the one run the console drives at a time.
@@ -108,6 +209,7 @@ class RunManager:
             os.environ["MADD_REGISTRY_CACHE"] = str(
                 Path(runs_dir) / "registry-cache.sqlite3")
         self.setup_path = Path(runs_dir) / "console-config.json"
+        self.layout_path = Path(runs_dir) / "console-layout.json"
         self.lock = threading.Lock()
         self.cond = threading.Condition(self.lock)
         self.running = False
@@ -307,6 +409,17 @@ class RunManager:
             temp["judge"] = config["judge"]
         else:
             return {"ok": False, "error": "unknown slot: " + str(slot)}
+        return self._smoke_temp(temp, slot, index)
+
+    def _smoke_temp(self, temp, slot, index) -> dict:
+        """Build providers from a mode-stripped temp config and
+        smoke-test the one slot out of it.
+
+        Shared by the saved-slot test and the as-entered test: the
+        slot is what is being tested, not the config's shape rules.
+        A missing key variable reports as a config error before any
+        call is attempted.
+        """
         try:
             built = build_providers(temp)
         except ConfigError as exc:
@@ -314,6 +427,111 @@ class RunManager:
         provider = (built["judge"] if slot == "judge"
                     else built["providers"][index])
         return smoke_provider(provider)
+
+    def test_slot_form(self, slot, form) -> dict:
+        """Smoke-test one slot exactly as entered in the form.
+
+        The entry is built from the submitted fields and tested
+        without saving anything, so a model name, endpoint, or key
+        variable can be checked before it replaces the saved setup.
+        Nothing is written to the setup file. A judge entry needs a
+        valid providers list beside it to build, so it is built
+        beside two mock ballast entries, which are never called,
+        only the judge is, and the saved setup's state can never
+        fail a judge that was entered correctly.
+        """
+        if slot not in ("primary", "secondary", "judge"):
+            return {"ok": False, "error": "unknown slot: " + str(slot)}
+        entry = _entry_from_form(form, slot)
+        if entry is None:
+            return {"ok": False,
+                    "error": "slot not filled in: pick a kind first"}
+        if slot == "judge":
+            # The ballast is always two mock entries, never the
+            # saved setup's providers: the judge as entered must be
+            # judged on its own fields, not failed by a saved slot's
+            # missing key. Ballast is built but never called, and
+            # its names can never collide with the judge entry's.
+            ballast = [{"name": "ballast-" + str(i), "kind": "mock",
+                        "label": "ballast"} for i in range(2)]
+            return self._smoke_temp(
+                {"providers": ballast, "judge": entry}, slot, None)
+        # A debate config validates only with two provider entries,
+        # the same rule save_setup's clone follows: the tested entry
+        # plus a clone of itself as ballast. Only the tested entry
+        # (index 0) is called; the clone is built but never smoked,
+        # and being identical to the tested entry, any build error
+        # it raises is the tested slot's own error anyway.
+        clone = dict(entry)
+        clone["name"] = str(entry["name"]) + "-b"
+        clone["label"] = clone["name"]
+        return self._smoke_temp({"providers": [entry, clone]}, slot, 0)
+
+    def _load_layout(self):
+        """The saved console layout as a dict, or None.
+
+        A missing or unreadable layout file is simply "default
+        layout": the page renders every panel in its built-in
+        order until the operator saves a custom one.
+        """
+        try:
+            data = json.loads(self.layout_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        return data if isinstance(data, dict) else None
+
+    def layout_status(self) -> dict:
+        """The console layout the page applies: panel order and
+        which panels are hidden.
+
+        The saved file is validated against the known panel ids:
+        unknown ids are dropped, and any panel missing from the
+        saved order is appended in its default position's relative
+        order, so a layout saved by an older page can never strand
+        a panel that exists now.
+        """
+        saved = self._load_layout() or {}
+        raw_order = saved.get("order")
+        raw_hidden = saved.get("hidden")
+        order = [pid for pid in (raw_order if isinstance(raw_order, list)
+                                 else []) if pid in PANEL_IDS]
+        for pid in PANEL_IDS:
+            if pid not in order:
+                order.append(pid)
+        hidden = [pid for pid in (raw_hidden if isinstance(raw_hidden, list)
+                                  else []) if pid in PANEL_IDS]
+        return {"order": list(dict.fromkeys(order)),
+                "hidden": list(dict.fromkeys(hidden))}
+
+    def save_layout(self, payload) -> dict:
+        """Validate and save the operator's panel layout.
+
+        Order and hidden must be lists of known panel ids; an
+        unknown id refuses the whole save rather than being
+        silently dropped, so a mismatched page and server cannot
+        quietly lose a panel. The toolbar that edits the layout is
+        not a panel and can never be hidden, so a saved layout is
+        always recoverable from the page itself.
+        """
+        if not isinstance(payload, dict):
+            return {"ok": False, "errors": ["layout must be an object"]}
+        order = payload.get("order")
+        hidden = payload.get("hidden")
+        if not isinstance(order, list) or not isinstance(hidden, list):
+            return {"ok": False,
+                    "errors": ["order and hidden must be lists"]}
+        unknown = [pid for pid in list(order) + list(hidden)
+                   if pid not in PANEL_IDS]
+        if unknown:
+            return {"ok": False,
+                    "errors": ["unknown panel id: " + str(pid)
+                               for pid in unknown]}
+        data = {"order": list(dict.fromkeys(order)),
+                "hidden": list(dict.fromkeys(hidden))}
+        self.layout_path.parent.mkdir(parents=True, exist_ok=True)
+        self.layout_path.write_text(json.dumps(data, indent=2),
+                                    encoding="utf-8")
+        return {"ok": True, "layout": self.layout_status()}
 
     def start_target(self, payload) -> dict:
         """Begin a target run on a background thread, refusing overlaps."""
@@ -572,6 +790,14 @@ def make_handler(manager: RunManager):
                 return _text(self, PAGE, "text/html; charset=utf-8")
             if path == "/api/setup":
                 return _json(self, manager.setup_status())
+            if path == "/api/layout":
+                return _json(self, manager.layout_status())
+            if path == "/manifest.webmanifest":
+                return _text(self, MANIFEST_JSON,
+                             "application/manifest+json; charset=utf-8")
+            if path == "/sw.js":
+                return _text(self, SERVICE_WORKER_JS,
+                             "text/javascript; charset=utf-8")
             if path == "/api/runs":
                 runs = [entry for entry in list_runs(manager.runs_dir)
                         if entry.get("kind") != "gate0_run"]
@@ -591,13 +817,19 @@ def make_handler(manager: RunManager):
             known = {"3Dmol-min.js": "text/javascript",
                      "3Dmol-min.js.LICENSE.txt": "text/plain",
                      "cytoscape.min.js": "text/javascript",
-                     "cytoscape.min.js.LICENSE.txt": "text/plain"}
+                     "cytoscape.min.js.LICENSE.txt": "text/plain",
+                     "icon-192.png": "image/png",
+                     "icon-512.png": "image/png",
+                     "icon-maskable-512.png": "image/png",
+                     "apple-touch-icon.png": "image/png"}
             name = path[len("/assets/"):]
             if name not in known:
                 return _json(self, {"error": "not found"}, 404)
             target = Path(__file__).parent / "assets" / name
             if not target.exists():
                 return _json(self, {"error": "asset missing"}, 404)
+            if name.endswith(".png"):
+                return _text(self, target.read_bytes(), known[name])
             return _text(self, target.read_text(),
                          known[name] + "; charset=utf-8")
 
@@ -759,8 +991,23 @@ def make_handler(manager: RunManager):
                     return _json(self, {"ok": False,
                                         "errors": [str(exc)]})
             if path == "/api/setup/test":
-                return _json(self, manager.test_slot(
-                    str(payload.get("slot") or "")))
+                try:
+                    return _json(self, manager.test_slot(
+                        str(payload.get("slot") or "")))
+                except (TypeError, ValueError) as exc:
+                    return _json(self, {"ok": False, "error": str(exc)})
+            if path == "/api/setup/test-form":
+                try:
+                    return _json(self, manager.test_slot_form(
+                        str(payload.get("slot") or ""), payload.get("form")))
+                except (TypeError, ValueError) as exc:
+                    return _json(self, {"ok": False, "error": str(exc)})
+            if path == "/api/layout":
+                try:
+                    return _json(self, manager.save_layout(payload))
+                except (TypeError, ValueError) as exc:
+                    return _json(self, {"ok": False,
+                                        "errors": [str(exc)]})
             if path == "/api/stop":
                 return _json(self, manager.request_stop())
             if path == "/api/target-preflight":
@@ -936,7 +1183,14 @@ def serve(host="127.0.0.1", port=8765, runs_dir="runs"):
 
 PAGE = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MADD CONSOLE</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a16">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MADD">
 <style>
   body { background:#0a0a16; color:#e8e8f2; font-family:'Segoe UI',system-ui,sans-serif;
          margin:0; padding:28px;
@@ -978,11 +1232,37 @@ PAGE = """<!DOCTYPE html>
                      padding:8px; border-radius:4px; }
   textarea { display:block; margin-top:6px; }
   input[type=checkbox] { width:auto; }
+  .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+             margin:10px 0 2px; }
+  .layoutrow { display:flex; gap:10px; align-items:center; margin:6px 0; }
+  .layoutrow .lname { min-width:130px; letter-spacing:1px; }
+  .layoutrow button { padding:4px 10px; }
+  @media (max-width: 720px) {
+    body { padding:12px; }
+    .panel { padding:12px; }
+    input { width:100%; max-width:420px; }
+    textarea { width:100% !important; }
+    h1 { font-size:22px; }
+  }
 </style></head><body>
 <h1>MADD // CONSOLE</h1>
 <div class="sub">MULTI-AGENT DRUG DISCOVERY - EVIDENCE AUDIT DIVISION</div>
 <div class="scan"></div><hr class="laser">
-<div class="panel"><h2>SETUP // MODEL SLOTS</h2>
+<div class="toolbar">
+  <button type="button" id="layoutbtn" onclick="toggleLayoutEditor()">CUSTOMIZE LAYOUT</button>
+  <button type="button" id="installbtn" style="display:none" onclick="installApp()">INSTALL APP</button>
+  <span id="layout-msg" class="mut"></span>
+</div>
+<div id="layout-editor" class="panel" style="display:none">
+  <h2>CONSOLE LAYOUT</h2>
+  <div class="mut">Arrange the console's panels: show or hide each one and
+  move them up or down. Changes save to the console server as you make
+  them and apply on every browser that opens this console. This toolbar
+  always stays visible, so a hidden panel is never lost.</div>
+  <div id="layout-rows"></div>
+  <p><button type="button" onclick="resetLayout()">RESET TO DEFAULT LAYOUT</button></p>
+</div>
+<div class="panel" id="panel-setup" data-panel="setup"><h2>SETUP // MODEL SLOTS</h2>
   <div id="setup-status" class="mut">checking setup...</div>
   <div id="slot-primary"></div><div id="slot-secondary"></div><div id="slot-judge"></div>
   <div style="margin-top:10px">panel preset
@@ -1008,7 +1288,7 @@ PAGE = """<!DOCTYPE html>
   holds its API key on the machine running the console. Test buttons make one small
   research call against the SAVED setup, so save first after changing a slot.</div>
 </div>
-<div class="panel"><h2>TARGET RUN</h2>
+<div class="panel" id="panel-target" data-panel="target"><h2>TARGET RUN</h2>
   <div id="target-gate" class="mut"></div>
   <div>name <input id="t-name" style="width:300px">
     kind <select id="t-kind">
@@ -1027,12 +1307,12 @@ PAGE = """<!DOCTYPE html>
   <span id="target-msg" class="mut"></span></p>
   <div id="preflight" class="mut"></div>
 </div>
-<div class="panel"><h2>ACTIVITY</h2>
+<div class="panel" id="panel-activity" data-panel="activity"><h2>ACTIVITY</h2>
   <div style="margin-bottom:6px"><span id="runbar" class="mut">no run active</span>
   <button id="stopbtn" style="display:none" onclick="stopRun()">STOP RUN</button></div>
   <div id="console">console ready.</div>
 </div>
-<div class="panel"><h2>RUN LIBRARY</h2>
+<div class="panel" id="panel-library" data-panel="library"><h2>RUN LIBRARY</h2>
   <div style="margin-bottom:8px">
     <select id="lib-kind"><option value="">all kinds</option><option value="target_run">target runs</option><option value="frame_run">frame runs</option><option value="design_run">design runs</option></select>
     <select id="lib-outcome"><option value="">all outcomes</option></select>
@@ -1659,6 +1939,7 @@ function slotHtml(slot, view) {
   h += "<div style='margin-top:6px'>base url <input id='s-" + slot + "-base_url' style='width:250px' value='" + esc(v.base_url || '') + "'>";
   h += " api key env var <input id='s-" + slot + "-api_key_env' style='width:170px' value='" + esc(v.api_key_env || '') + "'>";
   h += " <button class='slottest' data-slot='" + slot + "'>TEST SAVED SLOT</button>" +
+    " <button class='slottestform' data-slot='" + slot + "'>TEST AS ENTERED</button>" +
     " <span id='s-" + slot + "-test' class='mut'></span></div></div>";
   return h;
 }
@@ -1705,6 +1986,9 @@ function renderSetup(st) {
   }
   document.querySelectorAll('.slottest').forEach(function (el) {
     el.addEventListener('click', function () { testSlot(el.dataset.slot); });
+  });
+  document.querySelectorAll('.slottestform').forEach(function (el) {
+    el.addEventListener('click', function () { testSlotForm(el.dataset.slot); });
   });
   for (const slot of ['primary', 'secondary', 'judge']) {
     $('s-' + slot + '-kind').addEventListener('change', refreshModes);
@@ -1773,6 +2057,16 @@ async function testSlot(slot) {
     ? ('OK | model ' + (out.model_returned || out.model_configured || '?') +
        ' | ' + out.latency_ms + ' ms')
     : ('failed: ' + (out.error || 'unknown'));
+}
+async function testSlotForm(slot) {
+  const el = $('s-' + slot + '-test');
+  el.textContent = 'calling as entered...';
+  const out = await post('/api/setup/test-form',
+    {slot: slot, form: collectSlot(slot)});
+  el.textContent = out.ok
+    ? ('as entered OK | model ' + (out.model_returned || out.model_configured || '?') +
+       ' | ' + out.latency_ms + ' ms (not saved)')
+    : ('as entered failed: ' + (out.error || 'unknown'));
 }
 async function preflight() {
   const out = await post('/api/target-preflight', {});
@@ -1856,6 +2150,114 @@ async function runTarget() {
 for (const id of ['lib-kind', 'lib-outcome', 'lib-sort'])
   $(id).addEventListener('change', renderLibrary);
 $('lib-search').addEventListener('input', renderLibrary);
-loadLibrary(); loadSetup();
+const PANEL_LABELS = {setup: 'SETUP', target: 'TARGET RUN',
+  activity: 'ACTIVITY', library: 'RUN LIBRARY'};
+let layoutState = null;
+function applyLayout(layout) {
+  layoutState = layout;
+  const parent = document.body;
+  for (const pid of layout.order) {
+    const el = $('panel-' + pid);
+    if (el) parent.appendChild(el);
+  }
+  for (const pid of Object.keys(PANEL_LABELS)) {
+    const el = $('panel-' + pid);
+    if (el) el.style.display = layout.hidden.indexOf(pid) >= 0 ? 'none' : '';
+  }
+  renderLayoutRows();
+}
+function renderLayoutRows() {
+  const box = $('layout-rows');
+  if (!box) return;
+  if (!layoutState) {
+    box.innerHTML = "<div class='mut'>The saved layout could not be " +
+      "loaded. Reset below restores the default layout.</div>";
+    return;
+  }
+  box.innerHTML = layoutState.order.map(function (pid, i) {
+    const hidden = layoutState.hidden.indexOf(pid) >= 0;
+    return "<div class='layoutrow'><span class='lname'>" + PANEL_LABELS[pid] +
+      "</span><label><input type='checkbox' data-layout-vis='" + pid + "'" +
+      (hidden ? '' : ' checked') + "> visible</label>" +
+      "<button type='button' data-layout-move='" + pid + ":-1'" +
+      (i === 0 ? ' disabled' : '') + ">&uarr;</button>" +
+      "<button type='button' data-layout-move='" + pid + ":1'" +
+      (i === layoutState.order.length - 1 ? ' disabled' : '') + ">&darr;</button></div>";
+  }).join('');
+  box.querySelectorAll('[data-layout-vis]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      togglePanelVisible(el.dataset.layoutVis, el.checked);
+    });
+  });
+  box.querySelectorAll('[data-layout-move]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      const parts = el.dataset.layoutMove.split(':');
+      movePanel(parts[0], parseInt(parts[1], 10));
+    });
+  });
+}
+async function saveLayout() {
+  const out = await post('/api/layout',
+    {order: layoutState.order, hidden: layoutState.hidden});
+  if (!out.ok) {
+    $('layout-msg').textContent = 'layout not saved: ' + (out.errors || []).join('; ');
+    loadLayout();
+    return;
+  }
+  $('layout-msg').textContent = 'layout saved.';
+  applyLayout(out.layout);
+}
+function togglePanelVisible(pid, visible) {
+  const hidden = layoutState.hidden.filter(function (p) { return p !== pid; });
+  if (!visible) hidden.push(pid);
+  layoutState = {order: layoutState.order, hidden: hidden};
+  applyLayout(layoutState);
+  saveLayout();
+}
+function movePanel(pid, dir) {
+  const order = layoutState.order.slice();
+  const i = order.indexOf(pid);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  order.splice(i, 1);
+  order.splice(j, 0, pid);
+  layoutState = {order: order, hidden: layoutState.hidden};
+  applyLayout(layoutState);
+  saveLayout();
+}
+async function resetLayout() {
+  layoutState = {order: Object.keys(PANEL_LABELS), hidden: []};
+  applyLayout(layoutState);
+  await saveLayout();
+}
+function toggleLayoutEditor() {
+  const ed = $('layout-editor');
+  ed.style.display = ed.style.display === 'none' ? '' : 'none';
+  if (ed.style.display !== 'none') renderLayoutRows();
+}
+async function loadLayout() {
+  try {
+    applyLayout(await (await fetch('/api/layout')).json());
+  } catch (e) { /* default layout stands */ }
+}
+let deferredInstall = null;
+function initPwa() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  }
+  window.addEventListener('beforeinstallprompt', function (ev) {
+    ev.preventDefault();
+    deferredInstall = ev;
+    $('installbtn').style.display = '';
+  });
+}
+async function installApp() {
+  if (!deferredInstall) return;
+  deferredInstall.prompt();
+  await deferredInstall.userChoice;
+  deferredInstall = null;
+  $('installbtn').style.display = 'none';
+}
+loadLibrary(); loadSetup(); loadLayout(); initPwa();
 </script></body></html>
 """

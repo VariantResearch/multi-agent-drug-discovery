@@ -4,6 +4,28 @@
 
 ### Added
 
+- Customizable console layout: a toolbar above the console's panels
+  (itself not a panel, and never hideable) opens a layout editor that
+  reorders and shows or hides the setup, target, activity, and library
+  panels. The layout is validated against the known panel ids and
+  saved server-side at runs/console-layout.json, applied by every
+  browser that opens the console, with the built-in order as the
+  default, completion of partial saved orders, and a one-click reset.
+- Installable console PWA: the console serves a web app manifest
+  (/manifest.webmanifest) and a service worker (/sw.js) that caches
+  only the app shell (the page, the vendored 3Dmol and Cytoscape
+  libraries, and the generated reticle icons, also served through the
+  asset whitelist). API responses and run files are network-only in
+  the worker and are never cached, so an installed console shows live
+  server state or nothing. The page carries the manifest link, theme
+  color, touch icon, and a viewport with a narrow-screen layout, and
+  shows an install button when the browser offers installation.
+- Setup panel test-as-entered: each model slot gains a TEST AS
+  ENTERED button that smoke-tests the slot exactly as typed in the
+  form, without saving it, so a model name, endpoint, or key
+  variable can be verified before it replaces the saved setup. A
+  missing key variable fails before any call, naming the variable;
+  nothing is written to the setup file.
 - Operator-side failure memory (`madd failures`, madd/failure_memory.py),
   the TradeMemory-style failure log scoped on 2026-10-27: it records
   what failed in finished runs and why (Gate 0 threshold failures,
