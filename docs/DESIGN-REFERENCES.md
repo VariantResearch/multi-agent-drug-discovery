@@ -158,3 +158,52 @@ when a genetic-disorder target run is actually on the
 table; adoption would belong in a phase spec, behind the
 license registry, with its prediction labels settled
 first.
+
+## AutoSwarm - coordination of installed agent CLIs (HKUDS/AutoSwarm)
+
+Recorded 2026-11-02 at the owner's request. Facts checked
+against the project's own repository and its arXiv paper
+(2610.33048, 2026-10-17) on the day of recording.
+
+What it is: a coordination layer, installed as a Skill
+plus a CLI into a host agent, that unifies other agent
+CLIs installed on the same machine into one team. The
+host receives a task once; AutoSwarm selects
+collaborators by capability, shares context and memory
+across them, runs work in parallel, and verifies and
+synthesizes the results. Collaborators are local CLIs:
+Codex, Claude Code, OpenCode, Cursor, GitHub Copilot
+CLI, Meta Muse Code, CodeBuddy, Hermes, Nanobot,
+DeepSeek Harness, Grok Build, and Kimi Code. MIT
+license, Python 3.10+, about 2,300 stars and 395 forks
+at recording, created July 2026, no releases yet.
+
+The pattern worth keeping is from the paper, in two
+parts. Collaboration formation: specialization is
+grounded in the contributions the shared objective
+needs, and each delegated contribution carries its
+responsibility boundary plus the conditions for
+acceptance and downstream use, so other agents can
+assess and integrate it. Execution coordination: a
+shared state of contribution progress and dependencies,
+with supervisory relationships governing activation,
+handoffs, and integration, adapting to review feedback
+and blockers. The acceptance-condition half is the
+transferable idea for MADD: a delegated research
+contribution that states up front what would make it
+acceptable to the panel and the audit is the same
+discipline Gate 0 applies after the fact, moved
+earlier into the delegation itself. The paper reports
+advantages over single-agent baselines and existing
+multi-agent frameworks on LongCLI-Bench, Plancraft,
+and APEX-Agents 1.1; those are the authors' own
+results, not independently verified here.
+
+Boundary: it is not a provider candidate and not an
+orchestration replacement. MADD's panel runs model
+providers through its own debate engine; AutoSwarm
+orchestrates installed CLI products on one host, a
+different layer. It is also pre-release software whose
+verification probes spend real model calls. Recorded
+as a design reference only; adoption would belong in a
+phase spec with the owner's approval.
