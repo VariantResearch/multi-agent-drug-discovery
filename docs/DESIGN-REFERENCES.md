@@ -207,3 +207,24 @@ different layer. It is also pre-release software whose
 verification probes spend real model calls. Recorded
 as a design reference only; adoption would belong in a
 phase spec with the owner's approval.
+
+Implemented (2026-11-02, at the owner's instruction):
+the acceptance-condition half shipped natively. A
+frame may carry acceptance_conditions (a list of
+plain-language condition strings) and a responsibility
+string, both optional and stated at delegation time;
+the frame schema types them, run_debate in
+madd/debate.py validates them and freezes them into
+the run record under delegation, and Gate 0 frames
+pass them through from a case pack that states them
+(madd/runner.py). Providers receive the frame whole,
+so the statement reaches every research agent and
+judge with the tasking, and madd/audit_flow.py
+surfaces it beside the audit counts so a contribution
+can be checked against what was asked. Nothing scores
+against the statement: no ranking, consensus test, or
+threshold reads it, and a frame without one behaves
+exactly as before. The paper's second half, execution
+coordination, was not adopted; the debate protocol's
+own steps already fix activation, handoffs, and
+integration. Tests: tests/test_delegation.py.

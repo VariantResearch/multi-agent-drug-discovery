@@ -5,6 +5,12 @@
     "_synthetic": {
       "type": "boolean"
     },
+    "acceptance_conditions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "artifact_type": {
       "enum": [
         "frame"
@@ -30,6 +36,9 @@
       "type": "string"
     },
     "question": {
+      "type": "string"
+    },
+    "responsibility": {
       "type": "string"
     },
     "round_cap": {

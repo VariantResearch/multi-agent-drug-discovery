@@ -451,6 +451,18 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
     budget when both are given.
     resolver: optional live citation resolver, callable(identifier,
     identifier_type) returning a status string; see audit_dossier.
+
+    Delegation: a frame may carry acceptance_conditions (a list of
+    plain-language condition strings) and a responsibility string,
+    stated at delegation time, in the pattern recorded in
+    docs/DESIGN-REFERENCES.md (the AutoSwarm entry): what a delegated
+    contribution must satisfy, and the boundary of what it is
+    responsible for. Providers receive the frame whole, so the
+    statement reaches every research agent and judge with the tasking
+    itself. The run record carries it under "delegation" (empty when
+    the frame states none), so the audit output can set each
+    contribution against what was asked. It is metadata for judgement
+    and audit: no ranking, test, or threshold reads it.
     """
     if not isinstance(frame, dict) or not frame.get("frame_id"):
         raise ValueError("frame must be a dict with a frame_id")
@@ -461,6 +473,22 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         raise ValueError("frame round_cap must be a positive integer when "
                          "present; a cap below 1 would forbid the debate "
                          "the protocol requires")
+    acceptance_conditions = frame.get("acceptance_conditions")
+    if acceptance_conditions is not None and (
+            not isinstance(acceptance_conditions, list)
+            or any(not isinstance(c, str) or not c.strip()
+                   for c in acceptance_conditions)):
+        raise ValueError("frame acceptance_conditions must be a list of "
+                         "non-empty strings when present; they state, at "
+                         "delegation time, what a contribution must "
+                         "satisfy to be acceptable, and a malformed "
+                         "statement would leave the audit checking "
+                         "against nothing definite")
+    responsibility = frame.get("responsibility")
+    if responsibility is not None and not isinstance(responsibility, str):
+        raise ValueError("frame responsibility must be a string when "
+                         "present; it states the responsibility boundary "
+                         "of the contributions delegated under this frame")
     providers = list(providers)
     if len(providers) < 2:
         raise ValueError("the debate protocol needs at least two research providers")
@@ -733,6 +761,10 @@ def run_debate(frame: dict, providers: list, judge_provider=None,
         "schema_version": "0.1.0",
         "frame_id": frame.get("frame_id"),
         "round_cap": frame.get("round_cap"),
+        "delegation": {
+            "responsibility": responsibility,
+            "acceptance_conditions": list(acceptance_conditions or []),
+        },
         "providers": [{"name": getattr(p, "name", None),
                        "model_version": getattr(p, "model_version", None),
                        "agent_id": a["agent_id"], "dossier_id": a["dossier_id"]}

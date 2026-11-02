@@ -127,10 +127,17 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
     it is the canonical identifier a dossier must copy into
     proposed_focus_id, and the debate engine reads proposed focuses
     against it (see canonical_focus_id in madd/debate.py).
+
+    The pack's delegation statement, when it declares one, rides at
+    the top level the same way: acceptance_conditions and
+    responsibility, stated by the case author at delegation time and
+    recorded on the run record by the debate engine (see run_debate
+    in madd/debate.py). A pack that states neither produces exactly
+    the frame it produced before.
     """
     case_pack = copy.deepcopy(pack)
     case_pack.pop("forbidden_terms", None)
-    return {
+    frame = {
         "artifact_type": "frame",
         "schema_version": "0.1.0",
         "frame_id": "GATE0-" + case_id,
@@ -145,6 +152,10 @@ def frame_for_case(case_id: str, pack: dict) -> dict:
         "round_cap": 2,
         "case_pack": case_pack,
     }
+    for key in ("acceptance_conditions", "responsibility"):
+        if pack.get(key) is not None:
+            frame[key] = pack[key]
+    return frame
 
 
 def baseline_prediction(dossier: dict, resolver=None, quote_checker=None,

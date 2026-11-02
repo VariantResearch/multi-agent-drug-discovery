@@ -9,6 +9,13 @@ record itself; the record does not carry the dossiers' full claim
 lists, so claims that survived the audit without entering the
 specification are not a recorded number, and the flow says so rather
 than estimating them.
+
+The flow also carries the run's delegation statement (the
+responsibility boundary and acceptance conditions stated on the
+frame at delegation time, recorded under "delegation" on the
+record), so whoever reads the audit can set each contribution
+against what was asked of it. Records frozen before the statement
+existed read as an empty one.
 """
 
 from collections import Counter
@@ -72,8 +79,14 @@ def audit_flow(record):
             1 for r in results if isinstance(r, dict) and r.get("passed")),
         "consensus_total": len(results)})
     skipped = evolution.get("duplicate_claim_ids_skipped") or 0
+    delegation = record.get("delegation") or {}
     return {
         "stages": stages,
+        "delegation": {
+            "responsibility": delegation.get("responsibility"),
+            "acceptance_conditions": list(
+                delegation.get("acceptance_conditions") or []),
+        },
         "claims_merged": evolution.get("claims_merged"),
         "duplicate_claims_skipped": (skipped if isinstance(skipped, int)
                                      else len(skipped)),
