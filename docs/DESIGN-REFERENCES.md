@@ -228,3 +228,53 @@ exactly as before. The paper's second half, execution
 coordination, was not adopted; the debate protocol's
 own steps already fix activation, handoffs, and
 integration. Tests: tests/test_delegation.py.
+
+## AI Scientist-v2 - agentic tree search for experiments
+
+Recorded 2026-11-06. Facts checked against the project's
+own repository on the day of recording.
+
+Source: github.com/SakanaAI/AI-Scientist-v2
+
+What it is: an end-to-end agentic system from Sakana AI
+that generates hypotheses, runs experiments, analyzes
+data, and writes scientific manuscripts, with no
+human-authored experiment templates. Its experiment
+stage is a progressive best-first tree search guided by
+an experiment manager agent: parallel exploration paths,
+a bounded debug depth for failing nodes, and a
+probability of attempting a debug instead of abandoning
+a path (bfts_config.yaml: num_workers, steps, num_seeds,
+max_debug_depth, debug_prob, num_drafts). About 7,453
+stars and 1,015 forks at recording, created April 2025,
+58 commits, no releases. The authors report a workshop
+paper written entirely by the system was accepted
+through peer review (their claim, from their paper and
+blog, not independently verified here).
+
+The pattern that transfers to MADD is the tree search
+shape for the experiment and design stages: many
+candidate paths explored as an explicit tree, an
+experiment manager deciding where to expand, and
+failure handling stated as numbers (a debug budget and
+a retry probability) instead of ad-hoc agent judgment.
+That maps onto ranked candidate generation, where dead
+ends currently end a line of work rather than feeding a
+bounded, audited retry against the same evidence rules.
+
+Boundary: license is the blocker for any code use.
+GitHub reports the license as NOASSERTION; the README
+names the AI Scientist Source Code License, a
+derivative of the Responsible AI License, with a
+mandatory AI-use disclosure duty for resulting papers.
+That is pattern-reference only under the project's
+license rules. Practical blockers match: it executes
+LLM-written code (the README itself warns to run it
+only in a sandbox), needs NVIDIA GPU infrastructure,
+and its own FAQ prices a run at roughly 15 to 20
+dollars for the experiment stage plus about 5 dollars
+for writing. Nothing here proposes running it or
+adopting its code; any use of the tree search pattern
+belongs in a phase spec, re-proven against MADD's
+blinding and audit guarantees, with the owner's
+approval.
