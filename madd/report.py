@@ -217,12 +217,66 @@ def _target_markdown(bundle: dict) -> str:
     return "\n".join(lines)
 
 
+def _tree_markdown(bundle: dict) -> str:
+    """Markdown report for an experiment tree bundle."""
+    brief = bundle.get("brief") or {}
+    gate = bundle.get("gate_report") or {}
+    cfg = bundle.get("config") or {}
+    lines = ["# Experiment tree " + str(bundle.get("run_id")),
+             "",
+             "Target: " + str(brief.get("target")) + " | Disease: "
+             + str(brief.get("disease")) + " | Spec: " + str(brief.get("spec_id")),
+             "Designer: " + str(bundle.get("designer")) + " | Gate: "
+             + str(gate.get("result")) + " | Stop: "
+             + str(bundle.get("stop_reason")) + " after "
+             + str(bundle.get("expansions")) + " expansion(s)",
+             "Config: max_steps " + str(cfg.get("max_steps"))
+             + ", num_seeds " + str(cfg.get("num_seeds"))
+             + ", max_debug_depth " + str(cfg.get("max_debug_depth"))
+             + ", debug_prob " + str(cfg.get("debug_prob"))
+             + ", seed " + str(cfg.get("seed")),
+             "", "## Gate checks"]
+    for check in gate.get("checks", []):
+        lines.append("- " + str(check.get("name")) + ": " + str(check.get("status"))
+                     + " (" + str(check.get("detail")) + ")")
+    lines += ["", "## Nodes"]
+    for node in bundle.get("nodes", []):
+        ranking = node.get("ranking") or {}
+        best = ""
+        if ranking.get("ranked"):
+            audit = {a["candidate_id"]: a
+                     for a in node.get("audits", [])}[ranking["ranked"][0]]
+            best = (" | best " + str(ranking["ranked"][0])
+                    + " (audited load-bearing claims: "
+                    + str(audit.get("audited_load_bearing")) + ")")
+        lines.append("- " + str(node.get("node_id")) + " ["
+                     + str(node.get("kind")) + "] status "
+                     + str(node.get("status")) + " | ranked "
+                     + str(len(ranking.get("ranked") or []))
+                     + ", excluded "
+                     + str(len(ranking.get("excluded") or []))
+                     + " | debug depth " + str(node.get("debug_depth"))
+                     + best)
+    best = bundle.get("best")
+    lines += ["", "## Best candidate"]
+    if best:
+        lines.append(str(best.get("candidate_id")) + " in "
+                     + str(best.get("node_id"))
+                     + " - audited load-bearing claims: "
+                     + str((best.get("score") or [0])[0]))
+    else:
+        lines.append("(none ranked)")
+    return "\n".join(lines) + "\n"
+
+
 def bundle_to_markdown(bundle: dict) -> str:
     """Dispatch on bundle kind and return the markdown report."""
     if bundle.get("kind") == "gate0_run":
         return _gate0_markdown(bundle)
     if bundle.get("kind") == "design_run":
         return _design_markdown(bundle)
+    if bundle.get("kind") == "experiment_tree":
+        return _tree_markdown(bundle)
     if bundle.get("kind") == "target_run":
         return _target_markdown(bundle)
     return _frame_markdown(bundle)

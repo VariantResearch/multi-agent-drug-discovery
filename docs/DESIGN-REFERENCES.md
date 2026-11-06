@@ -262,19 +262,39 @@ That maps onto ranked candidate generation, where dead
 ends currently end a line of work rather than feeding a
 bounded, audited retry against the same evidence rules.
 
-Boundary: license is the blocker for any code use.
-GitHub reports the license as NOASSERTION; the README
-names the AI Scientist Source Code License, a
-derivative of the Responsible AI License, with a
+Boundary: GitHub reports the license as NOASSERTION;
+the README names the AI Scientist Source Code License,
+a derivative of the Responsible AI License, with a
 mandatory AI-use disclosure duty for resulting papers.
-That is pattern-reference only under the project's
-license rules. Practical blockers match: it executes
+The license is source-available, so its code is never
+copied or imported here. Under the owner's license rule
+(2026-11-06), the pattern itself carries no such cap:
+implementing a studied design natively in this project's
+own code is the standard application. The system itself
+stays unrun here on practical grounds: it executes
 LLM-written code (the README itself warns to run it
 only in a sandbox), needs NVIDIA GPU infrastructure,
 and its own FAQ prices a run at roughly 15 to 20
 dollars for the experiment stage plus about 5 dollars
-for writing. Nothing here proposes running it or
-adopting its code; any use of the tree search pattern
-belongs in a phase spec, re-proven against MADD's
-blinding and audit guarantees, with the owner's
-approval.
+for writing.
+
+Applied 2026-11-06 at the owner's direction: the tree
+search pattern is implemented natively as
+madd/experiment_tree.py (CLI: madd experiment-tree),
+specified in docs/PHASE2_SPEC.md step 6. Each node is
+one run of the existing design pipeline (designer pass,
+RDKit and ADMET enrichment, the research layer's audit,
+the fixed ranking rule), the manager expands the open
+node whose best ranked candidate stands highest under
+that same ranking rule, children are seeded from ranked
+candidates with the seed's audited standing carried in
+the child brief, and a failed expansion feeds a bounded
+debug retry (max_debug_depth consecutive failures,
+debug_prob from a seeded generator) carrying the
+recorded exclusion reasons. The tree freezes as its own
+bundle kind with a gate report mirroring the design
+gate plus the manager's two self-checks. Twelve tests
+in tests/test_experiment_tree.py cover expansion order,
+seeding, the debug bound, the probability switch,
+recovery, determinism under a recorded seed, and the
+CLI round trip.

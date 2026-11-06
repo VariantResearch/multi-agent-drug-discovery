@@ -181,6 +181,52 @@ def _cmd_design_run(args) -> int:
     return 0 if bundle["gate_report"]["result"] == "pass" else 1
 
 
+def _cmd_experiment_tree(args) -> int:
+    """Run the Phase 2 design stage as an experiment tree search."""
+    from .experiment_tree import run_experiment_tree
+    try:
+        spec, source = _load_spec_arg(args.source, args.case)
+        constraints = tuple(args.constraint or ())
+        designer = None
+        tracker = None
+        if args.config:
+            built = build_providers(load_config(args.config))
+            tracker = run_budget_tracker(built)
+            designer = ModelDesigner(built["providers"],
+                                     budget_tracker=tracker)
+            print("designer: model panel from " + args.config + " ("
+                  + ", ".join(getattr(p, "name", "?") for p in built["providers"]) + ")")
+        config = {"max_steps": args.steps, "num_seeds": args.seeds,
+                  "max_debug_depth": args.max_debug_depth,
+                  "debug_prob": args.debug_prob, "seed": args.seed}
+        if args.goal is not None:
+            config["goal_audited_claims"] = args.goal
+        bundle = run_experiment_tree(
+            spec, source, designer=designer, config=config,
+            design_constraints=constraints, target=args.target,
+            disease=args.disease, use=args.use,
+            budget_tracker=tracker)
+    except BudgetExceeded as exc:
+        print("run stopped: " + str(exc), file=sys.stderr)
+        return 2
+    except (OSError, ValueError) as exc:
+        print("experiment-tree failed: " + str(exc), file=sys.stderr)
+        return 1
+    run_dir = write_bundle(bundle, args.out)
+    print("experiment tree " + bundle["tree_id"] + " written to " + str(run_dir))
+    print("gate: " + bundle["gate_report"]["result"] + " | expansions: "
+          + str(bundle["expansions"]) + " | stop: "
+          + str(bundle["stop_reason"]))
+    best = bundle.get("best")
+    if best:
+        print("  best: " + str(best["candidate_id"]) + " in "
+              + str(best["node_id"]) + " (audited load-bearing claims: "
+              + str(best["score"][0]) + ")")
+    else:
+        print("  best: none ranked")
+    return 0 if bundle["gate_report"]["result"] == "pass" else 1
+
+
 def _cmd_optimize(args) -> int:
     """Run the lead optimization loop around one designed candidate."""
     from datetime import datetime, timezone
@@ -1296,6 +1342,21 @@ def build_parser() -> argparse.ArgumentParser:
     p20.add_argument("--use", default="research", choices=["research", "commercial"])
     p20.add_argument("--tool-input", default=None)
     p20.set_defaults(fn=_cmd_design_run)
+    p31 = sub.add_parser("experiment-tree"); p31.add_argument("source")
+    p31.add_argument("--case", default=None)
+    p31.add_argument("--constraint", action="append", default=None)
+    p31.add_argument("--target", default=None)
+    p31.add_argument("--disease", default=None)
+    p31.add_argument("--config", default=None)
+    p31.add_argument("--steps", type=int, default=6)
+    p31.add_argument("--seeds", type=int, default=3)
+    p31.add_argument("--max-debug-depth", type=int, default=2)
+    p31.add_argument("--debug-prob", type=float, default=0.5)
+    p31.add_argument("--seed", type=int, default=0)
+    p31.add_argument("--goal", type=int, default=None)
+    p31.add_argument("--use", default="research", choices=["research", "commercial"])
+    p31.add_argument("--out", default="runs")
+    p31.set_defaults(fn=_cmd_experiment_tree)
     p27 = sub.add_parser("optimize"); p27.add_argument("design_bundle")
     p27.add_argument("--candidate", default=None)
     p27.add_argument("--config", required=True)

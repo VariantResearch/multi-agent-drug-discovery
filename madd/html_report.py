@@ -195,12 +195,57 @@ def _design_html(bundle: dict) -> str:
     return "".join(parts)
 
 
+def _tree_html(bundle: dict) -> str:
+    """HTML body for an experiment tree bundle."""
+    brief = bundle.get("brief") or {}
+    gate = bundle.get("gate_report") or {}
+    parts = ["<h1><span class='pink'>MADD</span> // EXPERIMENT TREE "
+             + _esc(bundle.get("run_id")) + "</h1><div class='laser'></div>"
+             "<p>Target <b>" + _esc(brief.get("target")) + "</b> &middot; "
+             + _esc(brief.get("disease")) + " &middot; designer "
+             + _esc(bundle.get("designer")) + " &middot; gate <b class='"
+             + ("pass" if gate.get("result") == "pass" else "fail") + "'>"
+             + _esc(gate.get("result")) + "</b> &middot; stop "
+             + _esc(bundle.get("stop_reason")) + " after "
+             + _esc(bundle.get("expansions")) + " expansion(s)</p>",
+             "<h2>NODES</h2><table><tr><th>node</th><th>kind</th>"
+             "<th>status</th><th>ranked</th><th>excluded</th>"
+             "<th>debug depth</th><th>best candidate</th></tr>"]
+    for node in bundle.get("nodes", []):
+        ranking = node.get("ranking") or {}
+        top = (ranking.get("ranked") or [""])[0]
+        parts.append("<tr><td>" + _esc(node.get("node_id")) + "</td><td>"
+                     + _esc(node.get("kind")) + "</td><td>"
+                     + _esc(node.get("status")) + "</td><td>"
+                     + _esc(len(ranking.get("ranked") or [])) + "</td><td>"
+                     + _esc(len(ranking.get("excluded") or [])) + "</td><td>"
+                     + _esc(node.get("debug_depth")) + "</td><td>"
+                     + _esc(top) + "</td></tr>")
+    parts.append("</table><h2>GATE CHECKS</h2>")
+    for check in gate.get("checks", []):
+        parts.append("<p class='mut'>" + _esc(check.get("name")) + ": "
+                     + _esc(check.get("status")) + " ("
+                     + _esc(check.get("detail")) + ")</p>")
+    best = bundle.get("best")
+    parts.append("<h2>BEST CANDIDATE</h2>")
+    if best:
+        parts.append("<p><b>" + _esc(best.get("candidate_id")) + "</b> in "
+                     + _esc(best.get("node_id"))
+                     + " - audited load-bearing claims: "
+                     + _esc((best.get("score") or [0])[0]) + "</p>")
+    else:
+        parts.append("<p class='mut'>(none ranked)</p>")
+    return "".join(parts)
+
+
 def bundle_to_html(bundle: dict) -> str:
     """Return a complete, self-contained HTML document for a bundle."""
     if bundle.get("kind") == "gate0_run":
         body = _gate0_html(bundle)
     elif bundle.get("kind") == "design_run":
         body = _design_html(bundle)
+    elif bundle.get("kind") == "experiment_tree":
+        body = _tree_html(bundle)
     elif bundle.get("kind") == "target_run":
         target = bundle.get("target") or {}
         body = ("<h2>Target run</h2><p>Target: <b>"

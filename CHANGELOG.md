@@ -4,6 +4,24 @@
 
 ### Added
 
+- Experiment tree search for the design stage
+  (madd/experiment_tree.py, CLI `madd experiment-tree`): a
+  best-first tree search over design briefs, in the shape the
+  AI Scientist-v2 design reference names for its experiment
+  stage and implemented natively against this pipeline. Each
+  node is one design expansion (designer pass, RDKit and
+  ADMET-AI enrichment, the research layer's candidate audit,
+  the fixed ranking rule); children are seeded from a node's
+  ranked candidates with the seed's audited standing carried
+  in the child brief as data; a failed expansion feeds one
+  bounded debug retry (max_debug_depth consecutive failures,
+  debug_prob drawn from the run's seeded generator) carrying
+  the recorded exclusion reasons; the search runs at most
+  max_steps expansions and can stop at a goal_audited_claims
+  target. The tree freezes as its own bundle kind with a gate
+  report mirroring the design gate plus two manager
+  self-checks, and renders in the markdown and HTML run
+  reports. Specified in docs/PHASE2_SPEC.md step 6.
 - Customizable console layout: a toolbar above the console's panels
   (itself not a panel, and never hideable) opens a layout editor that
   reorders and shows or hides the setup, target, activity, and library

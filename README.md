@@ -234,6 +234,10 @@ python3 -m madd design-brief <source> [--case <case-id>] [--target <t>] [--disea
 python3 -m madd design-run <source> [--case <case-id>] [--constraint <text>]...
                 [--config <file>] [--tool <name>] [--use research|commercial]
                 [--tool-input <file>]
+python3 -m madd experiment-tree <source> [--case <case-id>] [--constraint <text>]...
+                [--config <file>] [--steps <n>] [--seeds <n>]
+                [--max-debug-depth <n>] [--debug-prob <p>] [--seed <n>]
+                [--goal <n>]
 python3 -m madd transcript <record-or-bundle.json>
 python3 -m madd report-html <bundle.json>
 python3 -m madd report-pdf <bundle.json> --out <file.pdf>
@@ -264,6 +268,8 @@ A predictions file for gate0-report maps case ids (see gate0-list) to "advance" 
 ## Phase 2: design candidates from a locked target
 
 Phase 2 starts where a debate ends. design-run takes a locked consensus spec - from a spec file, a frame run bundle, or a Gate 0 bundle with --case naming the case - and refuses anything that is not locked. It builds a design brief (the target from the spec's focus, the surviving load-bearing claims as evidence constraints, plus any --constraint you add; specs record no disease, so pass --disease when it matters), generates candidates, audits them, ranks them, and stores a design bundle with a gate report, next to the run bundles.
+
+The design stage also runs as an experiment tree: `madd experiment-tree <source> [--config <run config>] [--steps 6] [--seeds 3] [--max-debug-depth 2] [--debug-prob 0.5] [--seed 0]`. Each node is one full design expansion (designer pass, RDKit and ADMET-AI enrichment, the same candidate audit and ranking rule); a best-first manager expands the open node whose best ranked candidate stands highest under that ranking rule, children are seeded from ranked candidates with the seed's audited standing carried in the child brief, and a failed expansion feeds one bounded debug retry carrying the recorded exclusion reasons. The search freezes as its own bundle kind with a gate report mirroring the design gate plus the manager's step-budget and debug-bound self-checks. The shape is the tree search pattern recorded from AI Scientist-v2 in docs/DESIGN-REFERENCES.md, implemented natively here; a candidate's standing inside a tree is exactly its standing in a single design run.
 
 A ranked lead can then be iterated with the optimize command: `madd optimize <design bundle> --config <run config> [--candidate <id>] [--rounds 2]`. The config's designer panel proposes analogs of the lead (the top-ranked candidate by default) in bounded rounds; every analog is computed on with RDKit and kept only when it Pareto-improves on its parent across the computed objectives (QED up, SA score down, structural alerts down), with duplicates, invalid structures, and analogs whose logP drifts more than 1.0 from the original lead dropped with reasons. Kept analogs chain - the round's best becomes the next round's parent - and the full lineage is stored as an optimization bundle. Kept means better on computed objectives only: the loop is in-silico iteration, not a potency or binding claim, and it covers SMILES leads only.
 
@@ -370,6 +376,11 @@ madd/            the package (standard library only)
                      rounds around one SMILES lead, RDKit-computed
                      objectives, Pareto improvement, full lineage
                      recorded as an optimization bundle
+  experiment_tree.py the design stage as a best-first tree
+                     search: seeded expansions from ranked
+                     candidates, bounded debug retries carrying
+                     the recorded exclusion reasons, the design
+                     audit and ranking rule unchanged at every node
   design_txgemma.py  TxGemma property predictions from an
                      operator-configured endpoint (MADD_TXGEMMA_URL):
                      Ames, hERG, and solubility answers attached as

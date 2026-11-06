@@ -120,6 +120,27 @@ target run is how a named target reaches it.
    construction and the exclusions are listed in the bundle instead.
    The gate report validates against the project's gate_report schema,
    and design-run exits non-zero when the gate fails.
+   A design run may also be executed as an **experiment tree**
+   (`madd experiment-tree`, madd/experiment_tree.py): a best-first
+   search in which each node is one expansion of the pipeline above
+   (one designer pass, enrichment, audit, and ranking, unchanged),
+   children are seeded from a node's ranked candidates (up to
+   num_seeds, each child brief carrying a tree_context block naming
+   its seed candidate and its audited standing), and the manager
+   expands the open node whose best ranked candidate stands highest
+   under the ranking rule in step 5. A node whose expansion ranks
+   nothing may gain one debug child carrying the recorded exclusion
+   reasons, bounded by max_debug_depth consecutive failures and
+   attempted with probability debug_prob from the run's seeded
+   generator; the search runs at most max_steps expansions and can
+   stop early at a goal_audited_claims target. The tree freezes as
+   its own bundle kind with a gate report mirroring this gate
+   (locked spec, candidates ranked, a real candidate ranked) plus
+   two manager self-checks (the step budget and the debug bound
+   respected). The pattern is the tree search shape recorded from
+   AI Scientist-v2 in docs/DESIGN-REFERENCES.md, implemented
+   natively against this pipeline; candidate standing inside a tree
+   is exactly the standing from step 4, nothing more.
 7. **Production targets.** The end goal of the stage (owner's
    statement, 2026-10-25): the ranked candidates become production
    targets for the targeted process. madd/production.py builds one
