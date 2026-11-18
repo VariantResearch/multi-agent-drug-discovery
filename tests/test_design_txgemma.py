@@ -83,7 +83,7 @@ def test_commercial_use_is_license_blocked(monkeypatch):
     assert record["status"] == "blocked_license"
 
 
-def test_unparseable_endpoint_answers_fail_honestly(monkeypatch):
+def test_unparseable_endpoint_answers_fail_plainly(monkeypatch):
     """An endpoint that answers nothing parseable for any task
     records failed, with the unparseable count shown."""
     monkeypatch.setenv("MADD_TXGEMMA_URL", "https://endpoint.example/run")

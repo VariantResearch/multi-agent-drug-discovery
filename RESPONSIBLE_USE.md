@@ -27,7 +27,7 @@ below are part of the design, not optional guidance.
 - The sign-off, the artifact hashes signed off on, and the gate reports
   relied on must be recorded in the run manifest.
 
-## Honest labelling rule
+## Plain labelling rule
 
 - Every output is labelled by the highest validation gate it has actually
   passed, using the gate names in docs/PHASE0_SPEC.md.

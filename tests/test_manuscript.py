@@ -37,7 +37,7 @@ def test_real_bundle_manuscript_is_faithful():
 
 
 def test_no_go_bundle_invents_nothing():
-    """A no-go bundle renders an honest draft: no candidates,
+    """A no-go bundle renders a plain draft: no candidates,
     no gate line, limitations still stated."""
     bundle = {"kind": "target_run", "run_id": "x",
               "outcome": "no_go", "mode": "simple",

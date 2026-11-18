@@ -164,8 +164,8 @@ def test_invalid_smiles_is_excluded_by_the_computed_constraint():
     assert bundle["gate_report"]["result"] == "fail"
 
 
-def test_cli_design_run_with_mock_config_stays_honest(tmp_path, capsys):
-    """Cli design run with mock config stays honest."""
+def test_cli_design_run_with_mock_config_stays_plain(tmp_path, capsys):
+    """Cli design run with mock config stays plain."""
     spec_path = tmp_path / "spec.json"
     spec_path.write_text(json.dumps(locked_spec()))
     config_path = tmp_path / "config.json"

@@ -13,7 +13,7 @@ The module also serves receptor structures shipped with the
 package (assets/receptors/), keyed by target name: today that is
 a registered predicted model, labelled predicted
 wherever it is used. A target with no shipped structure gets an
-honest none. Molecule and receptor are always separate models for
+plain none. Molecule and receptor are always separate models for
 separate views - no run here docks anything, so no binding pose is
 ever presented. When RDKit is unavailable, or the SMILES does not
 parse, or embedding fails, the status says so and no geometry is
@@ -105,7 +105,7 @@ def candidate_structure3d(bundle: dict, candidate_id: str) -> dict:
 
     Accepts a design bundle or a target-run bundle (whose design
     stage is nested). Sequence candidates carry no SMILES and get an
-    honest not_applicable status: this viewer renders small-molecule
+    plain not_applicable status: this viewer renders small-molecule
     structures only.
     """
     design, candidate = _find_candidate(bundle, candidate_id)
@@ -128,7 +128,7 @@ def smiles_to_sdf(smiles: str) -> dict:
     """The same embedded conformer as smiles_to_3d, as molfile text.
 
     Returns {"status": "ok", "sdf": text} on success, or the same
-    honest failure statuses as smiles_to_3d, without content. The
+    plain failure statuses as smiles_to_3d, without content. The
     fully rendered WebGL viewer consumes molfiles; the coordinates
     are the ETKDG embedding with the fixed seed, hydrogens removed.
     """

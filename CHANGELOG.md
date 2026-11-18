@@ -672,7 +672,7 @@
   the target to a reviewed human UniProt entry, fetches its
   AlphaFold predicted model, caches it in the runs directory,
   and registers it, labelled predicted with the model identity,
-  version, and mean pLDDT. Unresolvable targets keep the honest
+  version, and mean pLDDT. Unresolvable targets keep the plain
   none-on-file state.
 - Docking (madd/docking.py): an operator-triggered dock places
   the viewed candidate into the on-file receptor with AutoDock
@@ -842,7 +842,7 @@
   MMFF-relaxed) behind GET /api/runs/<run>/structure3d/<candidate>.
   The view states what it is: a generated conformer for
   visualization, not a measured structure or a docked pose.
-  Sequence candidates return an honest not_applicable; the buttons
+  Sequence candidates return a plain not_applicable; the buttons
   for them are disabled with the reason shown.
 - The first published designer output (designer-output/): the
   MTCH2 inhibition target run's frozen bundle, production sheets,
@@ -1013,7 +1013,7 @@
 - Gate 0 validation is now optional for the production program
   (owner's decision, 2026-10-25, recorded in docs/PHASE1_SPEC.md):
   live frame runs and Phase 2 design no longer wait on a scored or
-  passing Gate 0 run. Thresholds and honest pass/fail reporting of
+  passing Gate 0 run. Thresholds and plain pass/fail reporting of
   any validation run are unchanged.
 - docs/LIVE_RUN.md: the live run runbook (what a live run needs,
   the three modes in brief, the providers-check, dry-run,
@@ -1065,7 +1065,7 @@
   by name; verified live on RDKit conformers, clean and deliberately
   broken. AiZynthFinder retrosynthesis gets a dedicated runner
   (design_tools.run_retrosynthesis, design-run --retro-config) with an
-  honest no_config status when its model files were never downloaded.
+  plain no_config status when its model files were never downloaded.
   License registry gains all four tools with licenses verified
   against their own repositories (ADMET-AI MIT, Vina Apache-2.0,
   PoseBusters MIT, AiZynthFinder MIT).
@@ -1092,7 +1092,7 @@
 - Full-text quote checking: Europe PMC serves open-access full text
   for PMCID records, and a claim's supporting quote can now be checked
   against the actual source text (resolve.check_quote_against_source;
-  resolve-citations --check-quotes). Statuses are honest about the
+  resolve-citations --check-quotes). Statuses are plain about the
   middle case: full_text_unavailable proves nothing. Behind the new
   live_quote_check run-config flag, the evidence call strikes a
   quote_checked claim whose quote is absent from retrieved full text
@@ -1187,7 +1187,7 @@ tests/test_audit_regressions.py):
   presence checks. It now uses the document claim audit and the
   citation auditor, counts audited support once per claim_id, and
   excludes candidates whose load-bearing claims carry any audit error.
-- Design gate honesty: the gate previously passed on synthetic mock
+- Design gate reporting: the gate previously passed on synthetic mock
   candidates alone, even when a requested tool never ran, and
   design-run exited 0 on a failed gate. The gate now requires a real
   ranked candidate and completed requested tools; design-run exits
@@ -1324,7 +1324,7 @@ tests/test_audit_regressions.py):
   HTTPS (tested offline against fake transports shaped from the
   documented wire formats; not yet run against a real model account);
   (3) madd/prompting.py holds the shared research prompt and the
-  dossier response contract, whose failure mode is an honest empty
+  dossier response contract, whose failure mode is a plain empty
   dossier, never a repaired invention; (4) madd/config.py loads and
   validates run configs, reading API keys from the environment by
   variable name only; (5) prospective frame runs; (6) gate_report

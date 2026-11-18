@@ -1,7 +1,7 @@
 """Live citation resolution and source-text quote checking.
 
 The Phase 0 citation auditor (madd/citation_auditor.py) checks
-identifier format offline and honestly reports every claim as still
+identifier format offline and plainly reports every claim as still
 needing live resolution, because nothing ever resolved one. This module
 is that missing step. It asks the registry that owns the identifier
 whether the record exists, and returns what the registry says:

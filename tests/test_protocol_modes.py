@@ -163,7 +163,7 @@ class TestModeRuns(unittest.TestCase):
 
 
 class TestConsensusNotApplied(unittest.TestCase):
-    """The consensus layer reports a skipped stability test honestly."""
+    """The consensus layer reports a skipped stability test plainly."""
 
     def _inputs(self):
         """Two agreeing dossiers and a spec that passes the rest."""

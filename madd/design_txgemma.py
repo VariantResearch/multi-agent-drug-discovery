@@ -14,7 +14,7 @@ shape as the ADMET-AI bridge:
   MADD_TXGEMMA_TOKEN sent as a bearer token. No endpoint
   configured means the tool reports not_configured and
   predicts nothing: the capability is real when an endpoint
-  exists and honestly absent until then.
+  exists and plainly absent until then.
 - Three tasks are asked per SMILES candidate, MADD's phrasing
   of the TDC task questions: Ames mutagenicity (Yes/No), hERG
   inhibition (Yes/No), and aqueous solubility (a number, log

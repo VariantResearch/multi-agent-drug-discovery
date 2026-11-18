@@ -46,7 +46,7 @@ PubMed renders the Greek letter beta as "beta" or within words such as
 | ben2293-pantrk-atopic-dermatitis | Sponsor statement: https://www.businesswire.com/news/home/20230404006090/en/ (trial NCT04737304) | BenevolentAI Announces Top-Line Phase IIa Results for Its Topical pan-Trk Inhibitor BEN-2293 (1%) in Mild-to-Moderate Atopic Dermatitis (BusinessWire, sponsor release, 2023-04-05) | 2026-10-22 | verified |
 | rec994-ccm | Sponsor statement: https://alliancetocure.org/statement-from-recursion-regarding-rec-994-trial/ (trial NCT05085561) | Statement from Recursion regarding REC-994 Trial (Recursion Pharmaceuticals statement, published 2025-05-05) | 2026-10-22 | verified |
 
-## Leakage limitation, stated honestly
+## Leakage limitation, stated plainly
 
 Frontier models may already know these outcomes from training data.
 These are famous programs: FOURIER, STRIVE, STEP 1, and EPOCH are

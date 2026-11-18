@@ -1,7 +1,7 @@
 """Tests for figure/table evidence extraction, on a JATS
 fixture modelled on the live spike (2026-10-27): structured
 tables extract verbatim, figure captions extract with the
-graphic honestly unextracted, and an article without either
+graphic unextracted, labelled as such, and an article without either
 yields no entries rather than an error."""
 import sys
 from pathlib import Path

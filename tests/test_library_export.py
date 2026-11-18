@@ -1,4 +1,4 @@
-"""Library export tests: one honest screening table across runs."""
+"""Library export tests: one plain screening table across runs."""
 
 import csv
 import json

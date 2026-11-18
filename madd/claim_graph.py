@@ -8,7 +8,7 @@ spec / contested). Node data carries what the tap-to-inspect panel
 shows: claim text, supporting quote, verification status, and, for
 struck claims, the recorded strike reasons.
 
-Honesty limits, kept in the data: strike entries record a claim id,
+Plain limits, kept in the data: strike entries record a claim id,
 its dossier, and its reasons, but not the claim's text or source, so
 struck nodes carry only what the record carries. Edge labels say
 "cites" and "in spec" because that is what the record establishes;

@@ -1,4 +1,4 @@
-"""Workbench tests: uniform computed sets, honest gaps, no scores."""
+"""Workbench tests: uniform computed sets, plain gaps, no scores."""
 
 import json
 from pathlib import Path

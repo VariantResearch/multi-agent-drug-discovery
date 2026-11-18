@@ -2,7 +2,7 @@
 
 Status: built 2026-10-24 at the owner's order. This spec describes the
 design stage as implemented in madd/design.py and madd/design_tools.py,
-including what it honestly cannot do yet.
+including what it cannot do yet, stated plainly.
 
 ## Purpose
 
@@ -183,7 +183,7 @@ unverified in every report.
   panel designer (providers proposing structured candidates under a
   contract), and the license-gated external tool runner.
 - RDKit structure validation and computed descriptors for SMILES
-  candidates, license-gated and honestly reported when absent.
+  candidates, license-gated and plainly reported when absent.
 - Candidate enrichment before audit: ChEMBL/PubChem known-compound
   lookups by InChIKey, ADMET-AI predicted endpoints recorded as
   unverified tool predictions, and AiZynthFinder retrosynthesis

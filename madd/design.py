@@ -16,7 +16,7 @@ outputs enter as candidates with provenance recorded. Before audit,
 madd/design_rdkit.py validates every SMILES structure with RDKit and
 attaches computed descriptors, so a cycle ends with ranked candidates
 carrying real structures, calculated properties, and audited claims -
-or an honest gate failure explaining why not.
+or a plain gate failure explaining why not.
 """
 from __future__ import annotations
 
@@ -161,7 +161,7 @@ Rules you cannot escape:
 - Every candidate must carry a real structure: a SMILES string for a small molecule, an amino acid sequence for a peptide or biologic.
 - Any factual claim you attach follows the claim ledger: a load-bearing claim needs a real primary-source identifier (PubMed id, DOI, NCT number, PMCID, preprint PPR id, GWAS GCST or rsID, ChEMBL id, PubChem CID, or UniProt accession), an identifier_type, a supporting_quote, and an evidence_tier. Claims that cannot meet that bar must be marked load_bearing false or omitted. Unsourced assertions presented as support are struck by mechanical audit and exclude the candidate.
 - Predicted properties are your estimates: give each a basis of "designer_prediction". Never present an estimate as a measurement or a calculation.
-- Assess the brief's constraints honestly in constraint_results: status pass, fail, or unknown, with the basis for the assessment. A failed constraint excludes the candidate, and hiding one is worse than reporting it.
+- Assess the brief's constraints plainly in constraint_results: status pass, fail, or unknown, with the basis for the assessment. A failed constraint excludes the candidate, and hiding one is worse than reporting it.
 Answer with the JSON object specified in the user message and nothing else."""
 
 _DESIGN_CONTRACT = """Design brief (JSON):

@@ -68,8 +68,8 @@ def test_brief_refuses_unlocked_spec():
         design.build_brief({"artifact_type": "frame"}, "test")
 
 
-def test_mock_designer_candidates_are_honest():
-    """Mock designer candidates are honest."""
+def test_mock_designer_candidates_report_plainly():
+    """Mock designer candidates report plainly."""
     brief = design.build_brief(locked_spec(), "test")
     cands = design.MockDesigner().design(brief)
     assert len(cands) == 2
@@ -274,7 +274,7 @@ def test_gui_design_from_locked_frame_run(gui_server, tmp_path):
     out = _post(gui_server + "/api/design-run",
                 {"run_id": "frame-t-1", "disease": "Disease D"})
     assert out["ok"] is True
-    # Mock designer only: the run is written, the gate honestly fails.
+    # Mock designer only: the run is written, the gate plainly fails.
     assert out["gate"] == "fail"
     # Design run ids name the spec and carry a unique execution
     # suffix, so a repeat design can never overwrite this one.

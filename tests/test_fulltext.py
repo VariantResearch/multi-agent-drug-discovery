@@ -1,6 +1,6 @@
 """Tests for the full-text retrieval tiers: chunking, the
 tier caps, concise/deep evidence carrying chunked text with
-provenance, abstract-only honesty for articles without open
+provenance, abstract-only reporting for articles without open
 full text, the abstract tier returning base retrieval
 unchanged, and the estimate pricing the tier."""
 import sys

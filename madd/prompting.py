@@ -6,7 +6,7 @@ the run is a Gate 0 case), and it answers with one JSON dossier. This
 module owns both sides of that contract so every provider adapter
 sends the same prompt and parses answers the same way.
 
-The parsing rule is the honesty rule of the whole project: a response
+The parsing rule is the plain-reporting rule of the whole project: a response
 that cannot be parsed, or that fails the dossier schema, is never
 repaired into something plausible. It becomes a dossier with no
 claims, no proposed focus, and the failure recorded in its

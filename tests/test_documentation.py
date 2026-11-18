@@ -1,4 +1,4 @@
-"""Tests that the codebase stays documented and the docs stay honest."""
+"""Tests that the codebase stays documented and the docs stay accurate."""
 
 import ast
 import pathlib

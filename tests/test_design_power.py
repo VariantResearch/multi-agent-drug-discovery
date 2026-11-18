@@ -136,8 +136,8 @@ def test_vina_runner_reports_not_installed(tmp_path, monkeypatch):
     assert manifest["status"] == "not_installed"
 
 
-def test_retrosynthesis_without_config_is_an_honest_status(tmp_path, monkeypatch):
-    """Retrosynthesis without config is an honest status."""
+def test_retrosynthesis_without_config_is_a_plain_status(tmp_path, monkeypatch):
+    """Retrosynthesis without config is a plain status."""
     bindir = tmp_path / "bin"
     bindir.mkdir()
     exe = bindir / "aizynthcli"

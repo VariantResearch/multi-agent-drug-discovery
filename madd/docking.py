@@ -15,7 +15,7 @@ with 40 of 49 pose atoms within 2.5 A (its modes scored -10.2 to
 reproduced the crystal pose. The pipeline reproduces a known
 pose; it does not validate any new one.
 
-Availability is honest: Vina (binary on PATH or MADD_VINA_BIN)
+Availability is stated plainly: Vina (binary on PATH or MADD_VINA_BIN)
 and Meeko (with its receptor preparer beside the interpreter)
 are optional dependencies. When either is missing, docking
 reports not_available with the reason instead of failing.

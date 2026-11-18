@@ -1,5 +1,5 @@
 """Structure3d tests: conformer generation for SMILES candidates,
-honest statuses for everything else, and bundle lookup across
+plain statuses for everything else, and bundle lookup across
 design and target-run bundles.
 
 Structures here are simple known molecules used as fixtures; the
@@ -31,7 +31,7 @@ def test_invalid_smiles_status():
 
 def test_bundle_lookup_design_and_target():
     """Candidate lookup works on design bundles and target bundles,
-    and sequence candidates are honestly not applicable."""
+    and sequence candidates are plainly not applicable."""
     design = {"kind": "design_run", "candidates": [
         {"candidate_id": "mol", "structure": {"format": "smiles",
                                               "value": "CCO"}},

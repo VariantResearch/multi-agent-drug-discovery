@@ -235,8 +235,8 @@ def test_candidate_source_check_finds_aspirin_known():
 
 @pytest.mark.skipif(not design_sources.design_rdkit.available(),
                     reason="RDKit not installed in this environment")
-def test_candidate_source_check_records_failures_honestly():
-    """Candidate source check records failures honestly."""
+def test_candidate_source_check_records_failures_plainly():
+    """Candidate source check records failures plainly."""
     def down_fetch(url):
         """Fetch double that always fails."""
         raise ConnectionError("offline")

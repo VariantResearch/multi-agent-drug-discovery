@@ -25,7 +25,7 @@ def _bundle():
 
 def test_pack_from_the_real_bundle():
     """Four ranked candidates, computed identity on rank 1,
-    honest readiness on the sequences, the design record
+    plain readiness on the sequences, the design record
     intact (including the failed panel-c note)."""
     proposal = build_candidate_proposal(_bundle())
     assert proposal["bundle_outcome"] == "designed"

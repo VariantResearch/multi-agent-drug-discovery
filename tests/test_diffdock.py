@@ -1,6 +1,6 @@
 """Tests for the DiffDock cross-check: centroid math on
 hand-built pose files, agreement grading, the not_available
-state with no installation configured, failure honesty, and
+state with no installation configured, failure reporting, and
 confidence pickup. A stub runner fabricates DiffDock's output
 layout; no real DiffDock is installed here, which is exactly
 the state the not_available tests pin down."""

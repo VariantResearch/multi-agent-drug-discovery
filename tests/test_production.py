@@ -1,5 +1,5 @@
 """Production sheet tests: exact identity for SMILES candidates,
-composition for sequence candidates, honest not_specified lists,
+composition for sequence candidates, plain not_specified lists,
 and integration into design bundles.
 
 All structures here are invented test fixtures exercising plumbing;

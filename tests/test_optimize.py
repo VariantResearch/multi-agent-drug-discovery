@@ -101,7 +101,7 @@ def test_loop_chains_parent_and_stops_without_improvement():
     assert record["best"]["candidate_id"] == "a-good"
 
 
-def test_loop_honest_statuses():
+def test_loop_plain_statuses():
     """Sequence leads are not applicable, and a designer
     proposing nothing yields no_analogs, not a success."""
     sequence = {"candidate_id": "seq-1",

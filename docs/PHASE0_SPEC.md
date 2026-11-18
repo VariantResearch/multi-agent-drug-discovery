@@ -124,7 +124,7 @@ Current status, stated plainly:
 
 ## Gates after Gate 0 (names only in Phase 0)
 
-Later gates are named here so outputs can be labelled honestly:
+Later gates are named here so outputs can be labelled plainly:
 Gate 1 citation audit, Gate 2 independent-tool cross-check,
 Gate 3 computational design checks, Gate 4 human review sign-off,
 Gate 5 partner-lab experimental handoff. Only Gate 1 is partially

@@ -207,7 +207,7 @@ def _settle_retries(tracker, provider, cost):
 
     Retries are real provider calls the reserve did not know about;
     recording them can raise BudgetExceeded, which stops the run with
-    honest numbers rather than absorbing the overage silently.
+    plain numbers rather than absorbing the overage silently.
     """
     if tracker is None:
         return

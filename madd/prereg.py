@@ -28,7 +28,7 @@ LOCK_CRITERIA = (
     "outcome is locked under the run's own consensus tests; it "
     "counts as designed only when the design gate passes with "
     "at least one real ranked candidate")
-HONEST_LIMIT = (
+STATED_LIMIT = (
     "a pre-registration proves this run's question was declared "
     "before it ran; it cannot prove no undeclared runs happened")
 
@@ -58,7 +58,7 @@ def build_preregistration(frame: dict, providers, mode=None) -> dict:
                        "model_version": getattr(p, "model_version", None)}
                       for p in providers],
         "lock_criteria": LOCK_CRITERIA,
-        "limit": HONEST_LIMIT,
+        "limit": STATED_LIMIT,
     }
     record["sha256"] = canonical_hash(record)
     return record

@@ -4,7 +4,7 @@ A docking run or a structure tool can produce a pose that is
 geometrically impossible: clashes, broken bond lengths, inverted
 stereochemistry. PoseBusters (MIT, registry-cleared) is the standard
 mechanical check for exactly that. This module wraps it the way the
-other design bridges are wrapped: license gate first, an honest
+other design bridges are wrapped: license gate first, a plain
 not_installed when the package is absent, and a result that reports
 each individual check rather than a single unexplained verdict.
 

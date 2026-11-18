@@ -147,7 +147,7 @@ def test_fetch_receptor_with_canned_services(tmp_path):
 
 
 def test_docking_availability_and_pose_parsing():
-    """Docking reports availability honestly, and its PDBQT
+    """Docking reports availability plainly, and its PDBQT
     parsing reads a Vina result line and converts a pose."""
     check = docking.available()
     assert "available" in check and "problems" in check

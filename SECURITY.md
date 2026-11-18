@@ -72,7 +72,7 @@ that checks verbatim against retrieved full text, and survival
 through judges whose verdict vocabularies are closed and parsed
 strictly; the consensus and audit machinery treats unsupported
 output as failure, not as content to be repaired. Injection that
-only persuades still faces the same mechanical audit as honest
+only persuades still faces the same mechanical audit as plain
 error.
 
 ## Deliberate non-goals

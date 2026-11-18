@@ -18,7 +18,7 @@ Failure policy, kept deliberate:
   ProviderError. That is infrastructure failing, and a scored run must
   stop loudly rather than record a fake empty dossier for an outage.
 - A well-formed response whose text is not a usable dossier goes
-  through parse_dossier_response and becomes an honest failure
+  through parse_dossier_response and becomes a plain failure
   dossier. That is the model failing the task, which is data.
 
 API keys are passed in by the caller (madd/config.py reads them from

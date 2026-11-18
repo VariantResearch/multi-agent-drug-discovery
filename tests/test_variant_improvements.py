@@ -5,7 +5,7 @@ computed alerts, and the optional WeasyPrint PDF report export.
 
 Everything here runs offline: RDKit tests skip when the package
 is absent (the project's usual pattern), and the PDF tests inject
-a writer or exercise the honest not-installed path, so no test
+a writer or exercise the plain not-installed path, so no test
 needs WeasyPrint present.
 """
 import json
@@ -109,7 +109,7 @@ def test_report_pdf_with_injected_writer():
     assert "<!DOCTYPE html>" in seen["html"]
 
 
-def test_report_pdf_not_installed_is_honest(monkeypatch):
+def test_report_pdf_not_installed_is_plain(monkeypatch):
     """Without WeasyPrint the render refuses plainly, no file."""
     monkeypatch.setattr(report_pdf, "available", lambda: False)
     result = report_pdf.render_report_pdf(_frame_bundle())
@@ -144,7 +144,7 @@ def gui_server(tmp_path):
 
 def test_console_pdf_route_matches_environment(gui_server):
     """The console PDF route serves a PDF when WeasyPrint is
-    installed and the honest 501 explanation when it is not."""
+    installed and the plain 501 explanation when it is not."""
     url = gui_server + "/api/runs/test-pdf-1/report.pdf"
     if report_pdf.available():
         with urllib.request.urlopen(url, timeout=30) as resp:

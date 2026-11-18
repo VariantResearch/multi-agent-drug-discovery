@@ -1,4 +1,4 @@
-"""CLI smoke tests: every subcommand runs and reports honestly.
+"""CLI smoke tests: every subcommand runs and reports plainly.
 
 Predictions and frames written here are invented test values. The
 gate0-report pass case derives its prediction map from the real sealed

@@ -32,7 +32,7 @@ def settle_transport_retries(tracker, provider, cost_usd: float,
     attempt count on last_attempts. The reserve covered the first
     attempt; the retries are real provider calls too, so they are
     recorded here at the same per-call cost. Recording can raise
-    BudgetExceeded, which stops the run with honest numbers rather
+    BudgetExceeded, which stops the run with plain numbers rather
     than absorbing the overage silently. A None tracker (an
     unbudgeted run) settles nothing."""
     if tracker is None:
@@ -114,7 +114,7 @@ class BudgetTracker:
         """Record a call's actual cost. Raises BudgetExceeded over a cap.
 
         On a raise nothing is recorded: the spend figures stay at the
-        last in-budget state, so a stopped run reports honest numbers.
+        last in-budget state, so a stopped run reports plain numbers.
         """
         with self._lock:
             cost = _non_negative_number(cost_usd, "cost_usd")

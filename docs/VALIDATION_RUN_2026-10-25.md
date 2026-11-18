@@ -282,7 +282,7 @@ spelling defect in the agreement test (run 2), and the baseline
 margin (run 3). Both defects found along the way were real, were
 repaired generally in the shipped code, and stayed repaired.
 
-Run 3's margin result is the honest limit of this validation
+Run 3's margin result is the plain limit of this validation
 setup. The margin threshold measures what the multi-agent process
 adds over a single model answering alone. With one model family in
 every seat, the baseline is effectively another panelist reading

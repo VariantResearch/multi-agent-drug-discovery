@@ -53,7 +53,7 @@ python3 -m madd gate0-list
 python3 -m madd debate-mock examples/synthetic/frame.json --judge
 ```
 
-Expected results: the test suite passes (499 tests, run against this checkout's runs directory; two library-export tests need the local KRAS run bundle, which is not in the repo), Gate 0 validation prints PASS, and the mock debate ends in an honest no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
+Expected results: the test suite passes (499 tests, run against this checkout's runs directory; two library-export tests need the local KRAS run bundle, which is not in the repo), Gate 0 validation prints PASS, and the mock debate ends in a plain no_go - the mock provider's one claim is invented and unsourceable, so the evidence call strikes it. Run the suite with pytest, as above: part of the suite is written as plain pytest functions, and unittest discovery silently skips those files, reporting a smaller green run that never executed them. The package itself is standard-library only, but the suite needs pytest, and its structure tests (3D geometry, RDKit-computed identities, production sheets) need the optional rdkit package: without RDKit those tests fail rather than skip (measured 2026-10-26: 279 pass, 9 fail, 9 skip), while everything else passes.
 
 Try the auditors on the synthetic example dossier:
 
@@ -148,7 +148,7 @@ python3 -m madd run-frame my-frame.json --config my-run.json --out runs
 
 A frame run locks a specification or ends in a no-go, and writes the same bundle and report.
 
-To try the full pipeline with no keys at all, save this all-mock configuration as mock-run.json and run it. The mocks return the same invented dossier for every case, endorse nothing, and the run fails the thresholds honestly - which is the correct result for a panel that did no research:
+To try the full pipeline with no keys at all, save this all-mock configuration as mock-run.json and run it. The mocks return the same invented dossier for every case, endorse nothing, and the run fails the thresholds plainly - which is the correct result for a panel that did no research:
 
 ```
 {
@@ -200,7 +200,7 @@ Each provider entry:
 - max_tokens: response cap per call, default 4096.
 - label: mock providers only; differentiates their output.
 
-Every model receives the same research prompt (madd/prompting.py): supplied evidence only, no invented identifiers or quotes, honest unverified labels, and one JSON dossier back. A response that cannot be parsed becomes a dossier with no claims and the failure recorded, never a repaired invention. An HTTP error stops the run loudly instead: an outage must not be scored as a model failure.
+Every model receives the same research prompt (madd/prompting.py): supplied evidence only, no invented identifiers or quotes, plain unverified labels, and one JSON dossier back. A response that cannot be parsed becomes a dossier with no claims and the failure recorded, never a repaired invention. An HTTP error stops the run loudly instead: an outage must not be scored as a model failure.
 
 ## All commands
 
@@ -302,7 +302,7 @@ Negative controls (the programs failed): verubecestat / BACE1, PF-05089771 / Nav
 
 Pass thresholds, approved 2026-10-22 and recorded in docs/PHASE1_SPEC.md before any scored run: kill at least 3 of the 4 failures; advance at least 3 of the 4 successes; beat the single-model baseline by at least 1 case; zero audit violations; a judge swap may flip at most 1 of 8 calls. A run must also be complete - every case called - or it cannot pass at all.
 
-One honest caveat: these outcomes are famous, and frontier models may remember them despite the blinded inputs and cutoff dates. Gate 0 v1 is therefore a calibration and regression set, not a pristine blind test. A prospective set with a preregistered analysis is a later phase's work.
+One plain caveat: these outcomes are famous, and frontier models may remember them despite the blinded inputs and cutoff dates. Gate 0 v1 is therefore a calibration and regression set, not a pristine blind test. A prospective set with a preregistered analysis is a later phase's work.
 
 Status today: no scored Gate 0 run has taken place. The thresholds are approved; the model roster and the budget figure are the owner's recorded decisions, still to be entered in docs/PHASE1_SPEC.md. Anything in examples/ labelled synthetic is invented test material and is not evidence about any real drug program.
 

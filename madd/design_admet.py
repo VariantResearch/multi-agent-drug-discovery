@@ -12,7 +12,7 @@ The basis says computed because a named tool produced the numbers,
 not the designing model - but they are model predictions, not
 measurements and not deterministic calculations like RDKit's
 descriptors, so every entry carries verified: False and the candidate
-audit counts them as unverified predictions. That is the honest
+audit counts them as unverified predictions. That is the plain
 grade for a predicted hERG probability, and it is still far more
 information than a designer's own guess at the same number.
 

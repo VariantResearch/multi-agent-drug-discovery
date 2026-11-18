@@ -9,7 +9,7 @@ when it is planned.
 
 - **Test suite.** The full suite passes from a clean checkout
   (471 tests at the last full run, 2026-10-27; the README carries
-  the current count and a documentation test keeps it honest).
+  the current count and a documentation test keeps it accurate).
 - **Packaging.** The core installs with `pip install .` and has
   no required dependencies. The design stack (RDKit, ADMET-AI,
   PoseBusters, Meeko) and PDF export (WeasyPrint) are declared as
@@ -35,7 +35,7 @@ when it is planned.
   tool and version named). Structural alerts are advisory flags,
   never exclusions. No composite candidate score exists. Run
   bundles are canonicalised and hashed at freeze time.
-- **Data honesty in shipped outputs.** The two recorded designed
+- **Plain data reporting in shipped outputs.** The two recorded designed
   runs are labelled demonstration work. No candidate has been
   synthesized or assayed, and no output of this system says
   otherwise.

@@ -1,6 +1,6 @@
 """Fully rendered 3D model tests: molfile generation, the receptor
 registry (empty as shipped - the application opens blank; a
-registered structure resolves, everything else is an honest
+registered structure resolves, everything else is a plain
 none), and the combined candidate model payload."""
 import json
 from pathlib import Path

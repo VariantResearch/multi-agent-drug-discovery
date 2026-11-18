@@ -93,7 +93,7 @@ def test_crossref_correction_is_informational_not_retraction(tmp_path):
 
 
 def test_quiet_sources_produce_no_findings(tmp_path):
-    """No notices anywhere: empty findings, honest checked count."""
+    """No notices anywhere: empty findings, plain checked count."""
     report = watch(_runs_with_mtch2(tmp_path),
                    fetch_json=lambda url: {"resultList": {"result": []}},
                    today="2026-10-27")
